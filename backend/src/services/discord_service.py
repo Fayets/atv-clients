@@ -41,12 +41,21 @@ def canal_a_nombre(canal_name: str) -> str:
 @db_session
 def buscar_cliente(canal_name: str) -> int | None:
     """Busca cliente en BD por nombre derivado del canal. Retorna id o None."""
+    from src.models import Cliente
     nombre = canal_a_nombre(canal_name)
-    cliente = Cliente.get(lambda c: c.nombre.lower() == nombre.lower())
-    if cliente:
-        return cliente.id
-    primera = nombre.split()[0].lower()
-    candidatos = select(c for c in Cliente if primera in c.nombre.lower())[:]
+    nombre_lower = nombre.lower()
+
+    # Buscar todos y filtrar en Python (evita lambda en Pony ORM con Python 3.12)
+    clientes = Cliente.select()[:]
+
+    # Match exacto
+    for c in clientes:
+        if c.nombre.lower() == nombre_lower:
+            return c.id
+
+    # Match por primera palabra
+    primera = nombre_lower.split()[0]
+    candidatos = [c for c in clientes if primera in c.nombre.lower()]
     return candidatos[0].id if len(candidatos) == 1 else None
 
 
