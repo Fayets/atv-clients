@@ -8,7 +8,10 @@ from src.models import Cliente, DiscordTranscript
 
 def _now_ar():
     """Hora actual en Argentina (UTC-3)."""
-    return datetime.now(timezone(timedelta(hours=-3))).replace(tzinfo=None)
+    utc_now = datetime.now(timezone.utc)
+    ar_offset = timedelta(hours=-3)
+    ar_now = utc_now + ar_offset
+    return ar_now.replace(tzinfo=None)
 
 
 TRANSCRIPTS_BASE = Path("/opt/atv-clients/transcripts")
