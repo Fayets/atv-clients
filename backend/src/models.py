@@ -62,7 +62,7 @@ class DiscordTranscript(db.Entity):
     _table_ = ("clients", "discord_transcripts")
 
     id = PrimaryKey(int, auto=True)
-    cliente = Optional("Cliente")
+    cliente = Optional("Cliente", column="cliente_id")
     canal = Required(str, 100)
     categoria = Required(str, 50)
     fecha = Required(date)
