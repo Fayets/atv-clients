@@ -1,34 +1,50 @@
 from pathlib import Path
-
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
-from pony.orm import db_session, desc, select
-
+from pony.orm import db_session, desc
 from src.deps import get_current_user
 from src.models import DiscordTranscript
 
 router = APIRouter()
 
 
+def _get_transcripts_by_cliente(cliente_id: int) -> list:
+    """Obtiene transcripts de un cliente sin usar generators."""
+    all_transcripts = DiscordTranscript.select()[:]
+    return [t for t in all_transcripts if t.cliente is not None and t.cliente.id == cliente_id]
+
+
 @router.get("/sin-match")
 @db_session
 def canales_sin_match(_: str = Depends(get_current_user)):
-    """Canales que no matchearon con ningún cliente. Útil para debugging."""
-    sin_match = select(
-        t for t in DiscordTranscript if t.cliente is None
-    ).order_by(lambda t: desc(t.fecha))[:50]
+    all_transcripts = DiscordTranscript.select()[:]
+    sin_match = [t for t in all_transcripts if t.cliente is None]
+    sin_match.sort(key=lambda t: t.fecha, reverse=True)
     return [
         {"canal": t.canal, "categoria": t.categoria, "fecha": t.fecha.isoformat()}
-        for t in sin_match
+        for t in sin_match[:50]
     ]
+
+
+@router.get("/{cliente_id}/estado")
+@db_session
+def get_estado(cliente_id: int, _: str = Depends(get_current_user)):
+    from src.discord_bot import _bot_running
+    transcripts = _get_transcripts_by_cliente(cliente_id)
+    transcripts.sort(key=lambda t: t.creado_en or datetime.min, reverse=True)
+    ultimo = transcripts[0] if transcripts else None
+    return {
+        "actualizando": _bot_running,
+        "ultima_actualizacion": ultimo.creado_en.isoformat() if ultimo and ultimo.creado_en else None,
+    }
 
 
 @router.get("/{cliente_id}/transcripts")
 @db_session
 def listar_transcripts(cliente_id: int, _: str = Depends(get_current_user)):
-    transcripts = select(
-        t for t in DiscordTranscript if t.cliente is not None and t.cliente.id == cliente_id
-    ).order_by(lambda t: desc(t.fecha))[:]
+    transcripts = _get_transcripts_by_cliente(cliente_id)
+    transcripts.sort(key=lambda t: t.fecha, reverse=True)
     return [
         {
             "id": t.id,
@@ -41,7 +57,6 @@ def listar_transcripts(cliente_id: int, _: str = Depends(get_current_user)):
     ]
 
 
-@router.get("/{cliente_id}/transcripts/{transcript_id}")
 @router.get("/{cliente_id}/transcripts/{transcript_id}/contenido")
 @db_session
 def ver_transcript(
@@ -58,42 +73,25 @@ def ver_transcript(
     return PlainTextResponse(p.read_text(encoding="utf-8"))
 
 
-@router.get("/{cliente_id}/estado")
-@db_session
-def get_estado(cliente_id: int, _: str = Depends(get_current_user)):
-    from src.discord_bot import _bot_running
-
-    ultimo = select(
-        t for t in DiscordTranscript
-        if t.cliente is not None and t.cliente.id == cliente_id
-    ).order_by(lambda t: desc(t.creado_en)).first()
-
-    return {
-        "actualizando": _bot_running,
-        "ultima_actualizacion": ultimo.creado_en.isoformat() if ultimo and ultimo.creado_en else None,
-    }
-
-
 @router.post("/{cliente_id}/actualizar")
 @db_session
 def actualizar_transcript(cliente_id: int, _: str = Depends(get_current_user)):
     import asyncio
-
-    from src.discord_bot import trigger_cliente
     from src.models import Cliente
+    from src.discord_bot import trigger_cliente
 
     cliente = Cliente.get(id=cliente_id)
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    transcript = select(
-        t for t in DiscordTranscript
-        if t.cliente is not None and t.cliente.id == cliente_id
-    ).order_by(lambda t: desc(t.creado_en)).first()
+    transcripts = _get_transcripts_by_cliente(cliente_id)
+    transcripts.sort(key=lambda t: t.creado_en or datetime.min, reverse=True)
 
-    if not transcript:
+    if not transcripts:
         raise HTTPException(status_code=404, detail="No hay canal de Discord asociado a este cliente")
 
-    asyncio.get_event_loop().create_task(trigger_cliente(transcript.canal, transcript.categoria))
-
+    transcript = transcripts[0]
+    asyncio.get_event_loop().create_task(
+        trigger_cliente(transcript.canal, transcript.categoria)
+    )
     return {"status": "iniciado", "canal": transcript.canal}
