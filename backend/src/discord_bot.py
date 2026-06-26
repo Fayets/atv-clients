@@ -12,6 +12,11 @@ from src.services.discord_service import (
     guardar_transcript,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
+
 logger = logging.getLogger("discord_bot")
 
 DISCORD_BOT_TOKEN = config("DISCORD_BOT_TOKEN", default="")
@@ -89,5 +94,6 @@ def start_discord_bot() -> None:
     if not DISCORD_BOT_TOKEN or not DISCORD_GUILD_ID:
         logger.warning("DISCORD_BOT_TOKEN o DISCORD_GUILD_ID no configurados — bot deshabilitado")
         return
+    print(">>> Iniciando Discord bot...", flush=True)
     loop = asyncio.get_running_loop()
     loop.create_task(_client.start(DISCORD_BOT_TOKEN))
