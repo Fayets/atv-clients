@@ -1,4 +1,3 @@
-const ECOSYSTEM_API = import.meta.env.VITE_ECOSYSTEM_API_URL || 'https://ecosystem.atvos.io'
 const MOCK_AUTH = import.meta.env.VITE_MOCK_AUTH === 'true'
 
 const MOCK_SESSION = {
@@ -11,7 +10,7 @@ export async function getSession() {
   }
 
   try {
-    const res = await fetch(`${ECOSYSTEM_API}/api/auth/session`, {
+    const res = await fetch('/api/auth/session', {
       credentials: 'include',
     })
     if (!res.ok) return null
