@@ -16,10 +16,14 @@ CATEGORIAS = {
 
 def detectar_categoria(category_name: str) -> str | None:
     """Retorna 'boost', 'advantage', 'mentoria' o None."""
-    name = category_name.lower().strip()
+    import re
+    # Eliminar emojis y caracteres especiales, pasar a minúsculas
+    name = re.sub(r'[^\w\s]', '', category_name).lower().strip()
+    # Colapsar espacios múltiples
+    name = re.sub(r'\s+', ' ', name)
     for slug, keywords in CATEGORIAS.items():
         for kw in keywords:
-            if name.startswith(kw):
+            if kw in name:
                 return slug
     return None
 
