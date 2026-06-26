@@ -1,9 +1,15 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 
 from pony.orm import db_session, select
 
 from src.models import Cliente, DiscordTranscript
+
+
+def _now_ar():
+    """Hora actual en Argentina (UTC-3)."""
+    return datetime.now(timezone(timedelta(hours=-3))).replace(tzinfo=None)
+
 
 TRANSCRIPTS_BASE = Path("/opt/atv-clients/transcripts")
 
@@ -105,6 +111,7 @@ def _upsert_transcript(
     if existente:
         existente.mensajes = total_mensajes
         existente.filepath = filepath
+        existente.creado_en = _now_ar()
     else:
         cliente_obj = Cliente.get(id=cliente_id) if cliente_id else None
         DiscordTranscript(
@@ -114,4 +121,5 @@ def _upsert_transcript(
             fecha=hoy,
             filepath=filepath,
             mensajes=total_mensajes,
+            creado_en=_now_ar(),
         )
