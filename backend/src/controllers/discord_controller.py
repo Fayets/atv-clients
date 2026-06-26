@@ -30,12 +30,14 @@ def canales_sin_match(_: str = Depends(get_current_user)):
 @router.get("/{cliente_id}/estado")
 @db_session
 def get_estado(cliente_id: int, _: str = Depends(get_current_user)):
-    from src.discord_bot import _bot_running
+    from src.discord_bot import _canal_activo
     transcripts = _get_transcripts_by_cliente(cliente_id)
     transcripts.sort(key=lambda t: t.creado_en or datetime.min, reverse=True)
     ultimo = transcripts[0] if transcripts else None
+    canal_cliente = transcripts[0].canal if transcripts else None
+    actualizando = bool(canal_cliente and _canal_activo == canal_cliente)
     return {
-        "actualizando": _bot_running,
+        "actualizando": actualizando,
         "ultima_actualizacion": ultimo.creado_en.isoformat() if ultimo and ultimo.creado_en else None,
     }
 
