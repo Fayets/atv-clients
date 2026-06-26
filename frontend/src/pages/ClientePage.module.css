@@ -824,3 +824,10 @@
   overflow-y: auto;
   margin: 0;
 }
+
+.botTranscriptLastUpdate {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+  display: block;
+}

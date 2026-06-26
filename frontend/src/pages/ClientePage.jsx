@@ -1824,7 +1824,14 @@ export default function ClientePage({ clienteId }) {
             {/* Transcripts del bot */}
             <div className={styles.botTranscriptsSection}>
               <div className={styles.miroToolbar}>
-                <h3 className={styles.subCardTitle}>Transcripts automáticos</h3>
+                <div>
+                  <h3 className={styles.subCardTitle}>Transcripts automáticos</h3>
+                  {botTranscripts.length > 0 && (
+                    <span className={styles.botTranscriptLastUpdate}>
+                      Última actualización: {botTranscripts[0].fecha}
+                    </span>
+                  )}
+                </div>
                 <button
                   type="button"
                   className={styles.arregloCloserBtn}
@@ -1842,13 +1849,21 @@ export default function ClientePage({ clienteId }) {
                       #{selectedBotTranscript.canal} — {selectedBotTranscript.fecha}
                     </span>
                     <div className={styles.botTranscriptViewerActions}>
-                      <a
-                        href={`/api/discord/${clienteId}/transcripts/${selectedBotTranscript.id}/contenido`}
-                        download={`${selectedBotTranscript.canal}-${selectedBotTranscript.fecha}.txt`}
+                      <button
+                        type="button"
                         className={styles.arregloCloserBtn}
+                        onClick={() => {
+                          const blob = new Blob([botTranscriptContenido], { type: 'text/plain' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `${selectedBotTranscript.canal}-${selectedBotTranscript.fecha}.txt`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        }}
                       >
                         Descargar .txt
-                      </a>
+                      </button>
                       <button
                         type="button"
                         className={styles.cancelBtn}
