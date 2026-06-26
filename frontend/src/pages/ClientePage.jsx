@@ -311,30 +311,52 @@ export default function ClientePage({ clienteId }) {
   }, [])
 
   useEffect(() => {
-    if (!discordEstado.ultima_actualizacion) return
+    const HORARIOS = [
+      [9, 0], [10, 0], [13, 0], [16, 0], [18, 45], [23, 59],
+    ]
 
-    const ultima = new Date(discordEstado.ultima_actualizacion)
-    const proxima = new Date(ultima.getTime() + 3 * 60 * 60 * 1000)
-    setProximaActualizacion(proxima)
-
-    const interval = setInterval(() => {
+    const getProximoHorario = () => {
       const ahora = new Date()
-      const diff = proxima - ahora
+      const ahoraAR = new Date(ahora.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }))
+      const hAR = ahoraAR.getHours()
+      const mAR = ahoraAR.getMinutes()
+      const totalMinAhora = hAR * 60 + mAR
 
+      for (const [h, m] of HORARIOS) {
+        const totalMin = h * 60 + m
+        if (totalMin > totalMinAhora) {
+          const proxima = new Date(ahora)
+          proxima.setHours(proxima.getHours() + (h - hAR))
+          proxima.setMinutes(proxima.getMinutes() + (m - mAR))
+          proxima.setSeconds(0)
+          return proxima
+        }
+      }
+      const proxima = new Date(ahora)
+      proxima.setDate(proxima.getDate() + 1)
+      proxima.setHours(proxima.getHours() + (9 - hAR))
+      proxima.setMinutes(proxima.getMinutes() + (0 - mAR))
+      proxima.setSeconds(0)
+      return proxima
+    }
+
+    const tick = () => {
+      const proxima = getProximoHorario()
+      const diff = proxima - new Date()
       if (diff <= 0) {
         setCountdownDisplay('00:00:00')
-        clearInterval(interval)
         return
       }
-
       const hh = String(Math.floor(diff / 3600000)).padStart(2, '0')
       const mm = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0')
       const ss = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')
       setCountdownDisplay(`${hh}:${mm}:${ss}`)
-    }, 1000)
+    }
 
+    tick()
+    const interval = setInterval(tick, 1000)
     return () => clearInterval(interval)
-  }, [discordEstado.ultima_actualizacion])
+  }, [])
 
   const updateField = async (field, value) => {
     const updated = await patchCliente(clienteId, { [field]: value })

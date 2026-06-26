@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone
 
 import discord
+import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from decouple import config
 
@@ -90,7 +91,13 @@ async def _ciclo() -> None:
 async def on_ready() -> None:
     logger.info(f"Discord bot listo: {_client.user}")
     await _ciclo()
-    _scheduler.add_job(_ciclo, "interval", hours=3)
+    AR = pytz.timezone("America/Argentina/Buenos_Aires")
+    for hora, minuto in [(9, 0), (10, 0), (13, 0), (16, 0), (18, 45), (23, 59)]:
+        _scheduler.add_job(
+            _ciclo, "cron",
+            hour=hora, minute=minuto,
+            timezone=AR,
+        )
     _scheduler.start()
 
 
