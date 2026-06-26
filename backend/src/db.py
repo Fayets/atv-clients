@@ -151,6 +151,19 @@ MIGRATIONS = [
         END IF;
     END $$;
     """,
+    """
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'clients'
+            AND table_name = 'discord_transcripts'
+            AND column_name = 'cliente'
+        ) THEN
+            ALTER TABLE clients.discord_transcripts RENAME COLUMN cliente TO cliente_id;
+        END IF;
+    END $$;
+    """,
 ]
 
 
