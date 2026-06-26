@@ -209,6 +209,9 @@ export default function ClientePage({ clienteId }) {
   const [botTranscriptLoading, setBotTranscriptLoading] = useState(false)
   const [discordEstado, setDiscordEstado] = useState({ actualizando: false, ultima_actualizacion: null })
   const [discordActualizando, setDiscordActualizando] = useState(false)
+  const [proximaActualizacion, setProximaActualizacion] = useState(null)
+  const [countdownDisplay, setCountdownDisplay] = useState('')
+  const [discordEstadoLabel, setDiscordEstadoLabel] = useState('ok')
   const [documentoOpen, setDocumentoOpen] = useState(false)
   const [documentoDraft, setDocumentoDraft] = useState({ titulo: '', url: '' })
   const [documentoSaving, setDocumentoSaving] = useState(false)
@@ -263,6 +266,7 @@ export default function ClientePage({ clienteId }) {
   }
 
   const handleActualizarTranscript = async () => {
+    setDiscordEstadoLabel('actualizando')
     setDiscordActualizando(true)
     try {
       await triggerDiscordActualizacion(clienteId)
@@ -272,11 +276,13 @@ export default function ClientePage({ clienteId }) {
         if (!estado.actualizando) {
           clearInterval(poll)
           setDiscordActualizando(false)
+          setDiscordEstadoLabel('ok')
           await loadBotTranscripts()
         }
       }, 3000)
     } catch (err) {
       setDiscordActualizando(false)
+      setDiscordEstadoLabel('error')
     }
   }
 
@@ -303,6 +309,32 @@ export default function ClientePage({ clienteId }) {
   useEffect(() => {
     getSession().then((session) => setSessionUser(session))
   }, [])
+
+  useEffect(() => {
+    if (!discordEstado.ultima_actualizacion) return
+
+    const ultima = new Date(discordEstado.ultima_actualizacion)
+    const proxima = new Date(ultima.getTime() + 3 * 60 * 60 * 1000)
+    setProximaActualizacion(proxima)
+
+    const interval = setInterval(() => {
+      const ahora = new Date()
+      const diff = proxima - ahora
+
+      if (diff <= 0) {
+        setCountdownDisplay('00:00:00')
+        clearInterval(interval)
+        return
+      }
+
+      const hh = String(Math.floor(diff / 3600000)).padStart(2, '0')
+      const mm = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0')
+      const ss = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0')
+      setCountdownDisplay(`${hh}:${mm}:${ss}`)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [discordEstado.ultima_actualizacion])
 
   const updateField = async (field, value) => {
     const updated = await patchCliente(clienteId, { [field]: value })
@@ -1744,17 +1776,26 @@ export default function ClientePage({ clienteId }) {
                 <div className={styles.discordStatusRow}>
                   {discordEstado.actualizando || discordActualizando ? (
                     <>
-                      <span className={styles.discordDot} />
-                      <span className={styles.discordStatusText}>Actualizando...</span>
+                      <span className={`${styles.discordDot} ${styles.discordDotPulse}`} />
+                      <span className={styles.discordStatusText}>Estado: actualizando...</span>
+                    </>
+                  ) : discordEstadoLabel === 'error' ? (
+                    <>
+                      <span className={`${styles.discordDot} ${styles.discordDotError}`} />
+                      <span className={styles.discordStatusText}>Estado: error</span>
                     </>
                   ) : discordEstado.ultima_actualizacion ? (
-                    <span className={styles.discordStatusText}>
-                      Última actualización:{' '}
-                      {new Date(discordEstado.ultima_actualizacion).toLocaleString('es-AR', {
-                        day: '2-digit', month: '2-digit', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })}
-                    </span>
+                    <>
+                      <span className={`${styles.discordDot} ${styles.discordDotOk}`} />
+                      <span className={styles.discordStatusText}>
+                        Estado: ok · Última:{' '}
+                        {new Date(discordEstado.ultima_actualizacion).toLocaleString('es-AR', {
+                          day: '2-digit', month: '2-digit', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                        {countdownDisplay ? ` · Próxima en ${countdownDisplay}` : ''}
+                      </span>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -1807,67 +1848,6 @@ export default function ClientePage({ clienteId }) {
             ) : null}
 
             {discordError && !discordOpen ? <p className={styles.error}>{discordError}</p> : null}
-
-            <div className={styles.miroGrid}>
-              {cliente.discord_transcripts?.length ? cliente.discord_transcripts.map((transcript) => (
-                editingDiscordId === transcript.id ? (
-                  <div key={transcript.id} className={`${styles.miroFormPanel} ${styles.miroFormPanelWide}`}>
-                    <div>
-                      <span className={styles.label}>Título</span>
-                      <input
-                        type="text"
-                        className={styles.tableInput}
-                        value={discordEditDraft.titulo}
-                        onChange={(event) => setDiscordEditDraft({ titulo: event.target.value.toUpperCase() })}
-                        autoFocus
-                      />
-                    </div>
-                    <div className={styles.cuotaActions}>
-                      <button type="button" className={styles.saveBtn} onClick={() => guardarEditDiscord(transcript.id)} disabled={discordSaving}>
-                        {discordSaving ? 'Guardando...' : 'Guardar'}
-                      </button>
-                      <button type="button" className={styles.cancelBtn} onClick={cancelEditDiscord}>
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div key={transcript.id} className={styles.miroDocCard}>
-                    <a
-                      href={discordTranscriptDownloadUrl(clienteId, transcript.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.miroDocLink}
-                    >
-                      <div className={styles.discordDocPreview}>
-                        <span className={styles.discordDocBadge}>TXT</span>
-                      </div>
-                      <p className={styles.miroDocTitle}>{transcript.titulo}</p>
-                    </a>
-                    <div className={styles.miroDocActions}>
-                      <button
-                        type="button"
-                        className={styles.iconBtn}
-                        aria-label="Editar transcript"
-                        onClick={() => startEditDiscord(transcript)}
-                      >
-                        <i className="ti ti-pencil" />
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.iconBtn}
-                        aria-label="Eliminar transcript"
-                        onClick={() => eliminarDiscord(transcript.id)}
-                      >
-                        <i className="ti ti-trash" />
-                      </button>
-                    </div>
-                  </div>
-                )
-              )) : !discordOpen ? (
-                <p className={styles.muted}>Sin transcripts de Discord. Subí un archivo .txt con el botón de arriba.</p>
-              ) : null}
-            </div>
 
             <div className={styles.botTranscriptList}>
               {botTranscripts.length ? botTranscripts.map((t) => (

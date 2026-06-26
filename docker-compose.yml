@@ -4,12 +4,10 @@ services:
     container_name: atv-clients-backend
     environment:
       PYTHONUNBUFFERED: "1"
-      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
-      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
     env_file:
       - ./backend/.env
     ports:
-      - "8005:8000"
+      - "8007:8000"
     volumes:
       - /opt/atv-clients/transcripts:/opt/atv-clients/transcripts
     restart: unless-stopped
@@ -18,7 +16,7 @@ services:
     build: ./frontend
     container_name: atv-clients-frontend
     ports:
-      - "8085:80"
+      - "8087:80"
     depends_on:
       - backend
     restart: unless-stopped
