@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import discord
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -33,9 +33,9 @@ _scheduler = AsyncIOScheduler()
 
 async def _extraer_canal(canal: discord.TextChannel, categoria: str) -> None:
     try:
-        since = datetime.now(timezone.utc) - timedelta(hours=HORAS_LOOKBACK)
         mensajes = []
-        async for msg in canal.history(after=since, limit=500, oldest_first=True):
+
+        async for msg in canal.history(limit=None, oldest_first=True):
             if msg.author.bot:
                 continue
             mensajes.append({
