@@ -247,3 +247,11 @@ export function fetchDiscordTranscriptsBot(clienteId) {
 export function fetchDiscordTranscriptContenido(clienteId, transcriptId) {
   return requestText(`/api/discord/${clienteId}/transcripts/${transcriptId}/contenido`)
 }
+
+export function fetchDiscordEstado(clienteId) {
+  return request(`/api/discord/${clienteId}/estado`)
+}
+
+export function triggerDiscordActualizacion(clienteId) {
+  return request(`/api/discord/${clienteId}/actualizar`, { method: 'POST' })
+}

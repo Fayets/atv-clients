@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCuota, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, uploadDiscordTranscript } from '../api/clientes'
+import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCuota, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, triggerDiscordActualizacion, uploadDiscordTranscript } from '../api/clientes'
 import { getSession } from '../api/auth'
 import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
@@ -207,6 +207,8 @@ export default function ClientePage({ clienteId }) {
   const [selectedBotTranscript, setSelectedBotTranscript] = useState(null)
   const [botTranscriptContenido, setBotTranscriptContenido] = useState('')
   const [botTranscriptLoading, setBotTranscriptLoading] = useState(false)
+  const [discordEstado, setDiscordEstado] = useState({ actualizando: false, ultima_actualizacion: null })
+  const [discordActualizando, setDiscordActualizando] = useState(false)
   const [documentoOpen, setDocumentoOpen] = useState(false)
   const [documentoDraft, setDocumentoDraft] = useState({ titulo: '', url: '' })
   const [documentoSaving, setDocumentoSaving] = useState(false)
@@ -251,6 +253,33 @@ export default function ClientePage({ clienteId }) {
     setBotTranscriptContenido('')
   }
 
+  const loadDiscordEstado = async () => {
+    try {
+      const data = await fetchDiscordEstado(clienteId)
+      setDiscordEstado(data)
+    } catch (err) {
+      console.error('Error cargando estado Discord:', err)
+    }
+  }
+
+  const handleActualizarTranscript = async () => {
+    setDiscordActualizando(true)
+    try {
+      await triggerDiscordActualizacion(clienteId)
+      const poll = setInterval(async () => {
+        const estado = await fetchDiscordEstado(clienteId)
+        setDiscordEstado(estado)
+        if (!estado.actualizando) {
+          clearInterval(poll)
+          setDiscordActualizando(false)
+          await loadBotTranscripts()
+        }
+      }, 3000)
+    } catch (err) {
+      setDiscordActualizando(false)
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     setError('')
@@ -268,6 +297,7 @@ export default function ClientePage({ clienteId }) {
   useEffect(() => {
     load()
     loadBotTranscripts()
+    loadDiscordEstado()
   }, [clienteId])
 
   useEffect(() => {
@@ -1709,15 +1739,33 @@ export default function ClientePage({ clienteId }) {
         <div className={styles.quadGrid}>
           <section className={styles.quadTile}>
             <div className={styles.miroToolbar}>
-              <h2 className={styles.cardTitle}>Transcript de Discord</h2>
+              <div>
+                <h2 className={styles.cardTitle}>Transcript de Discord</h2>
+                <div className={styles.discordStatusRow}>
+                  {discordEstado.actualizando || discordActualizando ? (
+                    <>
+                      <span className={styles.discordDot} />
+                      <span className={styles.discordStatusText}>Actualizando...</span>
+                    </>
+                  ) : discordEstado.ultima_actualizacion ? (
+                    <span className={styles.discordStatusText}>
+                      Última actualización:{' '}
+                      {new Date(discordEstado.ultima_actualizacion).toLocaleString('es-AR', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
               <div className={styles.miroToolbarActions}>
                 <button
                   type="button"
                   className={styles.arregloCloserBtn}
-                  onClick={actualizarDiscordTxt}
-                  disabled={discordUpdating}
+                  onClick={handleActualizarTranscript}
+                  disabled={discordActualizando || discordEstado.actualizando}
                 >
-                  {discordUpdating ? 'Actualizando...' : 'Actualizar .txt'}
+                  {discordActualizando ? 'Actualizando...' : 'Actualizar'}
                 </button>
                 <button type="button" className={styles.arregloCloserBtn} onClick={openDiscordForm}>
                   + Agregar transcript
@@ -1821,90 +1869,66 @@ export default function ClientePage({ clienteId }) {
               ) : null}
             </div>
 
-            {/* Transcripts del bot */}
-            <div className={styles.botTranscriptsSection}>
-              <div className={styles.miroToolbar}>
-                <div>
-                  <h3 className={styles.subCardTitle}>Transcripts automáticos</h3>
-                  {botTranscripts.length > 0 && (
-                    <span className={styles.botTranscriptLastUpdate}>
-                      Última actualización: {botTranscripts[0].fecha}
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className={styles.arregloCloserBtn}
-                  onClick={loadBotTranscripts}
-                  disabled={botTranscriptsLoading}
-                >
-                  {botTranscriptsLoading ? 'Cargando...' : 'Actualizar'}
-                </button>
-              </div>
-
-              {selectedBotTranscript ? (
-                <div className={styles.botTranscriptViewer}>
-                  <div className={styles.botTranscriptViewerHeader}>
-                    <span className={styles.botTranscriptViewerTitle}>
-                      #{selectedBotTranscript.canal} — {selectedBotTranscript.fecha}
-                    </span>
-                    <div className={styles.botTranscriptViewerActions}>
-                      <button
-                        type="button"
-                        className={styles.arregloCloserBtn}
-                        onClick={() => {
-                          const blob = new Blob([botTranscriptContenido], { type: 'text/plain' })
-                          const url = URL.createObjectURL(blob)
-                          const a = document.createElement('a')
-                          a.href = url
-                          a.download = `${selectedBotTranscript.canal}-${selectedBotTranscript.fecha}.txt`
-                          a.click()
-                          URL.revokeObjectURL(url)
-                        }}
-                      >
-                        Descargar .txt
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.cancelBtn}
-                        onClick={cerrarBotTranscript}
-                      >
-                        Cerrar
-                      </button>
-                    </div>
-                  </div>
-                  {botTranscriptLoading ? (
-                    <p className={styles.muted}>Cargando...</p>
-                  ) : (
-                    <pre className={styles.botTranscriptPre}>
-                      {botTranscriptContenido}
-                    </pre>
-                  )}
-                </div>
-              ) : (
-                <div className={styles.botTranscriptList}>
-                  {botTranscripts.length ? botTranscripts.map((t) => (
-                    <div key={t.id} className={styles.botTranscriptItem}>
-                      <div className={styles.botTranscriptItemInfo}>
-                        <span className={styles.botTranscriptCanal}>#{t.canal}</span>
-                        <span className={styles.botTranscriptMeta}>
-                          {t.categoria.toUpperCase()} · {t.fecha} · {t.mensajes} msgs
-                        </span>
+            <div className={styles.botTranscriptList}>
+              {botTranscripts.length ? botTranscripts.map((t) => (
+                selectedBotTranscript?.id === t.id ? (
+                  <div key={t.id} className={styles.botTranscriptViewer}>
+                    <div className={styles.botTranscriptViewerHeader}>
+                      <span className={styles.botTranscriptViewerTitle}>
+                        #{t.canal} — {t.fecha}
+                      </span>
+                      <div className={styles.botTranscriptViewerActions}>
+                        <button
+                          type="button"
+                          className={styles.arregloCloserBtn}
+                          onClick={() => {
+                            const blob = new Blob([botTranscriptContenido], { type: 'text/plain' })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `${t.canal}-${t.fecha}.txt`
+                            a.click()
+                            URL.revokeObjectURL(url)
+                          }}
+                        >
+                          Descargar .txt
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.cancelBtn}
+                          onClick={cerrarBotTranscript}
+                        >
+                          Cerrar
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        className={styles.arregloCloserBtn}
-                        onClick={() => verBotTranscript(t)}
-                      >
-                        Ver
-                      </button>
                     </div>
-                  )) : (
-                    <p className={styles.muted}>
-                      {botTranscriptsLoading ? 'Cargando...' : 'No hay transcripts automáticos aún.'}
-                    </p>
-                  )}
-                </div>
+                    {botTranscriptLoading ? (
+                      <p className={styles.muted}>Cargando...</p>
+                    ) : (
+                      <pre className={styles.botTranscriptPre}>{botTranscriptContenido}</pre>
+                    )}
+                  </div>
+                ) : (
+                  <div key={t.id} className={styles.botTranscriptItem}>
+                    <div className={styles.botTranscriptItemInfo}>
+                      <span className={styles.botTranscriptCanal}>#{t.canal}</span>
+                      <span className={styles.botTranscriptMeta}>
+                        {t.categoria.toUpperCase()} · {t.fecha} · {t.mensajes} msgs
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.arregloCloserBtn}
+                      onClick={() => verBotTranscript(t)}
+                    >
+                      Ver
+                    </button>
+                  </div>
+                )
+              )) : (
+                <p className={styles.muted}>
+                  {discordActualizando ? 'Actualizando...' : 'Sin transcripts automáticos aún.'}
+                </p>
               )}
             </div>
           </section>

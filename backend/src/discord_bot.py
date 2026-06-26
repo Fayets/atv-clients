@@ -29,6 +29,7 @@ intents.guilds = True
 
 _client = discord.Client(intents=intents)
 _scheduler = AsyncIOScheduler()
+_bot_running: bool = False
 
 
 async def _extraer_canal(canal: discord.TextChannel, categoria: str) -> None:
@@ -62,10 +63,13 @@ async def _extraer_canal(canal: discord.TextChannel, categoria: str) -> None:
 
 
 async def _ciclo() -> None:
+    global _bot_running
+    _bot_running = True
     logger.info(f"[{datetime.now().strftime('%H:%M')}] Iniciando ciclo Discord...")
     guild = _client.get_guild(DISCORD_GUILD_ID)
     if not guild:
         logger.error("Guild no encontrado")
+        _bot_running = False
         return
 
     procesados = 0
@@ -79,6 +83,7 @@ async def _ciclo() -> None:
             await asyncio.sleep(0.5)
 
     logger.info(f"Ciclo completado — {procesados} canales procesados.")
+    _bot_running = False
 
 
 @_client.event
@@ -97,3 +102,24 @@ def start_discord_bot() -> None:
     print(">>> Iniciando Discord bot...", flush=True)
     loop = asyncio.get_running_loop()
     loop.create_task(_client.start(DISCORD_BOT_TOKEN))
+
+
+async def trigger_cliente(canal_name: str, categoria: str) -> None:
+    """Fuerza la extracción de un canal específico."""
+    global _bot_running
+    guild = _client.get_guild(DISCORD_GUILD_ID)
+    if not guild:
+        logger.error("Guild no encontrado para trigger_cliente")
+        return
+
+    canal_discord = discord.utils.get(guild.text_channels, name=canal_name)
+    if not canal_discord:
+        logger.warning(f"Canal #{canal_name} no encontrado en Discord")
+        return
+
+    _bot_running = True
+    try:
+        await _extraer_canal(canal_discord, categoria)
+        logger.info(f"Trigger manual completado para #{canal_name}")
+    finally:
+        _bot_running = False
