@@ -1814,6 +1814,7 @@ export default function ClientePage({ clienteId }) {
                         {new Date(discordEstado.ultima_actualizacion).toLocaleString('es-AR', {
                           day: '2-digit', month: '2-digit', year: 'numeric',
                           hour: '2-digit', minute: '2-digit',
+                          hour12: false,
                         })}
                         {countdownDisplay ? ` · Próxima en ${countdownDisplay}` : ''}
                       </span>
