@@ -23,6 +23,26 @@ async function request(path, options = {}) {
   return res.json()
 }
 
+async function requestText(path, options = {}) {
+  const res = await fetch(path, {
+    credentials: 'include',
+    ...options,
+  })
+
+  if (!res.ok) {
+    let detail = 'Error de servidor'
+    try {
+      const body = await res.json()
+      detail = body.detail || detail
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(detail)
+  }
+
+  return res.text()
+}
+
 export function createCliente(data) {
   return request('/api/clientes', {
     method: 'POST',
@@ -218,4 +238,12 @@ export function deleteDocumentoLink(clienteId, linkId) {
   return request(`/api/clientes/${clienteId}/documentos/${linkId}`, {
     method: 'DELETE',
   })
+}
+
+export function fetchDiscordTranscriptsBot(clienteId) {
+  return request(`/api/discord/${clienteId}/transcripts`)
+}
+
+export function fetchDiscordTranscriptContenido(clienteId, transcriptId) {
+  return requestText(`/api/discord/${clienteId}/transcripts/${transcriptId}/contenido`)
 }

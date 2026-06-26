@@ -138,9 +138,12 @@ def _discord_transcript_to_dict(transcript: DiscordTranscript) -> dict:
     return {
         "id": transcript.id,
         "cliente_id": transcript.cliente.id if transcript.cliente else None,
-        "titulo": transcript.canal,
-        "nombre_archivo": Path(transcript.filepath).name,
-        "created_at": transcript.creado_en,
+        "canal": transcript.canal,
+        "categoria": transcript.categoria,
+        "fecha": transcript.fecha,
+        "filepath": transcript.filepath,
+        "mensajes": transcript.mensajes or 0,
+        "creado_en": transcript.creado_en,
     }
 
 
@@ -477,7 +480,8 @@ class ClientesServices:
             fathoms = _sorted_fathom_boards(cliente, cache)
             discord_transcripts = sorted(
                 cache.discord_transcripts.get(cid, []),
-                key=lambda t: t.created_at or datetime.min,
+                key=lambda t: t.creado_en or datetime.min,
+                reverse=True,
             )
             documento_links = sorted(
                 cache.documento_links.get(cid, []),
@@ -853,7 +857,7 @@ class ClientesServices:
             flush()
             return _discord_transcript_to_dict(transcript)
 
-    def actualizar_discord_transcript(self, cliente_id: int, transcript_id: int, titulo: str) -> dict | None:
+    def actualizar_discord_transcript(self, cliente_id: int, transcript_id: int, canal: str) -> dict | None:
         with db_session:
             cliente = Cliente.get(id=cliente_id)
             if not cliente:
@@ -863,7 +867,7 @@ class ClientesServices:
             if not transcript:
                 return None
 
-            transcript.canal = _normalize_board_titulo(titulo).lower().replace(" ", "-")
+            transcript.canal = _normalize_board_titulo(canal).lower().replace(" ", "-")
             cliente.updated_at = datetime.utcnow()
             flush()
             return _discord_transcript_to_dict(transcript)

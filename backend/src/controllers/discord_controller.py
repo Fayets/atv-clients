@@ -42,6 +42,7 @@ def listar_transcripts(cliente_id: int, _: str = Depends(get_current_user)):
 
 
 @router.get("/{cliente_id}/transcripts/{transcript_id}")
+@router.get("/{cliente_id}/transcripts/{transcript_id}/contenido")
 @db_session
 def ver_transcript(
     cliente_id: int,

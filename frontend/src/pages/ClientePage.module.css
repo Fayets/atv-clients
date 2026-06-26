@@ -735,3 +735,92 @@
     grid-column: auto;
   }
 }
+
+.botTranscriptsSection {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.subCardTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.botTranscriptList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.botTranscriptItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.botTranscriptItemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.botTranscriptCanal {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.botTranscriptMeta {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.botTranscriptViewer {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.botTranscriptViewerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+
+.botTranscriptViewerTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.botTranscriptViewerActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.botTranscriptPre {
+  padding: 1rem;
+  font-size: 0.78rem;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  background: var(--surface);
+  max-height: 500px;
+  overflow-y: auto;
+  margin: 0;
+}

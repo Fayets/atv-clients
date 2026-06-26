@@ -154,14 +154,17 @@ class DiscordTranscriptResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    cliente_id: int
-    titulo: str
-    nombre_archivo: str
-    created_at: datetime | None = None
+    cliente_id: int | None = None
+    canal: str
+    categoria: str
+    fecha: date
+    filepath: str
+    mensajes: int = 0
+    creado_en: datetime | None = None
 
 
 class DiscordTranscriptPatch(BaseModel):
-    titulo: str | None = Field(default=None, min_length=1, max_length=255)
+    canal: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class DocumentoLinkResponse(BaseModel):

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCuota, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, uploadDiscordTranscript } from '../api/clientes'
+import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCuota, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, uploadDiscordTranscript } from '../api/clientes'
 import { getSession } from '../api/auth'
 import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
@@ -202,6 +202,11 @@ export default function ClientePage({ clienteId }) {
   const [discordError, setDiscordError] = useState('')
   const [editingDiscordId, setEditingDiscordId] = useState(null)
   const [discordEditDraft, setDiscordEditDraft] = useState({ titulo: '' })
+  const [botTranscripts, setBotTranscripts] = useState([])
+  const [botTranscriptsLoading, setBotTranscriptsLoading] = useState(false)
+  const [selectedBotTranscript, setSelectedBotTranscript] = useState(null)
+  const [botTranscriptContenido, setBotTranscriptContenido] = useState('')
+  const [botTranscriptLoading, setBotTranscriptLoading] = useState(false)
   const [documentoOpen, setDocumentoOpen] = useState(false)
   const [documentoDraft, setDocumentoDraft] = useState({ titulo: '', url: '' })
   const [documentoSaving, setDocumentoSaving] = useState(false)
@@ -214,6 +219,37 @@ export default function ClientePage({ clienteId }) {
   const [proximosPasosError, setProximosPasosError] = useState('')
   const [editingProximosPasosId, setEditingProximosPasosId] = useState(null)
   const [proximosPasosEditDraft, setProximosPasosEditDraft] = useState(buildProximosPasosDraft())
+
+  const loadBotTranscripts = async () => {
+    setBotTranscriptsLoading(true)
+    try {
+      const data = await fetchDiscordTranscriptsBot(clienteId)
+      setBotTranscripts(data.filter((t) => t.categoria !== 'manual'))
+    } catch (err) {
+      console.error('Error cargando transcripts del bot:', err)
+    } finally {
+      setBotTranscriptsLoading(false)
+    }
+  }
+
+  const verBotTranscript = async (transcript) => {
+    setSelectedBotTranscript(transcript)
+    setBotTranscriptContenido('')
+    setBotTranscriptLoading(true)
+    try {
+      const texto = await fetchDiscordTranscriptContenido(clienteId, transcript.id)
+      setBotTranscriptContenido(texto)
+    } catch (err) {
+      setBotTranscriptContenido('Error al cargar el transcript.')
+    } finally {
+      setBotTranscriptLoading(false)
+    }
+  }
+
+  const cerrarBotTranscript = () => {
+    setSelectedBotTranscript(null)
+    setBotTranscriptContenido('')
+  }
 
   const load = async () => {
     setLoading(true)
@@ -231,6 +267,7 @@ export default function ClientePage({ clienteId }) {
 
   useEffect(() => {
     load()
+    loadBotTranscripts()
   }, [clienteId])
 
   useEffect(() => {
@@ -1782,6 +1819,78 @@ export default function ClientePage({ clienteId }) {
               )) : !discordOpen ? (
                 <p className={styles.muted}>Sin transcripts de Discord. Subí un archivo .txt con el botón de arriba.</p>
               ) : null}
+            </div>
+
+            {/* Transcripts del bot */}
+            <div className={styles.botTranscriptsSection}>
+              <div className={styles.miroToolbar}>
+                <h3 className={styles.subCardTitle}>Transcripts automáticos</h3>
+                <button
+                  type="button"
+                  className={styles.arregloCloserBtn}
+                  onClick={loadBotTranscripts}
+                  disabled={botTranscriptsLoading}
+                >
+                  {botTranscriptsLoading ? 'Cargando...' : 'Actualizar'}
+                </button>
+              </div>
+
+              {selectedBotTranscript ? (
+                <div className={styles.botTranscriptViewer}>
+                  <div className={styles.botTranscriptViewerHeader}>
+                    <span className={styles.botTranscriptViewerTitle}>
+                      #{selectedBotTranscript.canal} — {selectedBotTranscript.fecha}
+                    </span>
+                    <div className={styles.botTranscriptViewerActions}>
+                      <a
+                        href={`/api/discord/${clienteId}/transcripts/${selectedBotTranscript.id}/contenido`}
+                        download={`${selectedBotTranscript.canal}-${selectedBotTranscript.fecha}.txt`}
+                        className={styles.arregloCloserBtn}
+                      >
+                        Descargar .txt
+                      </a>
+                      <button
+                        type="button"
+                        className={styles.cancelBtn}
+                        onClick={cerrarBotTranscript}
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                  {botTranscriptLoading ? (
+                    <p className={styles.muted}>Cargando...</p>
+                  ) : (
+                    <pre className={styles.botTranscriptPre}>
+                      {botTranscriptContenido}
+                    </pre>
+                  )}
+                </div>
+              ) : (
+                <div className={styles.botTranscriptList}>
+                  {botTranscripts.length ? botTranscripts.map((t) => (
+                    <div key={t.id} className={styles.botTranscriptItem}>
+                      <div className={styles.botTranscriptItemInfo}>
+                        <span className={styles.botTranscriptCanal}>#{t.canal}</span>
+                        <span className={styles.botTranscriptMeta}>
+                          {t.categoria.toUpperCase()} · {t.fecha} · {t.mensajes} msgs
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.arregloCloserBtn}
+                        onClick={() => verBotTranscript(t)}
+                      >
+                        Ver
+                      </button>
+                    </div>
+                  )) : (
+                    <p className={styles.muted}>
+                      {botTranscriptsLoading ? 'Cargando...' : 'No hay transcripts automáticos aún.'}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 

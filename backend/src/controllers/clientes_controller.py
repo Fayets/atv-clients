@@ -333,9 +333,9 @@ def actualizar_discord_transcript(
     _: str = Depends(get_current_user),
 ):
     try:
-        if patch.titulo is None:
+        if patch.canal is None:
             raise HTTPException(status_code=400, detail="No se enviaron campos para actualizar.")
-        transcript = service.actualizar_discord_transcript(cliente_id, transcript_id, patch.titulo)
+        transcript = service.actualizar_discord_transcript(cliente_id, transcript_id, patch.canal)
         if not transcript:
             raise HTTPException(status_code=404, detail="Cliente o transcript no encontrados.")
         return transcript
