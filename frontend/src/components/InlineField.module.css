@@ -1,0 +1,62 @@
+.displayChip {
+  width: auto;
+  min-height: unset;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.displayChip:hover {
+  background: transparent;
+  opacity: 0.88;
+  filter: brightness(1.08);
+}
+
+.display,
+.input,
+.textarea {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 0.5px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+}
+
+.display {
+  cursor: pointer;
+}
+
+.display:hover {
+  background: var(--surface2);
+}
+
+.input,
+.textarea {
+  background: var(--surface2);
+  border-color: var(--border);
+  outline: none;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--red);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.success {
+  border-color: var(--success) !important;
+}
+
+.error {
+  border-color: var(--red-bright) !important;
+}

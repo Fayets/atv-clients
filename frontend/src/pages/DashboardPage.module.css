@@ -1,0 +1,455 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.content {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.metricCard {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.metricHighlight {
+  border-top: 2px solid var(--red);
+}
+
+.metricHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.metricHead i {
+  font-size: 16px;
+  color: var(--label);
+}
+
+.metricLabel {
+  font-size: 14px;
+  color: var(--label);
+}
+
+.metricNum {
+  font-family: var(--font-metric);
+  font-size: 42px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.metricNumRed {
+  color: var(--red-accent);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbarLeft,
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.createBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 0.5px solid var(--red);
+  background: var(--red);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.createBtn i {
+  font-size: 16px;
+}
+
+.count {
+  font-size: 15px;
+  color: var(--label);
+}
+
+.searchWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 38px;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  min-width: 280px;
+}
+
+.searchWrap i {
+  color: var(--label);
+  font-size: 15px;
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: var(--label);
+}
+
+.select,
+.sortBtn {
+  height: 38px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.sortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tableCard {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table thead {
+  background: var(--surface2);
+}
+
+.table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--label);
+  border-bottom: 0.5px solid var(--border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 12px;
+  border-bottom: 0.5px solid var(--border);
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  cursor: default;
+}
+
+.rowClickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.rowClickable:hover .cellName {
+  color: var(--red-accent);
+}
+
+.rowClickable:hover,
+.rowPressed {
+  background: var(--surface2);
+}
+
+.rowPressed {
+  background: var(--border);
+}
+
+.rowPressed .cellName {
+  color: var(--text);
+}
+
+.cellEditable {
+  cursor: pointer;
+}
+
+.cellInteractive {
+  display: inline-flex;
+  max-width: 100%;
+  cursor: default;
+}
+
+.cellLink {
+  cursor: pointer;
+}
+
+.cellLink:hover {
+  color: var(--red-accent);
+}
+
+.table tbody tr:hover,
+.rowClickable:hover {
+  background: var(--surface2);
+}
+
+.rowPressed:hover {
+  background: var(--border);
+}
+
+.rowPrioridadAlta td:first-child {
+  box-shadow: inset 2px 0 0 var(--red);
+}
+
+.cellName {
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.cellMuted {
+  color: var(--label);
+}
+
+.cellBrand {
+  color: var(--label);
+  text-align: center;
+  width: 72px;
+}
+
+.tableBrandBtn,
+.tableBrandLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.tableBrandLogo {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.tableBrandLogoFathom {
+  height: 24px;
+  width: auto;
+  object-fit: contain;
+}
+
+.miroModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.miroModal {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.miroModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--surface2);
+}
+
+.miroModalTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.miroModalClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--label);
+  cursor: pointer;
+}
+
+.miroModalList {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.miroModalItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.miroModalItem:hover {
+  background: var(--surface2);
+}
+
+.miroModalItem span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.miroModalItemLogo {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.miroModalItem i {
+  color: var(--label);
+  flex-shrink: 0;
+}
+
+.rowAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--label);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 0.5px solid var(--border);
+  background: var(--surface2);
+}
+
+.paginationBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.paginationBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.paginationInfo {
+  font-size: 14px;
+  color: var(--label);
+}
+
+@media (max-width: 1100px) {
+  .metricsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .content {
+    padding: 16px;
+  }
+
+  .metricsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbarLeft {
+    width: 100%;
+  }
+
+  .searchWrap {
+    min-width: 0;
+    width: 100%;
+  }
+}

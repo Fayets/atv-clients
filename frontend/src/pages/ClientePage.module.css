@@ -1,0 +1,737 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.content {
+  width: 100%;
+  padding: 24px 28px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.backLink {
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--text);
+}
+
+.headerCard,
+.card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+
+.headerCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.name {
+  font-family: var(--font-metric);
+  font-size: 38px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.email {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.headerBadges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.miroBtn,
+.externalBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 0.5px solid var(--red);
+  background: var(--red-dim);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  width: fit-content;
+}
+
+.miroBtn:hover,
+.externalBtn:hover {
+  text-decoration: none;
+}
+
+.docsLogo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.quadGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.quadTile {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.quadTileWide {
+  grid-column: 1 / -1;
+}
+
+.tileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.linkTileBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+.brandTile {
+  padding: 0;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.brandHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 68px;
+  padding: 0 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.brandHeaderMiro {
+  background: #ffd02f;
+}
+
+.brandHeaderFathom {
+  background: transparent;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.brandLogoMiro {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: contain;
+  display: block;
+}
+
+.brandLogoFathom {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.brandTile .linkTileBody {
+  padding: 14px 18px 16px;
+  gap: 10px;
+}
+
+.tableWrap {
+  margin-top: 16px;
+  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.cardTitle {
+  font-family: var(--font-metric);
+  font-size: 24px;
+  letter-spacing: 0.03em;
+  margin-bottom: 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--label);
+  margin-bottom: 6px;
+}
+
+.metricValue {
+  font-family: var(--font-metric);
+  font-size: 28px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table thead {
+  background: var(--surface2);
+}
+
+.table th,
+.table td {
+  padding: 10px 12px;
+  border-bottom: 0.5px solid var(--border);
+  text-align: left;
+}
+
+.payBtn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 0.5px solid var(--red);
+  background: var(--red-dim);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.saveBtn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 0.5px solid var(--badge-advantage-text);
+  background: var(--badge-advantage-bg);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.saveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancelBtn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.proximosPasosEditPanel {
+  gap: 14px;
+  padding: 16px;
+}
+
+.proximosPasosEditPanel .proximosPasosTextarea {
+  min-height: 220px;
+}
+
+.arregloCloserBtn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 0.5px solid var(--badge-advantage-text);
+  background: var(--badge-advantage-bg);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.financieroHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.financieroHeader .cardTitle {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.financieroHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.financieroTile {
+  position: relative;
+}
+
+.arregloCloserOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.arregloCloserPanel {
+  width: 100%;
+  max-width: 540px;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.arregloCloserTitle {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.arregloCloserHint {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.proximosPasosTextarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.proximosPasosTextarea:focus {
+  outline: none;
+  border-color: var(--badge-advantage-text);
+}
+
+.arregloCloserTextarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.arregloCloserTextarea:focus {
+  outline: none;
+  border-color: var(--red);
+}
+
+.observacionesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.observacionesHeader .cardTitle {
+  margin-bottom: 0;
+}
+
+.observacionesTile {
+  position: relative;
+}
+
+.observacionPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+}
+
+.observacionesList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.observacionItem {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+}
+
+.observacionMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.itemActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.observacionAutor {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.observacionTexto {
+  margin: 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.miroToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.miroToolbar .cardTitle {
+  margin: 0;
+}
+
+.miroToolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.miroFormPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+}
+
+.miroFormPanelWide {
+  grid-column: 1 / -1;
+}
+
+.boardTituloRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.boardTituloPrefix {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.boardTituloInput {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-transform: uppercase;
+}
+
+.boardTituloInput:focus {
+  outline: none;
+}
+
+.miroGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 14px;
+}
+
+.miroDocCard {
+  position: relative;
+  border-radius: 10px;
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.miroDocCard:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+.miroDocLink {
+  display: flex;
+  flex-direction: column;
+  min-height: 172px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.miroDocPreview {
+  flex: 1;
+  min-height: 118px;
+  background: #ffd02f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+.fathomDocPreview {
+  flex: 1;
+  min-height: 118px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.miroDocIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.fathomDocIcon {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.discordDocPreview {
+  flex: 1;
+  min-height: 118px;
+  background: #5865f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+.discordDocBadge {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.documentoDocPreview {
+  flex: 1;
+  min-height: 118px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.documentoDocIcon {
+  font-size: 36px;
+  color: var(--label);
+}
+
+.fileInput {
+  width: 100%;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.miroDocTitle {
+  margin: 0;
+  padding: 10px 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  text-transform: uppercase;
+}
+
+.miroDocActions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.miroDocCard:hover .miroDocActions {
+  opacity: 1;
+}
+
+.cuotaActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.tableInput {
+  width: 100%;
+  min-width: 90px;
+  padding: 6px 8px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.accordionBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.formList {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.formItem {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+}
+
+.formQuestion {
+  font-size: 13px;
+  color: var(--label);
+  margin-bottom: 6px;
+}
+
+.formAnswer {
+  font-size: 15px;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--red-bright);
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tileGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .content {
+    padding: 16px;
+  }
+
+  .grid,
+  .quadGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .quadTileWide {
+    grid-column: auto;
+  }
+}

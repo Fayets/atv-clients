@@ -1,0 +1,126 @@
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface2: #181818;
+  --red: #980000;
+  --red-accent: #e32e2e;
+  --red-bright: #ff3333;
+  --red-dim: #3d0000;
+  --text: #f5f5f5;
+  --muted: #8a8580;
+  --label: #6b6560;
+  --border: #1e1e1e;
+  --success: #4ade80;
+  --shadow-logo: rgba(255, 45, 65, 0.45);
+
+  --badge-boost-bg: #3d0000;
+  --badge-boost-text: #ff8888;
+  --badge-mentoria-bg: #3a2a00;
+  --badge-mentoria-text: #e6a700;
+  --badge-advantage-bg: #0e2a14;
+  --badge-advantage-text: #4ade80;
+
+  --badge-vencido-bg: #3d0000;
+  --badge-vencido-text: #ff3333;
+  --badge-proximo-bg: #3a2a00;
+  --badge-proximo-text: #e6a700;
+  --badge-vigente-bg: #0e2a14;
+  --badge-vigente-text: #4ade80;
+  --badge-estan-bien-bg: #12331a;
+  --badge-estan-bien-text: #86efac;
+  --badge-pausa-bg: #181818;
+  --badge-pausa-text: #8a8580;
+  --badge-no-renovar-bg: #2a1212;
+  --badge-no-renovar-text: #c4bdb6;
+  --badge-recompra-bg: #980000;
+  --badge-recompra-text: #f5f5f5;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f3f0eb;
+  --surface: #ffffff;
+  --surface2: #ece8e2;
+  --red: #980000;
+  --red-accent: #c0000a;
+  --red-bright: #980000;
+  --red-dim: #fde8e8;
+  --text: #1a1816;
+  --muted: #6b6560;
+  --label: #6b6560;
+  --border: #ddd8d0;
+  --success: #15803d;
+  --shadow-logo: rgba(152, 0, 0, 0.25);
+
+  --badge-boost-bg: #fde8e8;
+  --badge-boost-text: #980000;
+  --badge-mentoria-bg: #fff3d6;
+  --badge-mentoria-text: #9a6700;
+  --badge-advantage-bg: #e8f7ec;
+  --badge-advantage-text: #15803d;
+
+  --badge-vencido-bg: #fde8e8;
+  --badge-vencido-text: #b91c1c;
+  --badge-proximo-bg: #fff3d6;
+  --badge-proximo-text: #9a6700;
+  --badge-vigente-bg: #e8f7ec;
+  --badge-vigente-text: #15803d;
+  --badge-estan-bien-bg: #ecfdf3;
+  --badge-estan-bien-text: #166534;
+  --badge-pausa-bg: #ece8e2;
+  --badge-pausa-text: #6b6560;
+  --badge-no-renovar-bg: #f5ebe8;
+  --badge-no-renovar-text: #78716c;
+  --badge-recompra-bg: #980000;
+  --badge-recompra-text: #ffffff;
+}
+
+:root {
+  --font-display: 'Anton', sans-serif;
+  --font-metric: 'Bebas Neue', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button {
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+input,
+select,
+textarea {
+  font-family: var(--font-body);
+}
+
+a {
+  color: var(--red-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text);
+}
