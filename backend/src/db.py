@@ -113,6 +113,44 @@ MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_discord_transcripts_cliente_id ON clients.discord_transcripts(cliente_id);",
     "CREATE INDEX IF NOT EXISTS idx_documento_links_cliente_id ON clients.documento_links(cliente_id);",
     "CREATE INDEX IF NOT EXISTS idx_clientes_plan ON clients.clientes(plan_actual);",
+    """
+    CREATE TABLE IF NOT EXISTS clients.discord_transcripts (
+        id          SERIAL PRIMARY KEY,
+        cliente_id  INTEGER REFERENCES clients.clientes(id) ON DELETE SET NULL,
+        canal       VARCHAR(100) NOT NULL,
+        categoria   VARCHAR(50)  NOT NULL,
+        fecha       DATE         NOT NULL,
+        filepath    TEXT         NOT NULL,
+        mensajes    INTEGER      DEFAULT 0,
+        creado_en   TIMESTAMP    DEFAULT NOW(),
+        UNIQUE(canal, fecha)
+    );
+    CREATE INDEX IF NOT EXISTS idx_transcripts_cliente_id
+        ON clients.discord_transcripts(cliente_id);
+    """,
+    "ALTER TABLE clients.discord_transcripts ALTER COLUMN cliente_id DROP NOT NULL;",
+    "ALTER TABLE clients.discord_transcripts ADD COLUMN IF NOT EXISTS canal VARCHAR(100);",
+    "ALTER TABLE clients.discord_transcripts ADD COLUMN IF NOT EXISTS categoria VARCHAR(50);",
+    "ALTER TABLE clients.discord_transcripts ADD COLUMN IF NOT EXISTS fecha DATE;",
+    "ALTER TABLE clients.discord_transcripts ADD COLUMN IF NOT EXISTS filepath TEXT;",
+    "ALTER TABLE clients.discord_transcripts ADD COLUMN IF NOT EXISTS mensajes INTEGER DEFAULT 0;",
+    "ALTER TABLE clients.discord_transcripts ADD COLUMN IF NOT EXISTS creado_en TIMESTAMP DEFAULT NOW();",
+    "ALTER TABLE clients.discord_transcripts DROP COLUMN IF EXISTS titulo;",
+    "ALTER TABLE clients.discord_transcripts DROP COLUMN IF EXISTS nombre_archivo;",
+    "ALTER TABLE clients.discord_transcripts DROP COLUMN IF EXISTS stored_name;",
+    "ALTER TABLE clients.discord_transcripts DROP COLUMN IF EXISTS created_at;",
+    """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'discord_transcripts_canal_fecha_key'
+        ) THEN
+            ALTER TABLE clients.discord_transcripts
+                ADD CONSTRAINT discord_transcripts_canal_fecha_key UNIQUE (canal, fecha);
+        END IF;
+    END $$;
+    """,
 ]
 
 

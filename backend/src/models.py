@@ -62,11 +62,13 @@ class DiscordTranscript(db.Entity):
     _table_ = ("clients", "discord_transcripts")
 
     id = PrimaryKey(int, auto=True)
-    cliente = Required("Cliente", column="cliente_id")
-    titulo = Required(str, 255)
-    nombre_archivo = Required(str, 255)
-    stored_name = Required(str, 255)
-    created_at = Optional(datetime, default=lambda: datetime.utcnow())
+    cliente = Optional("Cliente")
+    canal = Required(str, 100)
+    categoria = Required(str, 50)
+    fecha = Required(date)
+    filepath = Required(str, sql_type="TEXT")
+    mensajes = Optional(int, default=0)
+    creado_en = Optional(datetime, default=lambda: datetime.utcnow())
 
 
 class DocumentoLink(db.Entity):

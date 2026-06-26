@@ -137,10 +137,10 @@ def _fathom_board_to_dict(board: FathomBoard) -> dict:
 def _discord_transcript_to_dict(transcript: DiscordTranscript) -> dict:
     return {
         "id": transcript.id,
-        "cliente_id": transcript.cliente.id,
-        "titulo": transcript.titulo,
-        "nombre_archivo": transcript.nombre_archivo,
-        "created_at": transcript.created_at,
+        "cliente_id": transcript.cliente.id if transcript.cliente else None,
+        "titulo": transcript.canal,
+        "nombre_archivo": Path(transcript.filepath).name,
+        "created_at": transcript.creado_en,
     }
 
 
@@ -156,10 +156,6 @@ def _documento_link_to_dict(link: DocumentoLink) -> dict:
 
 def _discord_client_dir(cliente_id: int) -> Path:
     return UPLOAD_DIR / "discord" / str(cliente_id)
-
-
-def _discord_file_path(cliente_id: int, stored_name: str) -> Path:
-    return _discord_client_dir(cliente_id) / stored_name
 
 
 def _observacion_to_dict(observacion: Observacion) -> dict:
@@ -217,7 +213,8 @@ def _load_relations_cache(*, include_detail: bool = False) -> _ClienteRelationsC
         for observacion in Observacion.select():
             cache.observaciones[observacion.cliente.id].append(observacion)
         for transcript in DiscordTranscript.select():
-            cache.discord_transcripts[transcript.cliente.id].append(transcript)
+            if transcript.cliente:
+                cache.discord_transcripts[transcript.cliente.id].append(transcript)
         for link in DocumentoLink.select():
             cache.documento_links[link.cliente.id].append(link)
     return cache
@@ -823,7 +820,9 @@ class ClientesServices:
         display_titulo = _normalize_board_titulo(titulo.strip()) if titulo and titulo.strip() else _normalize_board_titulo(
             Path(filename).stem
         )
-        stored_name = f"{uuid.uuid4().hex}.txt"
+        canal_slug = display_titulo.lower().replace(" ", "-")
+        hoy = date.today()
+        categoria = "manual"
 
         with db_session:
             cliente = Cliente.get(id=cliente_id)
@@ -832,15 +831,24 @@ class ClientesServices:
 
             target_dir = _discord_client_dir(cliente_id)
             target_dir.mkdir(parents=True, exist_ok=True)
-            target_path = target_dir / stored_name
+            target_path = target_dir / f"{hoy.isoformat()}-{uuid.uuid4().hex}.txt"
             target_path.write_bytes(content)
 
-            transcript = DiscordTranscript(
-                cliente=cliente,
-                titulo=display_titulo,
-                nombre_archivo=filename,
-                stored_name=stored_name,
-            )
+            existente = DiscordTranscript.get(canal=canal_slug, fecha=hoy)
+            if existente:
+                existente.filepath = str(target_path)
+                existente.mensajes = 0
+                existente.cliente = cliente
+                transcript = existente
+            else:
+                transcript = DiscordTranscript(
+                    cliente=cliente,
+                    canal=canal_slug,
+                    categoria=categoria,
+                    fecha=hoy,
+                    filepath=str(target_path),
+                    mensajes=0,
+                )
             cliente.updated_at = datetime.utcnow()
             flush()
             return _discord_transcript_to_dict(transcript)
@@ -855,13 +863,13 @@ class ClientesServices:
             if not transcript:
                 return None
 
-            transcript.titulo = _normalize_board_titulo(titulo)
+            transcript.canal = _normalize_board_titulo(titulo).lower().replace(" ", "-")
             cliente.updated_at = datetime.utcnow()
             flush()
             return _discord_transcript_to_dict(transcript)
 
     def eliminar_discord_transcript(self, cliente_id: int, transcript_id: int) -> bool:
-        stored_name: str | None = None
+        filepath: str | None = None
         with db_session:
             cliente = Cliente.get(id=cliente_id)
             if not cliente:
@@ -871,12 +879,12 @@ class ClientesServices:
             if not transcript:
                 return False
 
-            stored_name = transcript.stored_name
+            filepath = transcript.filepath
             transcript.delete()
             cliente.updated_at = datetime.utcnow()
 
-        if stored_name:
-            file_path = _discord_file_path(cliente_id, stored_name)
+        if filepath:
+            file_path = Path(filepath)
             if file_path.exists():
                 file_path.unlink()
         return True
@@ -891,11 +899,11 @@ class ClientesServices:
             if not transcript:
                 return None
 
-            file_path = _discord_file_path(cliente_id, transcript.stored_name)
+            file_path = Path(transcript.filepath)
             if not file_path.exists():
                 return None
 
-            return file_path, transcript.nombre_archivo
+            return file_path, file_path.name
 
     def crear_documento_link(self, cliente_id: int, data: DocumentoLinkCreate) -> dict | None:
         with db_session:
