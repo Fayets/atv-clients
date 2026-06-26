@@ -9,7 +9,7 @@ export default function ProtectedRoute({ children }) {
     if (isMockAuth()) return
 
     getSession().then((session) => {
-      if (session) {
+      if (session !== null && session.username) {
         setStatus('authenticated')
       } else {
         window.location.replace('https://ecosystem.atvos.io')

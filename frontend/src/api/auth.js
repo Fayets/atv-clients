@@ -2,9 +2,7 @@ const ECOSYSTEM_API = import.meta.env.VITE_ECOSYSTEM_API_URL || 'https://ecosyst
 const MOCK_AUTH = import.meta.env.VITE_MOCK_AUTH === 'true'
 
 const MOCK_SESSION = {
-  id: 1,
-  nombre: 'Franco',
-  email: 'franco@atv.com',
+  username: 'franco',
 }
 
 export async function getSession() {
@@ -17,7 +15,11 @@ export async function getSession() {
       credentials: 'include',
     })
     if (!res.ok) return null
-    return res.json()
+    const data = await res.json()
+    if (data && typeof data.username === 'string' && data.username) {
+      return data
+    }
+    return null
   } catch {
     return null
   }
