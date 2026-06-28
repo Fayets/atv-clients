@@ -76,24 +76,30 @@ def ver_transcript(
 
 
 @router.post("/{cliente_id}/actualizar")
-@db_session
-def actualizar_transcript(cliente_id: int, _: str = Depends(get_current_user)):
-    import asyncio
+async def actualizar_transcript(cliente_id: int, _: str = Depends(get_current_user)):
     from src.models import Cliente
-    from src.discord_bot import trigger_cliente
+    from src.discord_bot import get_guild
+    from src.services.discord_service import sync_cliente
 
-    cliente = Cliente.get(id=cliente_id)
-    if not cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    try:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    transcripts = _get_transcripts_by_cliente(cliente_id)
-    transcripts.sort(key=lambda t: t.creado_en or datetime.min, reverse=True)
+        guild = get_guild()
+        if not guild:
+            raise HTTPException(status_code=503, detail="Bot de Discord no disponible")
 
-    if not transcripts:
-        raise HTTPException(status_code=404, detail="No hay canal de Discord asociado a este cliente")
+        result = await sync_cliente(cliente_id, guild)
+        if result["canales"] == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No hay canal de Discord asociado a este cliente",
+            )
 
-    transcript = transcripts[0]
-    asyncio.get_event_loop().create_task(
-        trigger_cliente(transcript.canal, transcript.categoria)
-    )
-    return {"status": "iniciado", "canal": transcript.canal}
+        return {"ok": True, "canales": result["canales"], "mensajes": result["mensajes"]}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al sincronizar transcripts de Discord.")

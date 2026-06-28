@@ -8,10 +8,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from decouple import config
 
 from src.services.discord_service import (
-    buscar_cliente,
     detectar_categoria,
-    guardar_transcript,
-    obtener_ultimo_mensaje_id,
+    sync_canal,
 )
 
 logging.basicConfig(
@@ -38,37 +36,7 @@ async def _extraer_canal(canal: discord.TextChannel, categoria: str) -> None:
     global _canal_activo
     _canal_activo = canal.name
     try:
-        mensajes = []
-        ultimo_id = obtener_ultimo_mensaje_id(canal.name)
-        history_kwargs: dict = {"limit": None, "oldest_first": True}
-        if ultimo_id:
-            history_kwargs["after"] = discord.Object(id=int(ultimo_id))
-
-        async for msg in canal.history(**history_kwargs):
-            if msg.author.bot:
-                continue
-            mensajes.append({
-                "id": str(msg.id),
-                "timestamp": msg.created_at,
-                "author": msg.author.display_name,
-                "content": msg.content or "",
-                "attachments": [a.url for a in msg.attachments],
-            })
-
-        if not mensajes:
-            return
-
-        cliente_id = buscar_cliente(canal.name)
-        if not cliente_id:
-            logger.warning(f"Sin match de cliente para #{canal.name}")
-
-        path = guardar_transcript(canal.name, categoria, mensajes, cliente_id)
-        logger.info(f"✓ #{canal.name} → {len(mensajes)} msgs → {path}")
-
-    except discord.Forbidden:
-        logger.warning(f"Sin permisos: #{canal.name}")
-    except Exception as e:
-        logger.error(f"Error en #{canal.name}: {e}", exc_info=True)
+        await sync_canal(canal, categoria)
     finally:
         _canal_activo = ""
 
@@ -105,6 +73,10 @@ async def on_ready() -> None:
             timezone=AR,
         )
     _scheduler.start()
+
+
+def get_guild() -> discord.Guild | None:
+    return _client.get_guild(DISCORD_GUILD_ID)
 
 
 def start_discord_bot() -> None:

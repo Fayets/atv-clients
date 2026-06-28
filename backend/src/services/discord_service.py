@@ -1,9 +1,14 @@
 from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
+import asyncio
+import logging
 
+import discord
 from pony.orm import db_session
 
 from src.models import Cliente, DiscordTranscript
+
+logger = logging.getLogger("discord_bot")
 
 
 def _now_ar():
@@ -194,3 +199,65 @@ def _upsert_transcript(
             ultimo_mensaje_id=ultimo_mensaje_id,
             creado_en=ahora,
         )
+
+
+async def sync_canal(
+    canal: discord.TextChannel,
+    categoria: str,
+    cliente_id: int | None = None,
+) -> int:
+    """Extrae mensajes nuevos de un canal y los persiste. Retorna cantidad de mensajes nuevos."""
+    try:
+        mensajes = []
+        ultimo_id = obtener_ultimo_mensaje_id(canal.name)
+        history_kwargs: dict = {"limit": None, "oldest_first": True}
+        if ultimo_id:
+            history_kwargs["after"] = discord.Object(id=int(ultimo_id))
+
+        async for msg in canal.history(**history_kwargs):
+            if msg.author.bot:
+                continue
+            mensajes.append({
+                "id": str(msg.id),
+                "timestamp": msg.created_at,
+                "author": msg.author.display_name,
+                "content": msg.content or "",
+                "attachments": [a.url for a in msg.attachments],
+            })
+
+        if not mensajes:
+            return 0
+
+        cid = cliente_id if cliente_id is not None else buscar_cliente(canal.name)
+        if not cid:
+            logger.warning(f"Sin match de cliente para #{canal.name}")
+
+        path = guardar_transcript(canal.name, categoria, mensajes, cid)
+        logger.info(f"✓ #{canal.name} → {len(mensajes)} msgs → {path}")
+        return len(mensajes)
+
+    except discord.Forbidden:
+        logger.warning(f"Sin permisos: #{canal.name}")
+        return 0
+    except Exception as e:
+        logger.error(f"Error en #{canal.name}: {e}", exc_info=True)
+        return 0
+
+
+async def sync_cliente(cliente_id: int, guild: discord.Guild) -> dict[str, int]:
+    """Sincroniza transcripts solo para canales que matchean con el cliente."""
+    canales = 0
+    mensajes = 0
+
+    for category in guild.categories:
+        slug = detectar_categoria(category.name)
+        if not slug:
+            continue
+        for canal in category.text_channels:
+            if buscar_cliente(canal.name) != cliente_id:
+                continue
+            canales += 1
+            mensajes += await sync_canal(canal, slug, cliente_id)
+            await asyncio.sleep(0.5)
+
+    return {"canales": canales, "mensajes": mensajes}
