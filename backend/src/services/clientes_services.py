@@ -147,6 +147,25 @@ def _discord_transcript_to_dict(transcript: DiscordTranscript) -> dict:
     }
 
 
+def _discord_transcript_agent_list_dict(transcript: DiscordTranscript) -> dict:
+    return {
+        "id": transcript.id,
+        "canal": transcript.canal,
+        "categoria": transcript.categoria,
+        "fecha": transcript.fecha,
+        "mensajes": transcript.mensajes or 0,
+    }
+
+
+def _sanitize_cliente_for_agent(data: dict) -> dict:
+    result = dict(data)
+    result["discord_transcripts"] = [
+        {k: v for k, v in transcript.items() if k != "filepath"}
+        for transcript in data.get("discord_transcripts", [])
+    ]
+    return result
+
+
 def _documento_link_to_dict(link: DocumentoLink) -> dict:
     return {
         "id": link.id,
@@ -962,3 +981,41 @@ class ClientesServices:
             link.delete()
             cliente.updated_at = datetime.utcnow()
             return True
+
+    def listar_discord_transcripts_cliente(self, cliente_id: int) -> list[dict] | None:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+
+            transcripts = sorted(
+                [
+                    t for t in DiscordTranscript.select()
+                    if t.cliente is not None and t.cliente.id == cliente_id
+                ],
+                key=lambda t: t.creado_en or datetime.min,
+                reverse=True,
+            )
+            return [_discord_transcript_agent_list_dict(t) for t in transcripts]
+
+    def obtener_discord_transcript_contenido(self, cliente_id: int, transcript_id: int) -> dict | None:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+
+            transcript = DiscordTranscript.get(id=transcript_id, cliente=cliente)
+            if not transcript:
+                return None
+
+            file_path = Path(transcript.filepath)
+            if not file_path.exists():
+                return None
+
+            return {
+                "id": transcript.id,
+                "canal": transcript.canal,
+                "fecha": transcript.fecha,
+                "mensajes": transcript.mensajes or 0,
+                "contenido": file_path.read_text(encoding="utf-8"),
+            }

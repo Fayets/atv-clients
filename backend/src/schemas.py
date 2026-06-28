@@ -167,6 +167,39 @@ class DiscordTranscriptPatch(BaseModel):
     canal: str | None = Field(default=None, min_length=1, max_length=100)
 
 
+class AgentDiscordTranscriptItem(BaseModel):
+    id: int
+    canal: str
+    categoria: str
+    fecha: date
+    mensajes: int = 0
+
+
+class AgentDiscordTranscriptResponse(BaseModel):
+    id: int
+    cliente_id: int | None = None
+    canal: str
+    categoria: str
+    fecha: date
+    mensajes: int = 0
+    creado_en: datetime | None = None
+
+
+class AgentDiscordTranscriptContenido(BaseModel):
+    id: int
+    canal: str
+    fecha: date
+    mensajes: int = 0
+    contenido: str
+
+
+class AgentClienteResumen(BaseModel):
+    id: int
+    nombre: str
+    plan_actual: PlanActual
+    estado_efectivo: EstadoEfectivo
+
+
 class DocumentoLinkResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -232,6 +265,25 @@ class ClienteResponse(ClienteListItem):
     miros: list[MiroBoardResponse] = Field(default_factory=list)
     fathoms: list[FathomBoardResponse] = Field(default_factory=list)
     discord_transcripts: list[DiscordTranscriptResponse] = Field(default_factory=list)
+    documento_links: list[DocumentoLinkResponse] = Field(default_factory=list)
+    observaciones: list[ObservacionResponse] = Field(default_factory=list)
+    proximos_pasos: list[ProximosPasosResponse] = Field(default_factory=list)
+    fecha_alta: datetime | None = None
+    fecha_baja: datetime | None = None
+    updated_at: datetime | None = None
+    cuotas: list[CuotaResponse] = Field(default_factory=list)
+    formulario_onboarding: list[FormRespuesta] = Field(default_factory=list)
+
+
+class AgentClienteResponse(ClienteListItem):
+    session_id: int | None = None
+    fecha_inicio: date | None = None
+    duracion_dias: int | None = None
+    fathoms_url: str | None = None
+    arreglo_closer: str | None = None
+    miros: list[MiroBoardResponse] = Field(default_factory=list)
+    fathoms: list[FathomBoardResponse] = Field(default_factory=list)
+    discord_transcripts: list[AgentDiscordTranscriptResponse] = Field(default_factory=list)
     documento_links: list[DocumentoLinkResponse] = Field(default_factory=list)
     observaciones: list[ObservacionResponse] = Field(default_factory=list)
     proximos_pasos: list[ProximosPasosResponse] = Field(default_factory=list)
