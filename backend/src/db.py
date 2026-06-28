@@ -122,8 +122,7 @@ MIGRATIONS = [
         fecha       DATE         NOT NULL,
         filepath    TEXT         NOT NULL,
         mensajes    INTEGER      DEFAULT 0,
-        creado_en   TIMESTAMP    DEFAULT NOW(),
-        UNIQUE(canal, fecha)
+        creado_en   TIMESTAMP    DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_transcripts_cliente_id
         ON clients.discord_transcripts(cliente_id);
@@ -142,15 +141,16 @@ MIGRATIONS = [
     """
     DO $$
     BEGIN
-        IF NOT EXISTS (
+        IF EXISTS (
             SELECT 1 FROM pg_constraint
             WHERE conname = 'discord_transcripts_canal_fecha_key'
         ) THEN
             ALTER TABLE clients.discord_transcripts
-                ADD CONSTRAINT discord_transcripts_canal_fecha_key UNIQUE (canal, fecha);
+                DROP CONSTRAINT discord_transcripts_canal_fecha_key;
         END IF;
     END $$;
     """,
+    "ALTER TABLE clients.discord_transcripts ADD COLUMN IF NOT EXISTS ultimo_mensaje_id VARCHAR(50);",
     """
     DO $$
     BEGIN

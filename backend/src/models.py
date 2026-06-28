@@ -68,6 +68,7 @@ class DiscordTranscript(db.Entity):
     fecha = Required(date)
     filepath = Required(str, sql_type="TEXT")
     mensajes = Optional(int, default=0)
+    ultimo_mensaje_id = Optional(str, 50)
     creado_en = Optional(datetime, default=lambda: datetime.utcnow())
 
 

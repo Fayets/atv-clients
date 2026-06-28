@@ -11,6 +11,7 @@ from src.services.discord_service import (
     buscar_cliente,
     detectar_categoria,
     guardar_transcript,
+    obtener_ultimo_mensaje_id,
 )
 
 logging.basicConfig(
@@ -38,11 +39,16 @@ async def _extraer_canal(canal: discord.TextChannel, categoria: str) -> None:
     _canal_activo = canal.name
     try:
         mensajes = []
+        ultimo_id = obtener_ultimo_mensaje_id(canal.name)
+        history_kwargs: dict = {"limit": None, "oldest_first": True}
+        if ultimo_id:
+            history_kwargs["after"] = discord.Object(id=int(ultimo_id))
 
-        async for msg in canal.history(limit=None, oldest_first=True):
+        async for msg in canal.history(**history_kwargs):
             if msg.author.bot:
                 continue
             mensajes.append({
+                "id": str(msg.id),
                 "timestamp": msg.created_at,
                 "author": msg.author.display_name,
                 "content": msg.content or "",

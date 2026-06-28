@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 
-from pony.orm import db_session, select
+from pony.orm import db_session
 
 from src.models import Cliente, DiscordTranscript
 
@@ -68,35 +68,95 @@ def buscar_cliente(canal_name: str) -> int | None:
     return candidatos[0].id if len(candidatos) == 1 else None
 
 
+@db_session
+def obtener_ultimo_mensaje_id(canal_name: str) -> str | None:
+    """ID del último mensaje procesado para un canal del bot (un registro por canal)."""
+    rows = [
+        t for t in DiscordTranscript.select()
+        if t.canal == canal_name and t.categoria != "manual"
+    ]
+    if not rows:
+        return None
+    transcript = max(rows, key=lambda t: t.id)
+    return transcript.ultimo_mensaje_id
+
+
+def _format_mensaje(msg: dict) -> str:
+    ts = msg["timestamp"].strftime("%Y-%m-%d %H:%M")
+    lines = [f"[{ts}] {msg['author']}\n", f"{msg['content']}\n"]
+    for att in msg.get("attachments", []):
+        lines.append(f"  📎 {att}\n")
+    lines.append("\n")
+    return "".join(lines)
+
+
+def _write_header(f, canal_name: str, categoria: str, total_mensajes: int) -> None:
+    f.write(f"Canal:     #{canal_name}\n")
+    f.write(f"Programa:  {categoria.upper()}\n")
+    f.write(f"Extraído:  {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+    f.write(f"Mensajes:  {total_mensajes}\n")
+    f.write("=" * 60 + "\n\n")
+
+
+@db_session
+def _get_transcript_bot(canal_name: str) -> DiscordTranscript | None:
+    rows = [
+        t for t in DiscordTranscript.select()
+        if t.canal == canal_name and t.categoria != "manual"
+    ]
+    if not rows:
+        return None
+    return max(rows, key=lambda t: t.id)
+
+
+@db_session
+def _transcript_bot_state(canal_name: str) -> tuple[bool, int]:
+    """Retorna (append_mode, mensajes_previos) usando solo primitivos."""
+    existente = _get_transcript_bot(canal_name)
+    if not existente:
+        return False, 0
+    return bool(existente.ultimo_mensaje_id), existente.mensajes or 0
+
+
 def guardar_transcript(
     canal_name: str,
     categoria: str,
     mensajes: list[dict],
     cliente_id: int | None,
 ) -> str:
-    """Escribe el .txt y upserta el registro en BD. Retorna filepath."""
-    hoy = date.today()
+    """Append de mensajes nuevos al .txt acumulativo y upsert en BD. Retorna filepath."""
+    if not mensajes:
+        raise ValueError("guardar_transcript requiere al menos un mensaje")
+
+    append_mode, mensajes_previos = _transcript_bot_state(canal_name)
+
     carpeta = TRANSCRIPTS_BASE / categoria / canal_name
     carpeta.mkdir(parents=True, exist_ok=True)
-    filepath = carpeta / f"{hoy.isoformat()}.txt"
+    filepath = carpeta / f"{canal_name}.txt"
 
-    # 1. Escribir archivo — fuera de cualquier db_session
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(f"Canal:     #{canal_name}\n")
-        f.write(f"Programa:  {categoria.upper()}\n")
-        f.write(f"Extraído:  {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-        f.write(f"Mensajes:  {len(mensajes)}\n")
-        f.write("=" * 60 + "\n\n")
-        for msg in mensajes:
-            ts = msg["timestamp"].strftime("%Y-%m-%d %H:%M")
-            f.write(f"[{ts}] {msg['author']}\n")
-            f.write(f"{msg['content']}\n")
-            for att in msg.get("attachments", []):
-                f.write(f"  📎 {att}\n")
-            f.write("\n")
+    ultimo_id = mensajes[-1]["id"]
+    ahora = _now_ar()
+    contenido = "".join(_format_mensaje(m) for m in mensajes)
 
-    # 2. Upsert en BD — sesión propia y limpia
-    _upsert_transcript(canal_name, categoria, hoy, str(filepath), len(mensajes), cliente_id)
+    if append_mode:
+        total_mensajes = mensajes_previos + len(mensajes)
+        with open(filepath, "a", encoding="utf-8") as f:
+            f.write(contenido)
+    else:
+        total_mensajes = len(mensajes)
+        with open(filepath, "w", encoding="utf-8") as f:
+            _write_header(f, canal_name, categoria, total_mensajes)
+            f.write(contenido)
+
+    _upsert_transcript(
+        canal_name,
+        categoria,
+        str(filepath),
+        total_mensajes,
+        ultimo_id,
+        cliente_id,
+        ahora,
+    )
 
     return str(filepath)
 
@@ -105,24 +165,32 @@ def guardar_transcript(
 def _upsert_transcript(
     canal_name: str,
     categoria: str,
-    hoy: date,
     filepath: str,
     total_mensajes: int,
+    ultimo_mensaje_id: str,
     cliente_id: int | None,
+    ahora: datetime,
 ) -> None:
-    existente = DiscordTranscript.get(canal=canal_name, fecha=hoy)
+    existente = _get_transcript_bot(canal_name)
     if existente:
         existente.mensajes = total_mensajes
         existente.filepath = filepath
-        existente.creado_en = _now_ar()
+        existente.ultimo_mensaje_id = ultimo_mensaje_id
+        existente.creado_en = ahora
+        existente.fecha = date.today()
+        if cliente_id:
+            cliente_obj = Cliente.get(id=cliente_id)
+            if cliente_obj:
+                existente.cliente = cliente_obj
     else:
         cliente_obj = Cliente.get(id=cliente_id) if cliente_id else None
         DiscordTranscript(
             cliente=cliente_obj,
             canal=canal_name,
             categoria=categoria,
-            fecha=hoy,
+            fecha=date.today(),
             filepath=filepath,
             mensajes=total_mensajes,
-            creado_en=_now_ar(),
+            ultimo_mensaje_id=ultimo_mensaje_id,
+            creado_en=ahora,
         )
