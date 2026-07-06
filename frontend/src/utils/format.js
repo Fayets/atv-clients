@@ -114,6 +114,7 @@ export function formatEstado(estado) {
     no_va_a_renovar: 'No va a renovar',
     llamada_recompra: 'Llamada recompra',
     estan_bien: 'Están bien',
+    inactivo: 'Inactivo',
   }
   return labels[estado] || estado
 }

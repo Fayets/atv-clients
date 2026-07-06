@@ -50,3 +50,9 @@
   color: var(--badge-recompra-text);
   border-color: var(--badge-recompra-bg);
 }
+
+.inactivo {
+  background: var(--badge-inactivo-bg);
+  color: var(--badge-inactivo-text);
+  border-color: var(--border);
+}

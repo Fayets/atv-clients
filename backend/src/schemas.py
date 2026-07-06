@@ -12,6 +12,7 @@ EstadoCliente = Literal[
     "no_va_a_renovar",
     "llamada_recompra",
     "estan_bien",
+    "inactivo",
 ]
 
 EstadoEfectivo = Literal[
@@ -22,6 +23,7 @@ EstadoEfectivo = Literal[
     "no_va_a_renovar",
     "llamada_recompra",
     "estan_bien",
+    "inactivo",
 ]
 
 PlanActual = Literal["mentoria", "boost", "advantage"]

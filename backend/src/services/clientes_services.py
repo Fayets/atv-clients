@@ -31,7 +31,7 @@ from src.schemas import (
     ProximosPasosPatch,
 )
 
-MANUAL_ESTADOS = frozenset({"pausa", "no_va_a_renovar", "estan_bien", "llamada_recompra"})
+MANUAL_ESTADOS = frozenset({"pausa", "no_va_a_renovar", "estan_bien", "llamada_recompra", "inactivo"})
 ESTADOS_VALIDOS = frozenset(
     {
         "vigente",
@@ -41,6 +41,7 @@ ESTADOS_VALIDOS = frozenset(
         "no_va_a_renovar",
         "llamada_recompra",
         "estan_bien",
+        "inactivo",
     }
 )
 OPORTUNIDADES_VALIDAS = frozenset({"upsell_boost", "upsell_advantage", "recompra", "consultar"})

@@ -9,6 +9,7 @@ const STATUS_CLASS = {
   pausa: styles.pausa,
   no_va_a_renovar: styles.noRenovar,
   llamada_recompra: styles.recompra,
+  inactivo: styles.inactivo,
 }
 
 export default function StatusBadge({ estado }) {

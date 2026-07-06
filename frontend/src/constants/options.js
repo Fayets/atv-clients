@@ -6,6 +6,7 @@ export const ESTADOS_CLIENTE = [
   { value: 'no_va_a_renovar', label: 'No va a renovar' },
   { value: 'llamada_recompra', label: 'Llamada recompra' },
   { value: 'estan_bien', label: 'Están bien' },
+  { value: 'inactivo', label: 'Inactivo' },
 ]
 
 export const ESTADOS_FILTRO = [

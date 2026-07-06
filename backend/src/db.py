@@ -164,6 +164,14 @@ MIGRATIONS = [
         END IF;
     END $$;
     """,
+    """
+    ALTER TABLE clients.clientes DROP CONSTRAINT IF EXISTS clientes_estado_cliente_check;
+    ALTER TABLE clients.clientes ADD CONSTRAINT clientes_estado_cliente_check
+        CHECK (estado_cliente IN (
+            'vigente', 'proximo_a_vencer', 'vencido', 'pausa',
+            'no_va_a_renovar', 'llamada_recompra', 'estan_bien', 'inactivo'
+        ));
+    """,
 ]
 
 
