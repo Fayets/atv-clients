@@ -46,9 +46,13 @@
   letter-spacing: 0.02em;
 }
 
-.email {
+.emailField {
+  width: auto;
+  min-height: unset;
   margin-top: 6px;
+  padding: 2px 4px;
   color: var(--muted);
+  font-size: 15px;
 }
 
 .headerBadges {

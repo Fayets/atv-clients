@@ -311,6 +311,7 @@ class ClienteCreate(BaseModel):
 
 
 class ClientePatch(BaseModel):
+    email: EmailStr | None = None
     estado_cliente: EstadoCliente | None = None
     plan_actual: PlanActual | None = None
     oportunidad: Oportunidad | None = None

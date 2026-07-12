@@ -548,6 +548,9 @@ class ClientesServices:
         if "prioridad_cobro" in payload and payload["prioridad_cobro"] not in PRIORIDADES_VALIDAS:
             raise HTTPException(status_code=400, detail="Prioridad de cobro inválida.")
 
+        if "email" in payload:
+            payload["email"] = str(payload["email"]).strip().lower()
+
         with db_session:
             cliente = Cliente.get(id=cliente_id)
             if not cliente:

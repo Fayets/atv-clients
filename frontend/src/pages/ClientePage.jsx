@@ -1039,7 +1039,13 @@ export default function ClientePage({ clienteId }) {
         <header className={styles.headerCard}>
           <div>
             <h1 className={styles.name}>{cliente.nombre}</h1>
-            <p className={styles.email}>{cliente.email}</p>
+            <InlineField
+              type="email"
+              className={styles.emailField}
+              value={cliente.email || ''}
+              placeholder="Sin email"
+              onSave={(value) => updateField('email', value.trim())}
+            />
           </div>
           <div className={styles.headerBadges}>
             <PlanBadge plan={cliente.plan_actual} />
