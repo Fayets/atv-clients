@@ -55,11 +55,50 @@
   font-size: 15px;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
 .headerBadges {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.deleteClienteBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #980000;
+  background: #980000;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  white-space: nowrap;
+}
+
+.deleteClienteBtn:hover:not(:disabled) {
+  background: #c0000a;
+  border-color: #c0000a;
+}
+
+.deleteClienteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.deleteClienteBtn i {
+  font-size: 16px;
+  line-height: 1;
 }
 
 .miroBtn,

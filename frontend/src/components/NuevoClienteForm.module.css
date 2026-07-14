@@ -117,7 +117,7 @@
 .submitBtn {
   border: 0.5px solid var(--red);
   background: var(--red);
-  color: var(--text);
+  color: var(--on-red);
 }
 
 .submitBtn:disabled {

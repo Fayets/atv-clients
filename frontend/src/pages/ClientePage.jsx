@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCuota, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, triggerDiscordActualizacion, uploadDiscordTranscript } from '../api/clientes'
+import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, triggerDiscordActualizacion, uploadDiscordTranscript } from '../api/clientes'
+import { navigate } from '../utils/navigation'
 import { getSession } from '../api/auth'
 import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
@@ -212,6 +213,7 @@ export default function ClientePage({ clienteId }) {
   const [proximaActualizacion, setProximaActualizacion] = useState(null)
   const [countdownDisplay, setCountdownDisplay] = useState('')
   const [discordEstadoLabel, setDiscordEstadoLabel] = useState('ok')
+  const [deletingCliente, setDeletingCliente] = useState(false)
   const [documentoOpen, setDocumentoOpen] = useState(false)
   const [documentoDraft, setDocumentoDraft] = useState({ titulo: '', url: '' })
   const [documentoSaving, setDocumentoSaving] = useState(false)
@@ -372,6 +374,20 @@ export default function ClientePage({ clienteId }) {
       return
     }
     setCliente((prev) => ({ ...prev, ...updated, [field]: value }))
+  }
+
+  const eliminarCliente = async () => {
+    if (!cliente) return
+    if (!confirm(`¿Eliminar a ${cliente.nombre}? Esta acción no se puede deshacer.`)) return
+    setDeletingCliente(true)
+    try {
+      await deleteCliente(clienteId)
+      navigate('/')
+    } catch (err) {
+      alert(err.message || 'No se pudo eliminar el cliente.')
+    } finally {
+      setDeletingCliente(false)
+    }
   }
 
   const refreshFinanciero = async () => {
@@ -1047,9 +1063,20 @@ export default function ClientePage({ clienteId }) {
               onSave={(value) => updateField('email', value.trim())}
             />
           </div>
-          <div className={styles.headerBadges}>
+          <div className={styles.headerActions}>
             <PlanBadge plan={cliente.plan_actual} />
             <StatusBadge estado={cliente.estado_efectivo} />
+            <button
+              type="button"
+              className={styles.deleteClienteBtn}
+              onClick={eliminarCliente}
+              disabled={deletingCliente}
+              title="Eliminar cliente"
+              aria-label="Eliminar cliente"
+            >
+              <i className="ti ti-trash" />
+              <span>{deletingCliente ? 'Eliminando...' : 'Eliminar'}</span>
+            </button>
           </div>
         </header>
 

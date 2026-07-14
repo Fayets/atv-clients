@@ -75,6 +75,12 @@ export function patchCliente(id, data) {
   })
 }
 
+export function deleteCliente(id) {
+  return request(`/api/clientes/${id}`, {
+    method: 'DELETE',
+  })
+}
+
 export function pagarCuota(clienteId, cuotaId) {
   return request(`/api/clientes/${clienteId}/cuotas/${cuotaId}/pagar`, {
     method: 'POST',
