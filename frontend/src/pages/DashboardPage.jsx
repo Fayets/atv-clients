@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchClientes, patchCliente } from '../api/clientes'
 import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
@@ -11,6 +11,79 @@ import { navigate } from '../utils/navigation'
 import styles from './DashboardPage.module.css'
 
 const PAGE_SIZE = 15
+const FILTERS_STORAGE_KEY = 'atv-clients-dashboard-filters'
+
+const DEFAULT_FILTERS = {
+  search: '',
+  estadoFilter: '',
+  planFilter: '',
+  orden: 'venc_asc',
+  page: 1,
+}
+
+function normalizeOrden(value) {
+  return value === 'venc_desc' ? 'venc_desc' : 'venc_asc'
+}
+
+function readFiltersFromUrl() {
+  const params = new URLSearchParams(window.location.search)
+  const hasParams = ['q', 'estado', 'plan', 'orden', 'page'].some((key) => params.has(key))
+  if (!hasParams) return null
+  const page = Number(params.get('page'))
+  return {
+    search: params.get('q') || '',
+    estadoFilter: params.get('estado') || '',
+    planFilter: params.get('plan') || '',
+    orden: normalizeOrden(params.get('orden')),
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+  }
+}
+
+function readFiltersFromStorage() {
+  try {
+    const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return {
+      search: typeof parsed.search === 'string' ? parsed.search : '',
+      estadoFilter: typeof parsed.estadoFilter === 'string' ? parsed.estadoFilter : '',
+      planFilter: typeof parsed.planFilter === 'string' ? parsed.planFilter : '',
+      orden: normalizeOrden(parsed.orden),
+      page: Number.isFinite(Number(parsed.page)) && Number(parsed.page) > 0 ? Number(parsed.page) : 1,
+    }
+  } catch {
+    return null
+  }
+}
+
+function loadInitialFilters() {
+  return readFiltersFromUrl() || readFiltersFromStorage() || { ...DEFAULT_FILTERS }
+}
+
+function persistFilters({ search, estadoFilter, planFilter, orden, page }) {
+  const snapshot = { search, estadoFilter, planFilter, orden, page }
+  try {
+    sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(snapshot))
+  } catch {
+    // ignore quota / private mode
+  }
+
+  if (window.location.pathname !== '/') return
+
+  const params = new URLSearchParams()
+  if (search.trim()) params.set('q', search.trim())
+  if (estadoFilter) params.set('estado', estadoFilter)
+  if (planFilter) params.set('plan', planFilter)
+  if (orden !== DEFAULT_FILTERS.orden) params.set('orden', orden)
+  if (page > 1) params.set('page', String(page))
+
+  const qs = params.toString()
+  const next = qs ? `/?${qs}` : '/'
+  const current = `${window.location.pathname}${window.location.search}`
+  if (current !== next) {
+    window.history.replaceState({}, '', next)
+  }
+}
 
 function truncateText(text, max = 48) {
   if (!text) return ''
@@ -18,17 +91,23 @@ function truncateText(text, max = 48) {
 }
 
 export default function DashboardPage() {
+  const initialFilters = useMemo(() => loadInitialFilters(), [])
   const [clientes, setClientes] = useState([])
   const [allClientes, setAllClientes] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [estadoFilter, setEstadoFilter] = useState('')
-  const [planFilter, setPlanFilter] = useState('')
-  const [orden, setOrden] = useState('venc_asc')
+  const [search, setSearch] = useState(initialFilters.search)
+  const [estadoFilter, setEstadoFilter] = useState(initialFilters.estadoFilter)
+  const [planFilter, setPlanFilter] = useState(initialFilters.planFilter)
+  const [orden, setOrden] = useState(initialFilters.orden)
   const [showCreate, setShowCreate] = useState(false)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(initialFilters.page)
   const [miroModal, setMiroModal] = useState(null)
   const [pressedRowId, setPressedRowId] = useState(null)
+  const skipPageResetRef = useRef(true)
+
+  const hasActiveFilters = Boolean(
+    search.trim() || estadoFilter || planFilter || orden !== DEFAULT_FILTERS.orden,
+  )
 
   const loadAll = useCallback(async () => {
     const data = await fetchClientes()
@@ -74,8 +153,24 @@ export default function DashboardPage() {
   }, [loadFiltered])
 
   useEffect(() => {
+    if (skipPageResetRef.current) {
+      skipPageResetRef.current = false
+      return
+    }
     setPage(1)
   }, [search, estadoFilter, planFilter, orden])
+
+  useEffect(() => {
+    persistFilters({ search, estadoFilter, planFilter, orden, page })
+  }, [search, estadoFilter, planFilter, orden, page])
+
+  const resetFilters = () => {
+    setSearch(DEFAULT_FILTERS.search)
+    setEstadoFilter(DEFAULT_FILTERS.estadoFilter)
+    setPlanFilter(DEFAULT_FILTERS.planFilter)
+    setOrden(DEFAULT_FILTERS.orden)
+    setPage(DEFAULT_FILTERS.page)
+  }
 
   const totalPages = Math.max(1, Math.ceil(clientes.length / PAGE_SIZE))
 
@@ -229,6 +324,16 @@ export default function DashboardPage() {
             <button type="button" className={styles.sortBtn} onClick={toggleOrden}>
               <i className={`ti ${orden === 'venc_asc' ? 'ti-sort-ascending' : 'ti-sort-descending'}`} />
               Vencimiento {orden === 'venc_asc' ? '↑' : '↓'}
+            </button>
+            <button
+              type="button"
+              className={styles.resetFiltersBtn}
+              onClick={resetFilters}
+              disabled={!hasActiveFilters}
+              title="Reiniciar filtros"
+            >
+              <i className="ti ti-filter-off" />
+              Reiniciar
             </button>
           </div>
           <div className={styles.toolbarRight}>

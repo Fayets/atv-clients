@@ -1039,7 +1039,16 @@ export default function ClientePage({ clienteId }) {
         <Navbar currentPath="" />
         <main className={styles.content}>
           <p className={styles.error}>{error || 'Cliente no encontrado'}</p>
-          <a href="/" className={styles.backLink}>← Volver al dashboard</a>
+          <a
+            href="/"
+            className={styles.backLink}
+            onClick={(event) => {
+              event.preventDefault()
+              navigate('/')
+            }}
+          >
+            ← Volver al dashboard
+          </a>
         </main>
       </div>
     )
@@ -1050,7 +1059,16 @@ export default function ClientePage({ clienteId }) {
       <Navbar currentPath="" />
 
       <main className={styles.content}>
-        <a href="/" className={styles.backLink}>← Volver a clientes</a>
+        <a
+          href="/"
+          className={styles.backLink}
+          onClick={(event) => {
+            event.preventDefault()
+            navigate('/')
+          }}
+        >
+          ← Volver a clientes
+        </a>
 
         <header className={styles.headerCard}>
           <div>

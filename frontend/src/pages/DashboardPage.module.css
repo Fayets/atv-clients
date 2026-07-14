@@ -144,6 +144,35 @@
   gap: 6px;
 }
 
+.resetFiltersBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.resetFiltersBtn:hover:not(:disabled) {
+  background: var(--surface2);
+}
+
+.resetFiltersBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.resetFiltersBtn i {
+  font-size: 16px;
+}
+
 .tableCard {
   background: var(--surface);
   border: 0.5px solid var(--border);
