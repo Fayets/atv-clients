@@ -101,6 +101,19 @@ def actualizar_cliente(
         raise HTTPException(status_code=500, detail="Error al actualizar el cliente.")
 
 
+@router.delete("/{cliente_id}", status_code=204)
+def eliminar_cliente(cliente_id: int, _: str = Depends(get_current_user)):
+    try:
+        deleted = service.eliminar_cliente(cliente_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+        return None
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al eliminar el cliente.")
+
+
 @router.post("/{cliente_id}/observaciones", response_model=ObservacionResponse, status_code=201)
 def crear_observacion(
     cliente_id: int,

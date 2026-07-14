@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -418,6 +419,7 @@ class ClientesServices:
                 cliente_kwargs["observaciones"] = data.observaciones
 
             cliente = Cliente(**cliente_kwargs)
+            flush()
             return _cliente_base_dict(cliente)
 
     def listar_clientes(
@@ -561,6 +563,31 @@ class ClientesServices:
             cliente.updated_at = datetime.utcnow()
 
             return _cliente_base_dict(cliente)
+
+    def eliminar_cliente(self, cliente_id: int) -> bool:
+        filepaths: list[str] = []
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return False
+
+            for transcript in list(cliente.discord_transcripts):
+                if transcript.filepath:
+                    filepaths.append(transcript.filepath)
+                transcript.delete()
+
+            cliente.delete()
+
+        for filepath in filepaths:
+            path = Path(filepath)
+            if path.exists() and path.is_file():
+                path.unlink()
+
+        upload_dir = _discord_client_dir(cliente_id)
+        if upload_dir.exists():
+            shutil.rmtree(upload_dir, ignore_errors=True)
+
+        return True
 
     def crear_cuota(self, cliente_id: int, data: CuotaCreate) -> dict | None:
         if data.monto_usd <= 0:
