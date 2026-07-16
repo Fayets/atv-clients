@@ -327,16 +327,24 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
-              className={styles.resetFiltersBtn}
+              className={`${styles.resetFiltersBtn} ${hasActiveFilters ? styles.resetFiltersBtnActive : ''}`}
               onClick={resetFilters}
               disabled={!hasActiveFilters}
               title="Reiniciar filtros"
             >
               <i className="ti ti-filter-off" />
-              Reiniciar
+              <span>Reiniciar</span>
             </button>
           </div>
           <div className={styles.toolbarRight}>
+            <button
+              type="button"
+              className={styles.analisisBtn}
+              onClick={() => navigate('/analisis')}
+            >
+              <i className="ti ti-chart-bar" />
+              Ver análisis
+            </button>
             <button type="button" className={styles.createBtn} onClick={() => setShowCreate((prev) => !prev)}>
               <i className="ti ti-plus" />
               Nuevo cliente

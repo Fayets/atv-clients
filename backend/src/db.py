@@ -172,6 +172,30 @@ MIGRATIONS = [
             'no_va_a_renovar', 'llamada_recompra', 'estan_bien', 'inactivo'
         ));
     """,
+    """
+    CREATE TABLE IF NOT EXISTS clients.analisis_cash (
+        id SERIAL PRIMARY KEY,
+        total_usd NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        periodo VARCHAR(120) NOT NULL DEFAULT 'Últimos 3 meses',
+        titulo VARCHAR(255) NOT NULL DEFAULT 'Cash collected',
+        subtitulo VARCHAR(255) NOT NULL DEFAULT 'Lo que generaron nuestros clientes',
+        historia TEXT NOT NULL DEFAULT '',
+        fuentes TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'utc'),
+        updated_by VARCHAR(255)
+    );
+    """,
+    """
+    INSERT INTO clients.analisis_cash (total_usd, periodo, titulo, subtitulo, historia, fuentes)
+    SELECT
+        2432780,
+        'Últimos 3 meses',
+        'Cash collected',
+        'Lo que generaron nuestros clientes',
+        'En los últimos 3 meses, los clientes de ATV generaron este resultado sumando el canal de wins, sus canales privados y el resto de la comunidad.',
+        'Canal de wins · Canales privados · Boost / Mentoría / Advantage'
+    WHERE NOT EXISTS (SELECT 1 FROM clients.analisis_cash);
+    """,
 ]
 
 

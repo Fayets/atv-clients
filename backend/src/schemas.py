@@ -325,3 +325,26 @@ class ClientePatch(BaseModel):
     fecha_inicio: date | None = None
     fecha_vencimiento: date | None = None
     duracion_dias: int | None = None
+
+
+class AnalisisCashResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    total_usd: Decimal
+    periodo: str
+    titulo: str
+    subtitulo: str
+    historia: str
+    fuentes: str
+    updated_at: datetime | None = None
+    updated_by: str | None = None
+
+
+class AnalisisCashPatch(BaseModel):
+    total_usd: Decimal | None = None
+    periodo: str | None = Field(default=None, max_length=120)
+    titulo: str | None = Field(default=None, max_length=255)
+    subtitulo: str | None = Field(default=None, max_length=255)
+    historia: str | None = None
+    fuentes: str | None = None

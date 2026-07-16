@@ -115,3 +115,17 @@ class Cuota(db.Entity):
     estado = Required(str, 20, default="pendiente")
     notas = Optional(str, sql_type="TEXT")
     created_at = Optional(datetime, default=lambda: datetime.utcnow())
+
+
+class AnalisisCash(db.Entity):
+    _table_ = ("clients", "analisis_cash")
+
+    id = PrimaryKey(int, auto=True)
+    total_usd = Required(Decimal, 14, 2, default=0)
+    periodo = Required(str, 120, default="Últimos 3 meses")
+    titulo = Required(str, 255, default="Cash collected")
+    subtitulo = Required(str, 255, default="Lo que generaron nuestros clientes")
+    historia = Optional(str, sql_type="TEXT")
+    fuentes = Optional(str, sql_type="TEXT")
+    updated_at = Optional(datetime, default=lambda: datetime.utcnow())
+    updated_by = Optional(str, 255)

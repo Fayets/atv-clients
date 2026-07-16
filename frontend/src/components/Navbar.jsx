@@ -12,6 +12,7 @@ export default function Navbar({ currentPath }) {
   const links = [
     { href: '/', label: 'Clientes' },
     { href: '/cobranza', label: 'Cobranza' },
+    { href: '/analisis', label: 'Análisis' },
   ]
 
   const handleToggleTheme = () => {
