@@ -144,11 +144,6 @@ export default function AnalisisPage() {
     }
   }
 
-  const fuentes = (data?.fuentes || '')
-    .split('·')
-    .map((item) => item.trim())
-    .filter(Boolean)
-
   const planRows = [
     { key: 'boost', label: formatPlan('boost'), value: metrics.byPlan.boost, tone: styles.planBoost },
     { key: 'mentoria', label: formatPlan('mentoria'), value: metrics.byPlan.mentoria, tone: styles.planMentoria },
@@ -259,22 +254,7 @@ export default function AnalisisPage() {
                   <i className="ti ti-currency-dollar" />
                 </div>
                 <div className={styles.cashValue}>{formatUsd(data.total_usd)}</div>
-                <div className={styles.cashMetaRow}>
-                  <span className={styles.cashPeriod}>{data.periodo}</span>
-                  <span className={styles.cashDivider}>·</span>
-                  <span className={styles.cashHint}>
-                    {formatUsd(metrics.activos ? Number(data.total_usd) / metrics.activos : 0)} / cliente activo
-                  </span>
-                </div>
-                {data.subtitulo ? <p className={styles.cashSub}>{data.subtitulo}</p> : null}
-                {data.historia ? <p className={styles.cashNote}>{data.historia}</p> : null}
-                {fuentes.length ? (
-                  <div className={styles.cashSources}>
-                    {fuentes.map((fuente) => (
-                      <span key={fuente} className={styles.sourceChip}>{fuente}</span>
-                    ))}
-                  </div>
-                ) : null}
+                <p className={styles.metricHint}>{data.periodo}</p>
               </article>
               <div className={styles.heroSide}>
                 <div className={styles.heroStat}>

@@ -90,6 +90,7 @@
   flex-direction: column;
   gap: 8px;
   min-height: 100%;
+  justify-content: flex-start;
 }
 
 .cashValue {
@@ -98,65 +99,6 @@
   line-height: 1;
   letter-spacing: 0.02em;
   color: var(--text);
-}
-
-.cashMetaRow {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.cashPeriod {
-  font-weight: 700;
-  color: var(--red-bright);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  font-size: 12px;
-}
-
-.cashDivider {
-  color: var(--label);
-}
-
-.cashHint {
-  color: var(--muted);
-}
-
-.cashSub {
-  margin: 4px 0 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.cashNote {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--muted);
-  max-width: 62ch;
-}
-
-.cashSources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.sourceChip {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  border-radius: 8px;
-  border: 0.5px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .heroSide {
