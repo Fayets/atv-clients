@@ -239,6 +239,7 @@ class ClienteListItem(BaseModel):
     nombre: str
     email: str
     plan_actual: PlanActual
+    fecha_inicio: date | None = None
     fecha_vencimiento: date | None = None
     estado_cliente: EstadoCliente
     estado_efectivo: EstadoEfectivo

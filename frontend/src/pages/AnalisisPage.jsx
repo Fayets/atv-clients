@@ -167,7 +167,7 @@ export default function AnalisisPage() {
               ← Volver a clientes
             </button>
             <h1 className={styles.pageTitle}>Análisis</h1>
-            <p className={styles.pageSubtitle}>Dashboard marketinero con resultados reales de la base</p>
+            <p className={styles.pageSubtitle}>Métricas de cartera y resultados de clientes</p>
           </div>
           {!editing && data ? (
             <button type="button" className={styles.editBtn} onClick={openEdit}>
@@ -253,21 +253,29 @@ export default function AnalisisPage() {
         ) : data ? (
           <>
             <section className={styles.heroCard}>
-              <div className={styles.heroCopy}>
-                <p className={styles.brand}>ATV · Clients</p>
-                <p className={styles.kicker}>{data.titulo}</p>
-                <h2 className={styles.amount}>{formatUsd(data.total_usd)}</h2>
-                <p className={styles.period}>{data.periodo}</p>
-                <p className={styles.subtitle}>{data.subtitulo}</p>
-                {data.historia ? <p className={styles.story}>{data.historia}</p> : null}
+              <article className={styles.cashMetric}>
+                <div className={styles.metricHead}>
+                  <span className={styles.metricLabel}>{data.titulo || 'Cash collected'}</span>
+                  <i className="ti ti-currency-dollar" />
+                </div>
+                <div className={styles.cashValue}>{formatUsd(data.total_usd)}</div>
+                <div className={styles.cashMetaRow}>
+                  <span className={styles.cashPeriod}>{data.periodo}</span>
+                  <span className={styles.cashDivider}>·</span>
+                  <span className={styles.cashHint}>
+                    {formatUsd(metrics.activos ? Number(data.total_usd) / metrics.activos : 0)} / cliente activo
+                  </span>
+                </div>
+                {data.subtitulo ? <p className={styles.cashSub}>{data.subtitulo}</p> : null}
+                {data.historia ? <p className={styles.cashNote}>{data.historia}</p> : null}
                 {fuentes.length ? (
-                  <div className={styles.sources}>
+                  <div className={styles.cashSources}>
                     {fuentes.map((fuente) => (
                       <span key={fuente} className={styles.sourceChip}>{fuente}</span>
                     ))}
                   </div>
                 ) : null}
-              </div>
+              </article>
               <div className={styles.heroSide}>
                 <div className={styles.heroStat}>
                   <span className={styles.heroStatLabel}>Clientes activos</span>

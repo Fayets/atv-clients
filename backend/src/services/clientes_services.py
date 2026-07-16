@@ -296,6 +296,7 @@ def _cliente_base_dict(
         "nombre": cliente.nombre,
         "email": cliente.email,
         "plan_actual": cliente.plan_actual,
+        "fecha_inicio": cliente.fecha_inicio,
         "fecha_vencimiento": cliente.fecha_vencimiento,
         "estado_cliente": cliente.estado_cliente,
         "estado_efectivo": calcular_estado_efectivo(cliente),
