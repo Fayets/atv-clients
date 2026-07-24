@@ -299,6 +299,42 @@
   font-weight: 600;
 }
 
+.discordSyncSectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.discordSyncSectionHead .discordSyncSectionTitle {
+  margin: 0;
+}
+
+.discordCreateBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--red);
+  color: var(--on-red);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.discordCreateBtn:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.discordCreateBtn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .discordSyncList {
   list-style: none;
   margin: 0;

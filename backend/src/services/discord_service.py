@@ -2,9 +2,13 @@ from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 import asyncio
 import logging
+import re
+import unicodedata
+from difflib import SequenceMatcher
+from decimal import Decimal
 
 import discord
-from pony.orm import db_session
+from pony.orm import db_session, flush
 
 from src.models import Cliente, DiscordTranscript
 
@@ -26,6 +30,8 @@ CATEGORIAS = {
     "advantage": ["canales atv adva", "canales atv advantage"],
     "mentoria": ["canales privados"],
 }
+
+DURACION_POR_PLAN = {"boost": 240, "mentoria": 120, "advantage": 120}
 
 
 def detectar_categoria(category_name: str) -> str | None:
@@ -52,25 +58,141 @@ def canal_a_nombre(canal_name: str) -> str:
     return " ".join(p if p.lower() == "y" else p.capitalize() for p in partes)
 
 
+def nombre_a_slug(nombre: str) -> str:
+    normalizado = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", normalizado).strip("-")
+
+
+def _slug_similar(a: str, b: str) -> bool:
+    if a == b:
+        return True
+    return SequenceMatcher(None, a, b).ratio() >= 0.85
+
+
 @db_session
-def buscar_cliente(canal_name: str) -> int | None:
+def buscar_cliente(canal_name: str, plan: str | None = None) -> int | None:
     """Busca cliente en BD por nombre derivado del canal. Retorna id o None."""
-    from src.models import Cliente
     nombre = canal_a_nombre(canal_name)
     nombre_lower = nombre.lower()
+    slug_canal = canal_name.lower()
 
-    # Buscar todos y filtrar en Python (evita lambda en Pony ORM con Python 3.12)
     clientes = Cliente.select()[:]
+    if plan:
+        clientes = [c for c in clientes if c.plan_actual == plan]
 
-    # Match exacto
     for c in clientes:
         if c.nombre.lower() == nombre_lower:
             return c.id
 
-    # Match por primera palabra
+    for c in clientes:
+        if nombre_a_slug(c.nombre) == slug_canal:
+            return c.id
+
+    fuzzy = [c for c in clientes if _slug_similar(nombre_a_slug(c.nombre), slug_canal)]
+    if len(fuzzy) == 1:
+        return fuzzy[0].id
+
     primera = nombre_lower.split()[0]
     candidatos = [c for c in clientes if primera in c.nombre.lower()]
     return candidatos[0].id if len(candidatos) == 1 else None
+
+
+def listar_canales_guild(guild: discord.Guild) -> list[dict]:
+    """Lista todos los canales de texto en categorías Boost/Mentoría/Advantage."""
+    canales: list[dict] = []
+    for category in guild.categories:
+        slug = detectar_categoria(category.name)
+        if not slug:
+            continue
+        for canal in category.text_channels:
+            canales.append({
+                "canal": canal.name,
+                "categoria": slug,
+                "plan": slug,
+                "nombre": canal_a_nombre(canal.name),
+            })
+    canales.sort(key=lambda item: (item["categoria"], item["nombre"].lower()))
+    return canales
+
+
+def detectar_faltantes(guild: discord.Guild) -> list[dict]:
+    """Canales de Discord que no tienen cliente en la base (mismo plan)."""
+    faltantes: list[dict] = []
+    for item in listar_canales_guild(guild):
+        if buscar_cliente(item["canal"], item["plan"]):
+            continue
+        faltantes.append(item)
+    return faltantes
+
+
+@db_session
+def _crear_cliente_desde_canal(canal: str, plan: str) -> dict:
+    nombre = canal_a_nombre(canal)
+    email = f"{canal}@discord.pendiente.atvos.io"
+    fecha_inicio = date.today()
+    duracion = DURACION_POR_PLAN[plan]
+    cliente = Cliente(
+        nombre=nombre,
+        email=email,
+        plan_actual=plan,
+        fecha_inicio=fecha_inicio,
+        duracion_dias=duracion,
+        fecha_vencimiento=fecha_inicio + timedelta(days=duracion),
+        estado_cliente="vigente",
+        total_pagado_usd=Decimal("0"),
+        total_adeudado_usd=Decimal("0"),
+        observaciones=f"Creado automáticamente desde Discord #{canal}",
+    )
+    flush()
+    return {
+        "id": cliente.id,
+        "nombre": cliente.nombre,
+        "plan": plan,
+        "canal": canal,
+        "email": email,
+    }
+
+
+@db_session
+def _vincular_transcripts(canal: str, cliente_id: int) -> int:
+    vinculados = 0
+    cliente = Cliente.get(id=cliente_id)
+    if not cliente:
+        return 0
+    for transcript in DiscordTranscript.select():
+        if transcript.canal != canal:
+            continue
+        if transcript.cliente is None or transcript.cliente.id != cliente_id:
+            transcript.cliente = cliente
+            vinculados += 1
+    return vinculados
+
+
+async def crear_clientes_faltantes(
+    guild: discord.Guild,
+    canales: list[str] | None = None,
+) -> dict:
+    """Crea clientes para canales de Discord sin match en la base."""
+    faltantes = detectar_faltantes(guild)
+    if canales:
+        permitidos = set(canales)
+        faltantes = [item for item in faltantes if item["canal"] in permitidos]
+
+    creados: list[dict] = []
+    for item in faltantes:
+        cliente = _crear_cliente_desde_canal(item["canal"], item["plan"])
+        _vincular_transcripts(item["canal"], cliente["id"])
+
+        canal_discord = discord.utils.get(guild.text_channels, name=item["canal"])
+        mensajes = 0
+        if canal_discord:
+            result = await sync_canal(canal_discord, item["plan"], cliente["id"])
+            mensajes = result.get("mensajes", 0)
+            await asyncio.sleep(0.5)
+
+        creados.append({**cliente, "mensajes": mensajes})
+
+    return {"creados": creados, "total": len(creados)}
 
 
 @db_session
@@ -236,7 +358,7 @@ async def sync_canal(
         if not mensajes:
             return base
 
-        cid = cliente_id if cliente_id is not None else buscar_cliente(canal.name)
+        cid = cliente_id if cliente_id is not None else buscar_cliente(canal.name, categoria)
         if not cid:
             logger.warning(f"Sin match de cliente para #{canal.name}")
 
@@ -271,6 +393,7 @@ async def sync_canal(
 
 async def sync_guild(guild: discord.Guild) -> dict:
     """Sincroniza todos los canales de Discord y resume clientes actualizados."""
+    faltantes = detectar_faltantes(guild)
     actualizados: list[dict] = []
     sin_match: list[dict] = []
     canales_procesados = 0
@@ -302,7 +425,7 @@ async def sync_guild(guild: discord.Guild) -> dict:
                     "plan": result["plan_actual"],
                 })
             else:
-                sin_match.append(item)
+                sin_match.append({**item, "plan": slug})
 
             await asyncio.sleep(0.5)
 
@@ -314,6 +437,7 @@ async def sync_guild(guild: discord.Guild) -> dict:
         "mensajes_totales": mensajes_totales,
         "actualizados": actualizados,
         "sin_match": sin_match,
+        "faltantes": faltantes,
     }
 
 
@@ -327,7 +451,7 @@ async def sync_cliente(cliente_id: int, guild: discord.Guild) -> dict[str, int]:
         if not slug:
             continue
         for canal in category.text_channels:
-            if buscar_cliente(canal.name) != cliente_id:
+            if buscar_cliente(canal.name, slug) != cliente_id:
                 continue
             canales += 1
             result = await sync_canal(canal, slug, cliente_id)

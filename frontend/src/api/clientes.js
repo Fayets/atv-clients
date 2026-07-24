@@ -265,3 +265,10 @@ export function triggerDiscordActualizacion(clienteId) {
 export function triggerDiscordActualizacionTodos() {
   return request('/api/discord/actualizar-todos', { method: 'POST' })
 }
+
+export function crearDiscordFaltantes(canales = null) {
+  return request('/api/discord/crear-faltantes', {
+    method: 'POST',
+    body: JSON.stringify(canales?.length ? { canales } : {}),
+  })
+}

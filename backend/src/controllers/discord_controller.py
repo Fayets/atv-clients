@@ -3,10 +3,15 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 from pony.orm import db_session, desc
+from pydantic import BaseModel
 from src.deps import get_current_user
 from src.models import DiscordTranscript
 
 router = APIRouter()
+
+
+class CrearFaltantesBody(BaseModel):
+    canales: list[str] | None = None
 
 
 def _get_transcripts_by_cliente(cliente_id: int) -> list:
@@ -41,6 +46,38 @@ async def actualizar_todos(_: str = Depends(get_current_user)):
         return {"ok": True, **result}
     except Exception:
         raise HTTPException(status_code=500, detail="Error al sincronizar Discord.")
+
+
+@router.post("/crear-faltantes")
+async def crear_faltantes(
+    body: CrearFaltantesBody | None = None,
+    _: str = Depends(get_current_user),
+):
+    from src.discord_bot import get_guild
+    from src.services.discord_service import crear_clientes_faltantes
+
+    guild = get_guild()
+    if not guild:
+        raise HTTPException(status_code=503, detail="Bot de Discord no disponible")
+
+    try:
+        canales = body.canales if body else None
+        result = await crear_clientes_faltantes(guild, canales)
+        return {"ok": True, **result}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al crear clientes desde Discord.")
+
+
+@router.get("/faltantes")
+async def listar_faltantes(_: str = Depends(get_current_user)):
+    from src.discord_bot import get_guild
+    from src.services.discord_service import detectar_faltantes
+
+    guild = get_guild()
+    if not guild:
+        raise HTTPException(status_code=503, detail="Bot de Discord no disponible")
+
+    return {"faltantes": detectar_faltantes(guild)}
 
 
 @router.get("/{cliente_id}/estado")

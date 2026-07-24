@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchClientes, patchCliente, triggerDiscordActualizacionTodos } from '../api/clientes'
+import { crearDiscordFaltantes, fetchClientes, patchCliente, triggerDiscordActualizacionTodos } from '../api/clientes'
 import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
 import NuevoClienteForm from '../components/NuevoClienteForm'
@@ -108,6 +108,7 @@ export default function DashboardPage() {
   const [miroModal, setMiroModal] = useState(null)
   const [pressedRowId, setPressedRowId] = useState(null)
   const [discordSyncing, setDiscordSyncing] = useState(false)
+  const [discordCreating, setDiscordCreating] = useState(false)
   const [discordResult, setDiscordResult] = useState(null)
   const [discordError, setDiscordError] = useState('')
   const skipPageResetRef = useRef(true)
@@ -190,6 +191,32 @@ export default function DashboardPage() {
       setDiscordError(error.message || 'Error al sincronizar Discord')
     } finally {
       setDiscordSyncing(false)
+    }
+  }
+
+  const handleCrearFaltantes = async () => {
+    const faltantes = discordResult?.faltantes || []
+    if (!faltantes.length) return
+    const confirmar = window.confirm(
+      `¿Crear ${faltantes.length} cliente(s) faltante(s) en la base?\n\n`
+      + faltantes.map((item) => `${item.nombre} — ${planLabel(item.plan)}`).join('\n'),
+    )
+    if (!confirmar) return
+
+    setDiscordCreating(true)
+    setDiscordError('')
+    try {
+      const result = await crearDiscordFaltantes()
+      await refreshLists()
+      setDiscordResult((prev) => prev ? {
+        ...prev,
+        faltantes: [],
+        creados: result.creados,
+      } : prev)
+    } catch (error) {
+      setDiscordError(error.message || 'Error al crear clientes')
+    } finally {
+      setDiscordCreating(false)
     }
   }
 
@@ -433,10 +460,59 @@ export default function DashboardPage() {
               <p className={styles.discordSyncEmpty}>No hubo mensajes nuevos en canales vinculados.</p>
             )}
 
+            {discordResult.faltantes?.length > 0 ? (
+              <div className={styles.discordSyncSection}>
+                <div className={styles.discordSyncSectionHead}>
+                  <h4 className={styles.discordSyncSectionTitle}>
+                    Clientes faltantes en la base ({discordResult.faltantes.length})
+                  </h4>
+                  <button
+                    type="button"
+                    className={styles.discordCreateBtn}
+                    onClick={handleCrearFaltantes}
+                    disabled={discordCreating}
+                  >
+                    {discordCreating ? 'Creando...' : 'Crear clientes faltantes'}
+                  </button>
+                </div>
+                <ul className={styles.discordSyncList}>
+                  {discordResult.faltantes.map((item) => (
+                    <li key={item.canal} className={styles.discordSyncItem}>
+                      <span className={styles.discordSyncItemName}>
+                        {item.nombre} — {planLabel(item.plan)}
+                      </span>
+                      <span className={styles.discordSyncItemMeta}>#{item.canal}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {discordResult.creados?.length > 0 ? (
+              <div className={styles.discordSyncSection}>
+                <h4 className={styles.discordSyncSectionTitle}>
+                  Clientes creados ({discordResult.creados.length})
+                </h4>
+                <ul className={styles.discordSyncList}>
+                  {discordResult.creados.map((item) => (
+                    <li key={item.id} className={styles.discordSyncItem}>
+                      <span className={styles.discordSyncItemName}>
+                        {item.nombre} — {planLabel(item.plan)}
+                      </span>
+                      <span className={styles.discordSyncItemMeta}>
+                        #{item.canal}
+                        {item.mensajes ? ` · ${item.mensajes} msgs` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             {discordResult.sin_match?.length > 0 ? (
               <div className={styles.discordSyncSection}>
                 <h4 className={styles.discordSyncSectionTitle}>
-                  Canales sin cliente en la base ({discordResult.sin_match.length})
+                  Mensajes nuevos sin cliente vinculado ({discordResult.sin_match.length})
                 </h4>
                 <ul className={styles.discordSyncList}>
                   {discordResult.sin_match.map((item) => (
