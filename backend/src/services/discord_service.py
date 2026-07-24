@@ -205,8 +205,16 @@ async def sync_canal(
     canal: discord.TextChannel,
     categoria: str,
     cliente_id: int | None = None,
-) -> int:
-    """Extrae mensajes nuevos de un canal y los persiste. Retorna cantidad de mensajes nuevos."""
+) -> dict:
+    """Extrae mensajes nuevos de un canal y los persiste."""
+    base = {
+        "canal": canal.name,
+        "categoria": categoria,
+        "mensajes": 0,
+        "cliente_id": None,
+        "nombre": canal_a_nombre(canal.name),
+        "plan_actual": None,
+    }
     try:
         mensajes = []
         ultimo_id = obtener_ultimo_mensaje_id(canal.name)
@@ -226,7 +234,7 @@ async def sync_canal(
             })
 
         if not mensajes:
-            return 0
+            return base
 
         cid = cliente_id if cliente_id is not None else buscar_cliente(canal.name)
         if not cid:
@@ -234,14 +242,79 @@ async def sync_canal(
 
         path = guardar_transcript(canal.name, categoria, mensajes, cid)
         logger.info(f"✓ #{canal.name} → {len(mensajes)} msgs → {path}")
-        return len(mensajes)
+
+        plan_actual = None
+        nombre = canal_a_nombre(canal.name)
+        if cid:
+            with db_session:
+                cliente = Cliente.get(id=cid)
+                if cliente:
+                    plan_actual = cliente.plan_actual
+                    nombre = cliente.nombre
+
+        return {
+            "canal": canal.name,
+            "categoria": categoria,
+            "mensajes": len(mensajes),
+            "cliente_id": cid,
+            "nombre": nombre,
+            "plan_actual": plan_actual,
+        }
 
     except discord.Forbidden:
         logger.warning(f"Sin permisos: #{canal.name}")
-        return 0
+        return base
     except Exception as e:
         logger.error(f"Error en #{canal.name}: {e}", exc_info=True)
-        return 0
+        return base
+
+
+async def sync_guild(guild: discord.Guild) -> dict:
+    """Sincroniza todos los canales de Discord y resume clientes actualizados."""
+    actualizados: list[dict] = []
+    sin_match: list[dict] = []
+    canales_procesados = 0
+    mensajes_totales = 0
+
+    for category in guild.categories:
+        slug = detectar_categoria(category.name)
+        if not slug:
+            continue
+        for canal in category.text_channels:
+            canales_procesados += 1
+            result = await sync_canal(canal, slug)
+            mensajes = result.get("mensajes", 0)
+            if mensajes <= 0:
+                await asyncio.sleep(0.5)
+                continue
+
+            mensajes_totales += mensajes
+            item = {
+                "canal": result["canal"],
+                "categoria": result["categoria"],
+                "mensajes": mensajes,
+                "nombre": result["nombre"],
+            }
+            if result.get("cliente_id"):
+                actualizados.append({
+                    **item,
+                    "cliente_id": result["cliente_id"],
+                    "plan": result["plan_actual"],
+                })
+            else:
+                sin_match.append(item)
+
+            await asyncio.sleep(0.5)
+
+    actualizados.sort(key=lambda item: item["nombre"].lower())
+    sin_match.sort(key=lambda item: item["nombre"].lower())
+
+    return {
+        "canales_procesados": canales_procesados,
+        "mensajes_totales": mensajes_totales,
+        "actualizados": actualizados,
+        "sin_match": sin_match,
+    }
 
 
 async def sync_cliente(cliente_id: int, guild: discord.Guild) -> dict[str, int]:
@@ -257,7 +330,8 @@ async def sync_cliente(cliente_id: int, guild: discord.Guild) -> dict[str, int]:
             if buscar_cliente(canal.name) != cliente_id:
                 continue
             canales += 1
-            mensajes += await sync_canal(canal, slug, cliente_id)
+            result = await sync_canal(canal, slug, cliente_id)
+            mensajes += result.get("mensajes", 0)
             await asyncio.sleep(0.5)
 
     return {"canales": canales, "mensajes": mensajes}

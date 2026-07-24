@@ -261,3 +261,7 @@ export function fetchDiscordEstado(clienteId) {
 export function triggerDiscordActualizacion(clienteId) {
   return request(`/api/discord/${clienteId}/actualizar`, { method: 'POST' })
 }
+
+export function triggerDiscordActualizacionTodos() {
+  return request('/api/discord/actualizar-todos', { method: 'POST' })
+}

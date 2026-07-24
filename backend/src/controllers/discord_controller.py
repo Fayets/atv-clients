@@ -27,6 +27,22 @@ def canales_sin_match(_: str = Depends(get_current_user)):
     ]
 
 
+@router.post("/actualizar-todos")
+async def actualizar_todos(_: str = Depends(get_current_user)):
+    from src.discord_bot import get_guild
+    from src.services.discord_service import sync_guild
+
+    guild = get_guild()
+    if not guild:
+        raise HTTPException(status_code=503, detail="Bot de Discord no disponible")
+
+    try:
+        result = await sync_guild(guild)
+        return {"ok": True, **result}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al sincronizar Discord.")
+
+
 @router.get("/{cliente_id}/estado")
 @db_session
 def get_estado(cliente_id: int, _: str = Depends(get_current_user)):

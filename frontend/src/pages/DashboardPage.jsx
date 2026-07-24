@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchClientes, patchCliente } from '../api/clientes'
+import { fetchClientes, patchCliente, triggerDiscordActualizacionTodos } from '../api/clientes'
 import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
 import NuevoClienteForm from '../components/NuevoClienteForm'
@@ -90,6 +90,10 @@ function truncateText(text, max = 48) {
   return text.length > max ? `${text.slice(0, max)}…` : text
 }
 
+function planLabel(plan) {
+  return PLANES_CLIENTE.find((option) => option.value === plan)?.label || plan || '—'
+}
+
 export default function DashboardPage() {
   const initialFilters = useMemo(() => loadInitialFilters(), [])
   const [clientes, setClientes] = useState([])
@@ -103,6 +107,9 @@ export default function DashboardPage() {
   const [page, setPage] = useState(initialFilters.page)
   const [miroModal, setMiroModal] = useState(null)
   const [pressedRowId, setPressedRowId] = useState(null)
+  const [discordSyncing, setDiscordSyncing] = useState(false)
+  const [discordResult, setDiscordResult] = useState(null)
+  const [discordError, setDiscordError] = useState('')
   const skipPageResetRef = useRef(true)
 
   const hasActiveFilters = Boolean(
@@ -170,6 +177,20 @@ export default function DashboardPage() {
     setPlanFilter(DEFAULT_FILTERS.planFilter)
     setOrden(DEFAULT_FILTERS.orden)
     setPage(DEFAULT_FILTERS.page)
+  }
+
+  const handleDiscordSync = async () => {
+    setDiscordSyncing(true)
+    setDiscordError('')
+    setDiscordResult(null)
+    try {
+      const result = await triggerDiscordActualizacionTodos()
+      setDiscordResult(result)
+    } catch (error) {
+      setDiscordError(error.message || 'Error al sincronizar Discord')
+    } finally {
+      setDiscordSyncing(false)
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(clientes.length / PAGE_SIZE))
@@ -339,6 +360,15 @@ export default function DashboardPage() {
           <div className={styles.toolbarRight}>
             <button
               type="button"
+              className={styles.discordSyncBtn}
+              onClick={handleDiscordSync}
+              disabled={discordSyncing}
+            >
+              <i className={`ti ${discordSyncing ? 'ti-loader-2' : 'ti-brand-discord'}`} />
+              {discordSyncing ? 'Actualizando...' : 'Actualizar Discord'}
+            </button>
+            <button
+              type="button"
               className={styles.analisisBtn}
               onClick={() => navigate('/analisis')}
             >
@@ -356,6 +386,72 @@ export default function DashboardPage() {
             </span>
           </div>
         </section>
+
+        {discordError ? (
+          <section className={styles.discordSyncCard}>
+            <p className={styles.discordSyncError}>{discordError}</p>
+          </section>
+        ) : null}
+
+        {discordResult ? (
+          <section className={styles.discordSyncCard}>
+            <div className={styles.discordSyncHead}>
+              <div>
+                <h3 className={styles.discordSyncTitle}>Actualización Discord</h3>
+                <p className={styles.discordSyncSummary}>
+                  {discordResult.canales_procesados} canales revisados · {discordResult.mensajes_totales} mensajes nuevos
+                </p>
+              </div>
+              <button
+                type="button"
+                className={styles.discordSyncClose}
+                onClick={() => setDiscordResult(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            {discordResult.actualizados?.length > 0 ? (
+              <div className={styles.discordSyncSection}>
+                <h4 className={styles.discordSyncSectionTitle}>
+                  Clientes actualizados ({discordResult.actualizados.length})
+                </h4>
+                <ul className={styles.discordSyncList}>
+                  {discordResult.actualizados.map((item) => (
+                    <li key={`${item.cliente_id}-${item.canal}`} className={styles.discordSyncItem}>
+                      <span className={styles.discordSyncItemName}>
+                        {item.nombre} — {planLabel(item.plan)}
+                      </span>
+                      <span className={styles.discordSyncItemMeta}>
+                        #{item.canal} · {item.mensajes} msgs
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className={styles.discordSyncEmpty}>No hubo mensajes nuevos en canales vinculados.</p>
+            )}
+
+            {discordResult.sin_match?.length > 0 ? (
+              <div className={styles.discordSyncSection}>
+                <h4 className={styles.discordSyncSectionTitle}>
+                  Canales sin cliente en la base ({discordResult.sin_match.length})
+                </h4>
+                <ul className={styles.discordSyncList}>
+                  {discordResult.sin_match.map((item) => (
+                    <li key={item.canal} className={styles.discordSyncItem}>
+                      <span className={styles.discordSyncItemName}>{item.nombre}</span>
+                      <span className={styles.discordSyncItemMeta}>
+                        #{item.canal} · {item.categoria} · {item.mensajes} msgs
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className={styles.tableCard}>
           <div className={styles.tableWrap}>
