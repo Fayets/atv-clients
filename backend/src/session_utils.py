@@ -9,7 +9,10 @@ SESSION_COOKIE_NAME = "ecosystem_session"
 SESSION_MAX_AGE_SECONDS = 7 * 24 * 3600
 
 def _secret() -> bytes:
-    return config("SECRET").encode("utf-8")
+    value = config("ECOSYSTEM_SECRET", default="") or config("SECRET", default="")
+    if not value:
+        raise RuntimeError("ECOSYSTEM_SECRET (o SECRET) no configurado en .env")
+    return value.encode("utf-8")
 
 def verify_session_token(token: str) -> str | None:
     if not token:

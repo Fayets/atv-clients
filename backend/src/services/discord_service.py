@@ -11,6 +11,10 @@ import discord
 from pony.orm import db_session, flush
 
 from src.models import Cliente, DiscordTranscript
+from src.discord_transcript_paths import (
+    canonical_transcript_filepath,
+    get_transcripts_base,
+)
 
 logger = logging.getLogger("discord_bot")
 
@@ -23,7 +27,7 @@ def _now_ar():
     return ar_now.replace(tzinfo=None)
 
 
-TRANSCRIPTS_BASE = Path("/opt/atv-clients/transcripts")
+TRANSCRIPTS_BASE = get_transcripts_base()
 
 CATEGORIAS = {
     "boost": ["canales atv boost"],
@@ -76,9 +80,13 @@ def buscar_cliente(canal_name: str, plan: str | None = None) -> int | None:
     nombre_lower = nombre.lower()
     slug_canal = canal_name.lower()
 
-    clientes = Cliente.select()[:]
+    clientes = list(Cliente.select())
     if plan:
-        clientes = [c for c in clientes if c.plan_actual == plan]
+        filtered: list[Cliente] = []
+        for c in clientes:
+            if c.plan_actual == plan:
+                filtered.append(c)
+        clientes = filtered
 
     for c in clientes:
         if c.nombre.lower() == nombre_lower:
@@ -198,10 +206,10 @@ async def crear_clientes_faltantes(
 @db_session
 def obtener_ultimo_mensaje_id(canal_name: str) -> str | None:
     """ID del último mensaje procesado para un canal del bot (un registro por canal)."""
-    rows = [
-        t for t in DiscordTranscript.select()
-        if t.canal == canal_name and t.categoria != "manual"
-    ]
+    rows: list[DiscordTranscript] = []
+    for t in DiscordTranscript.select():
+        if t.canal == canal_name and t.categoria != "manual":
+            rows.append(t)
     if not rows:
         return None
     transcript = max(rows, key=lambda t: t.id)
@@ -227,10 +235,10 @@ def _write_header(f, canal_name: str, categoria: str, total_mensajes: int) -> No
 
 @db_session
 def _get_transcript_bot(canal_name: str) -> DiscordTranscript | None:
-    rows = [
-        t for t in DiscordTranscript.select()
-        if t.canal == canal_name and t.categoria != "manual"
-    ]
+    rows: list[DiscordTranscript] = []
+    for t in DiscordTranscript.select():
+        if t.canal == canal_name and t.categoria != "manual":
+            rows.append(t)
     if not rows:
         return None
     return max(rows, key=lambda t: t.id)
@@ -278,7 +286,7 @@ def guardar_transcript(
     _upsert_transcript(
         canal_name,
         categoria,
-        str(filepath),
+        canonical_transcript_filepath(categoria, canal_name),
         total_mensajes,
         ultimo_id,
         cliente_id,

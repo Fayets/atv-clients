@@ -15,6 +15,7 @@ from fastapi import HTTPException, UploadFile
 from pony.orm import db_session, flush
 
 from src.form_labels import FORM_QUESTION_LABELS, LEGACY_FORM_LABELS
+from src.discord_transcript_paths import resolve_transcript_filepath
 from src.models import Cliente, Cuota, DiscordTranscript, DocumentoLink, FathomBoard, MiroBoard, Observacion, ProximosPasos
 from src.schemas import (
     ClienteCreate,
@@ -580,8 +581,8 @@ class ClientesServices:
             cliente.delete()
 
         for filepath in filepaths:
-            path = Path(filepath)
-            if path.exists() and path.is_file():
+            path = resolve_transcript_filepath(filepath)
+            if path and path.is_file():
                 path.unlink()
 
         upload_dir = _discord_client_dir(cliente_id)
@@ -939,8 +940,8 @@ class ClientesServices:
             cliente.updated_at = datetime.utcnow()
 
         if filepath:
-            file_path = Path(filepath)
-            if file_path.exists():
+            file_path = resolve_transcript_filepath(filepath)
+            if file_path and file_path.is_file():
                 file_path.unlink()
         return True
 
@@ -954,8 +955,8 @@ class ClientesServices:
             if not transcript:
                 return None
 
-            file_path = Path(transcript.filepath)
-            if not file_path.exists():
+            file_path = resolve_transcript_filepath(transcript.filepath)
+            if not file_path or not file_path.is_file():
                 return None
 
             return file_path, file_path.name
@@ -1020,14 +1021,11 @@ class ClientesServices:
             if not cliente:
                 return None
 
-            transcripts = sorted(
-                [
-                    t for t in DiscordTranscript.select()
-                    if t.cliente is not None and t.cliente.id == cliente_id
-                ],
-                key=lambda t: t.creado_en or datetime.min,
-                reverse=True,
-            )
+            transcripts: list[DiscordTranscript] = []
+            for t in DiscordTranscript.select():
+                if t.cliente is not None and t.cliente.id == cliente_id:
+                    transcripts.append(t)
+            transcripts.sort(key=lambda t: t.creado_en or datetime.min, reverse=True)
             return [_discord_transcript_agent_list_dict(t) for t in transcripts]
 
     def obtener_discord_transcript_contenido(self, cliente_id: int, transcript_id: int) -> dict | None:
@@ -1040,8 +1038,8 @@ class ClientesServices:
             if not transcript:
                 return None
 
-            file_path = Path(transcript.filepath)
-            if not file_path.exists():
+            file_path = resolve_transcript_filepath(transcript.filepath)
+            if not file_path or not file_path.is_file():
                 return None
 
             return {

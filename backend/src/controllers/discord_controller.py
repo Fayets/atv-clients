@@ -1,10 +1,10 @@
-from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 from pony.orm import db_session, desc
 from pydantic import BaseModel
 from src.deps import get_current_user
+from src.discord_transcript_paths import resolve_transcript_filepath
 from src.models import DiscordTranscript
 
 router = APIRouter()
@@ -16,15 +16,20 @@ class CrearFaltantesBody(BaseModel):
 
 def _get_transcripts_by_cliente(cliente_id: int) -> list:
     """Obtiene transcripts de un cliente sin usar generators."""
-    all_transcripts = DiscordTranscript.select()[:]
-    return [t for t in all_transcripts if t.cliente is not None and t.cliente.id == cliente_id]
+    result: list = []
+    for t in DiscordTranscript.select():
+        if t.cliente is not None and t.cliente.id == cliente_id:
+            result.append(t)
+    return result
 
 
 @router.get("/sin-match")
 @db_session
 def canales_sin_match(_: str = Depends(get_current_user)):
-    all_transcripts = DiscordTranscript.select()[:]
-    sin_match = [t for t in all_transcripts if t.cliente is None]
+    sin_match: list = []
+    for t in DiscordTranscript.select():
+        if t.cliente is None:
+            sin_match.append(t)
     sin_match.sort(key=lambda t: t.fecha, reverse=True)
     return [
         {"canal": t.canal, "categoria": t.categoria, "fecha": t.fecha.isoformat()}
@@ -122,8 +127,8 @@ def ver_transcript(
     t = DiscordTranscript.get(id=transcript_id)
     if not t or (t.cliente and t.cliente.id != cliente_id):
         raise HTTPException(status_code=404, detail="Transcript no encontrado")
-    p = Path(t.filepath)
-    if not p.exists():
+    p = resolve_transcript_filepath(t.filepath)
+    if not p or not p.is_file():
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     return PlainTextResponse(p.read_text(encoding="utf-8"))
 

@@ -10,6 +10,7 @@ from src.controllers.analisis_controller import router as analisis_router
 from src.controllers.clientes_controller import router as clientes_router
 from src.controllers.discord_controller import router as discord_router
 from src.db import init_db
+from src.analisis_scheduler import start_analisis_scheduler
 from src.discord_bot import start_discord_bot
 
 
@@ -17,6 +18,7 @@ from src.discord_bot import start_discord_bot
 async def lifespan(app: FastAPI):
     init_db()
     start_discord_bot()
+    start_analisis_scheduler()
     yield
 
 

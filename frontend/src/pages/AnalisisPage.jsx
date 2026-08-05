@@ -1,155 +1,107 @@
-import { useEffect, useMemo, useState } from 'react'
-import { fetchAnalisis, patchAnalisis } from '../api/analisis'
-import { fetchClientes } from '../api/clientes'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ejecutarAnalisisIA, fetchAnalisisIA } from '../api/analisis'
+import AnalisisClienteCard from '../components/AnalisisClienteCard'
+import AnalisisClienteChip from '../components/AnalisisClienteChip'
 import Navbar from '../components/Navbar'
-import { formatDateTime, formatPlan, formatUsd } from '../utils/format'
+import {
+  buildResumenAccionables,
+  CATEGORIAS_FILTRO,
+  filtrarAccionables,
+} from '../utils/analisisIA'
+import { formatDateTime } from '../utils/format'
 import { navigate } from '../utils/navigation'
 import styles from './AnalisisPage.module.css'
 
-function buildDraft(data) {
+function applyEstado(data) {
+  const todos = data?.clientes_analizados || data?.resultados || []
+  const items = filtrarAccionables(data?.resultados || todos)
   return {
-    total_usd: data?.total_usd != null ? String(data.total_usd) : '',
-    periodo: data?.periodo || '',
-    titulo: data?.titulo || '',
-    subtitulo: data?.subtitulo || '',
-    historia: data?.historia || '',
-    fuentes: data?.fuentes || '',
-  }
-}
-
-function buildClientMetrics(clientes) {
-  const byPlan = { boost: 0, mentoria: 0, advantage: 0 }
-  let activos = 0
-  let vigentes = 0
-  let proximos = 0
-  let vencidos = 0
-  let inactivos = 0
-  let totalPagado = 0
-  let totalAdeudado = 0
-  const cutoff = new Date()
-  cutoff.setMonth(cutoff.getMonth() - 3)
-
-  let nuevos90 = 0
-
-  for (const cliente of clientes) {
-    const estado = cliente.estado_efectivo || cliente.estado_cliente
-    totalPagado += Number(cliente.total_pagado_usd || 0)
-    totalAdeudado += Number(cliente.total_adeudado_usd || 0)
-
-    if (estado === 'inactivo') {
-      inactivos += 1
-    } else {
-      activos += 1
-      if (byPlan[cliente.plan_actual] !== undefined) {
-        byPlan[cliente.plan_actual] += 1
-      }
-    }
-
-    if (estado === 'vigente' || estado === 'estan_bien') vigentes += 1
-    if (estado === 'proximo_a_vencer') proximos += 1
-    if (estado === 'vencido') vencidos += 1
-
-    if (cliente.fecha_inicio) {
-      const inicio = new Date(`${cliente.fecha_inicio}T00:00:00`)
-      if (inicio >= cutoff) nuevos90 += 1
-    }
-  }
-
-  return {
-    total: clientes.length,
-    activos,
-    vigentes,
-    proximos,
-    vencidos,
-    inactivos,
-    byPlan,
-    totalPagado,
-    totalAdeudado,
-    nuevos90,
+    items,
+    clientesAnalizados: todos,
+    ultimoAnalisis: data?.ultimo_analisis_en || null,
+    proximoAnalisis: data?.proximo_analisis_en || null,
+    intervaloDias: data?.intervalo_dias || 2,
+    totalAnalizados: data?.total_analizados ?? todos.length,
+    requierenAccion: data?.requieren_accion ?? items.length,
+    enEjecucion: Boolean(data?.en_ejecucion),
+    error: data?.error || '',
   }
 }
 
 export default function AnalisisPage() {
-  const [data, setData] = useState(null)
-  const [clientes, setClientes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(buildDraft())
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [iaItems, setIaItems] = useState([])
+  const [clientesAnalizados, setClientesAnalizados] = useState([])
+  const [iaFilter, setIaFilter] = useState('todos')
+  const [ultimoAnalisis, setUltimoAnalisis] = useState(null)
+  const [proximoAnalisis, setProximoAnalisis] = useState(null)
+  const [intervaloDias, setIntervaloDias] = useState(2)
+  const [totalAnalizados, setTotalAnalizados] = useState(0)
+  const [requierenAccion, setRequierenAccion] = useState(0)
+  const [enEjecucion, setEnEjecucion] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const metrics = useMemo(() => buildClientMetrics(clientes), [clientes])
+  const iaResumen = useMemo(() => buildResumenAccionables(iaItems), [iaItems])
+  const iaFiltered = useMemo(() => {
+    if (iaFilter === 'todos') return iaItems
+    return iaItems.filter((item) => (item.categoria || item.tipo) === iaFilter)
+  }, [iaFilter, iaItems])
 
-  const load = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const [analisis, lista] = await Promise.all([fetchAnalisis(), fetchClientes()])
-      setData(analisis)
-      setDraft(buildDraft(analisis))
-      setClientes(lista)
-    } catch (err) {
-      setError(err.message || 'No se pudo cargar el análisis.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    load()
+  const applyToState = useCallback((estado) => {
+    setIaItems(estado.items)
+    setClientesAnalizados(estado.clientesAnalizados)
+    setUltimoAnalisis(estado.ultimoAnalisis)
+    setProximoAnalisis(estado.proximoAnalisis)
+    setIntervaloDias(estado.intervaloDias)
+    setTotalAnalizados(estado.totalAnalizados)
+    setRequierenAccion(estado.requierenAccion)
+    setEnEjecucion(estado.enEjecucion)
+    if (estado.error) setError(estado.error)
+    else setError('')
   }, [])
 
-  const openEdit = () => {
-    setDraft(buildDraft(data))
-    setEditing(true)
-    setError('')
-  }
-
-  const cancelEdit = () => {
-    setDraft(buildDraft(data))
-    setEditing(false)
-    setError('')
-  }
-
-  const save = async (event) => {
-    event.preventDefault()
-    const total = Number(String(draft.total_usd).replace(',', '.'))
-    if (!Number.isFinite(total) || total < 0) {
-      setError('Ingresá un monto válido en USD.')
-      return
-    }
-    if (!draft.titulo.trim() || !draft.periodo.trim()) {
-      setError('Título y período son obligatorios.')
-      return
-    }
-
-    setSaving(true)
-    setError('')
+  const loadEstado = useCallback(async () => {
     try {
-      const updated = await patchAnalisis({
-        total_usd: total,
-        periodo: draft.periodo.trim(),
-        titulo: draft.titulo.trim(),
-        subtitulo: draft.subtitulo.trim(),
-        historia: draft.historia.trim(),
-        fuentes: draft.fuentes.trim(),
-      })
-      setData(updated)
-      setDraft(buildDraft(updated))
-      setEditing(false)
+      const data = await fetchAnalisisIA()
+      const estado = applyEstado(data)
+      applyToState(estado)
+      return estado
     } catch (err) {
-      setError(err.message || 'No se pudo guardar.')
-    } finally {
-      setSaving(false)
+      setError(err.message || 'No se pudo cargar el análisis.')
+      return null
+    }
+  }, [applyToState])
+
+  useEffect(() => {
+    loadEstado().finally(() => setLoading(false))
+  }, [loadEstado])
+
+  useEffect(() => {
+    if (!enEjecucion) return undefined
+    const timer = setInterval(() => {
+      loadEstado()
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [enEjecucion, loadEstado])
+
+  const runAnalisisIA = async () => {
+    setError('')
+    setEnEjecucion(true)
+    try {
+      const data = await ejecutarAnalisisIA()
+      applyToState(applyEstado(data))
+    } catch (err) {
+      setError(err.message || 'No se pudo analizar los transcripts.')
+      setEnEjecucion(false)
     }
   }
 
-  const planRows = [
-    { key: 'boost', label: formatPlan('boost'), value: metrics.byPlan.boost, tone: styles.planBoost },
-    { key: 'mentoria', label: formatPlan('mentoria'), value: metrics.byPlan.mentoria, tone: styles.planMentoria },
-    { key: 'advantage', label: formatPlan('advantage'), value: metrics.byPlan.advantage, tone: styles.planAdvantage },
-  ]
-  const planMax = Math.max(1, ...planRows.map((row) => row.value))
+  const analisisCompletoSinAccion = Boolean(
+    ultimoAnalisis && !enEjecucion && !loading && iaItems.length === 0,
+  )
+  const mostrarClientes = Boolean(
+    ultimoAnalisis && !enEjecucion && !loading && clientesAnalizados.length > 0,
+  )
 
   return (
     <div className={styles.page}>
@@ -157,218 +109,145 @@ export default function AnalisisPage() {
 
       <main className={styles.stage}>
         <div className={styles.topBar}>
-          <div>
+          <div className={styles.topBarMain}>
             <button type="button" className={styles.backBtn} onClick={() => navigate('/')}>
               ← Volver a clientes
             </button>
             <h1 className={styles.pageTitle}>Análisis</h1>
-            <p className={styles.pageSubtitle}>Métricas de cartera y resultados de clientes</p>
+            <p className={styles.pageSubtitle}>
+              Wins e upsells detectados en transcripts — ingresos generados y oportunidades de upgrade
+            </p>
+            <div className={styles.scheduleBar}>
+              <span className={styles.scheduleItem}>
+                <i className="ti ti-clock" />
+                {ultimoAnalisis
+                  ? `Último análisis: ${formatDateTime(ultimoAnalisis)}`
+                  : 'Todavía no se ejecutó ningún análisis'}
+              </span>
+              {proximoAnalisis ? (
+                <span className={styles.scheduleItem}>
+                  <i className="ti ti-calendar-event" />
+                  Próximo: {formatDateTime(proximoAnalisis)}
+                </span>
+              ) : null}
+              {ultimoAnalisis ? (
+                <span className={styles.scheduleItem}>
+                  <i className="ti ti-users" />
+                  {totalAnalizados} analizados · {requierenAccion} wins/upsells
+                </span>
+              ) : null}
+              <span className={styles.scheduleBadge}>
+                Automático cada {intervaloDias} días
+              </span>
+            </div>
           </div>
-          {!editing && data ? (
-            <button type="button" className={styles.editBtn} onClick={openEdit}>
-              <i className="ti ti-pencil" />
-              Editar cash collected
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className={styles.analyzeBtn}
+            onClick={runAnalisisIA}
+            disabled={enEjecucion || loading}
+          >
+            <i className={`ti ${enEjecucion ? 'ti-loader-2' : 'ti-sparkles'}`} />
+            {enEjecucion ? 'Analizando transcripts...' : 'Analizar ahora'}
+          </button>
         </div>
 
         {loading ? (
-          <p className={styles.status}>Cargando métricas...</p>
-        ) : error && !data ? (
-          <p className={styles.statusError}>{error}</p>
-        ) : editing ? (
-          <form className={styles.editCard} onSubmit={save}>
-            <h2 className={styles.editTitle}>Actualizar cash collected</h2>
-            <div className={styles.editGrid}>
-              <label className={styles.field}>
-                <span className={styles.label}>Título</span>
-                <input
-                  className={styles.input}
-                  value={draft.titulo}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, titulo: event.target.value }))}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Período</span>
-                <input
-                  className={styles.input}
-                  value={draft.periodo}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, periodo: event.target.value }))}
-                  placeholder="Últimos 3 meses"
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Total USD</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className={styles.input}
-                  value={draft.total_usd}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, total_usd: event.target.value }))}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Subtítulo</span>
-                <input
-                  className={styles.input}
-                  value={draft.subtitulo}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, subtitulo: event.target.value }))}
-                />
-              </label>
-              <label className={`${styles.field} ${styles.fieldWide}`}>
-                <span className={styles.label}>Historia</span>
-                <textarea
-                  className={styles.textarea}
-                  rows={5}
-                  value={draft.historia}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, historia: event.target.value }))}
-                />
-              </label>
-              <label className={`${styles.field} ${styles.fieldWide}`}>
-                <span className={styles.label}>Fuentes (separadas por ·)</span>
-                <input
-                  className={styles.input}
-                  value={draft.fuentes}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, fuentes: event.target.value }))}
-                  placeholder="Canal de wins · Canales privados"
-                />
-              </label>
-            </div>
-            {error ? <p className={styles.statusError}>{error}</p> : null}
-            <div className={styles.editActions}>
-              <button type="button" className={styles.cancelBtn} onClick={cancelEdit} disabled={saving}>
-                Cancelar
+          <p className={styles.status}>Cargando análisis...</p>
+        ) : null}
+
+        {iaItems.length > 0 ? (
+          <section className={styles.iaSummary}>
+            <article className={styles.iaSummaryCard}>
+              <span className={styles.iaSummaryLabel}>Total</span>
+              <strong className={styles.iaSummaryValue}>{iaResumen.total}</strong>
+            </article>
+            <article className={`${styles.iaSummaryCard} ${styles.iaSummaryWin}`}>
+              <span className={styles.iaSummaryLabel}>Win</span>
+              <strong className={styles.iaSummaryValue}>{iaResumen.win}</strong>
+            </article>
+            <article className={`${styles.iaSummaryCard} ${styles.iaSummaryUpsell}`}>
+              <span className={styles.iaSummaryLabel}>Upsell</span>
+              <strong className={styles.iaSummaryValue}>{iaResumen.upsell}</strong>
+            </article>
+          </section>
+        ) : null}
+
+        {iaItems.length > 0 ? (
+          <div className={styles.filterRow}>
+            {CATEGORIAS_FILTRO.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`${styles.filterChip} ${iaFilter === option.value ? styles.filterChipActive : ''}`}
+                onClick={() => setIaFilter(option.value)}
+              >
+                {option.label}
               </button>
-              <button type="submit" className={styles.saveBtn} disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {mostrarClientes ? (
+          <section className={styles.clientesSection}>
+            <div className={styles.clientesSectionHeader}>
+              <h2 className={styles.clientesSectionTitle}>Clientes analizados</h2>
+              <span className={styles.clientesSectionCount}>{clientesAnalizados.length}</span>
             </div>
-          </form>
-        ) : data ? (
-          <>
-            <section className={styles.heroCard}>
-              <article className={styles.cashMetric}>
-                <div className={styles.metricHead}>
-                  <span className={styles.metricLabel}>{data.titulo || 'Cash collected'}</span>
-                  <i className="ti ti-currency-dollar" />
-                </div>
-                <div className={styles.cashValue}>{formatUsd(data.total_usd)}</div>
-                <p className={styles.metricHint}>{data.periodo}</p>
-              </article>
-              <div className={styles.heroSide}>
-                <div className={styles.heroStat}>
-                  <span className={styles.heroStatLabel}>Clientes activos</span>
-                  <strong className={styles.heroStatValue}>{metrics.activos}</strong>
-                </div>
-                <div className={styles.heroStat}>
-                  <span className={styles.heroStatLabel}>Alta últimos 90 días</span>
-                  <strong className={styles.heroStatValue}>{metrics.nuevos90}</strong>
-                </div>
-                <div className={styles.heroStat}>
-                  <span className={styles.heroStatLabel}>Total en cartera</span>
-                  <strong className={styles.heroStatValue}>{metrics.total}</strong>
-                </div>
-              </div>
-            </section>
-
-            <section className={styles.metricsGrid}>
-              <article className={`${styles.metricCard} ${styles.metricPulse}`}>
-                <div className={styles.metricHead}>
-                  <span className={styles.metricLabel}>Vigentes</span>
-                  <i className="ti ti-circle-check" />
-                </div>
-                <div className={styles.metricNum}>{metrics.vigentes}</div>
-                <p className={styles.metricHint}>Operando dentro del programa</p>
-              </article>
-              <article className={`${styles.metricCard} ${styles.metricWarn}`}>
-                <div className={styles.metricHead}>
-                  <span className={styles.metricLabel}>Próximos a vencer</span>
-                  <i className="ti ti-clock" />
-                </div>
-                <div className={`${styles.metricNum} ${styles.metricNumAccent}`}>{metrics.proximos}</div>
-                <p className={styles.metricHint}>Ventana de 30 días</p>
-              </article>
-              <article className={styles.metricCard}>
-                <div className={styles.metricHead}>
-                  <span className={styles.metricLabel}>Vencidos</span>
-                  <i className="ti ti-alert-triangle" />
-                </div>
-                <div className={styles.metricNum}>{metrics.vencidos}</div>
-                <p className={styles.metricHint}>Oportunidad de recompra / follow-up</p>
-              </article>
-              <article className={styles.metricCard}>
-                <div className={styles.metricHead}>
-                  <span className={styles.metricLabel}>Inactivos</span>
-                  <i className="ti ti-user-off" />
-                </div>
-                <div className={styles.metricNum}>{metrics.inactivos}</div>
-                <p className={styles.metricHint}>Fuera del pipeline activo</p>
-              </article>
-            </section>
-
-            <section className={styles.splitGrid}>
-              <article className={styles.panel}>
-                <div className={styles.panelHead}>
-                  <h3 className={styles.panelTitle}>Mix por plan</h3>
-                  <span className={styles.panelMeta}>{metrics.activos} activos</span>
-                </div>
-                <div className={styles.planList}>
-                  {planRows.map((row) => (
-                    <div key={row.key} className={styles.planRow}>
-                      <div className={styles.planMeta}>
-                        <span className={`${styles.planName} ${row.tone}`}>{row.label}</span>
-                        <strong className={styles.planValue}>{row.value}</strong>
-                      </div>
-                      <div className={styles.planTrack}>
-                        <div
-                          className={`${styles.planFill} ${row.tone}`}
-                          style={{ width: `${Math.round((row.value / planMax) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className={styles.panel}>
-                <div className={styles.panelHead}>
-                  <h3 className={styles.panelTitle}>Financiero interno</h3>
-                  <span className={styles.panelMeta}>Desde cuotas / ficha</span>
-                </div>
-                <div className={styles.financeGrid}>
-                  <div className={styles.financeItem}>
-                    <span className={styles.financeLabel}>Total pagado</span>
-                    <strong className={styles.financeValue}>{formatUsd(metrics.totalPagado)}</strong>
-                  </div>
-                  <div className={styles.financeItem}>
-                    <span className={styles.financeLabel}>Total adeudado</span>
-                    <strong className={styles.financeValue}>{formatUsd(metrics.totalAdeudado)}</strong>
-                  </div>
-                  <div className={styles.financeItem}>
-                    <span className={styles.financeLabel}>Cash / cliente activo</span>
-                    <strong className={styles.financeValue}>
-                      {formatUsd(metrics.activos ? Number(data.total_usd) / metrics.activos : 0)}
-                    </strong>
-                  </div>
-                  <div className={styles.financeItem}>
-                    <span className={styles.financeLabel}>Alta reciente</span>
-                    <strong className={styles.financeValue}>{metrics.nuevos90}</strong>
-                  </div>
-                </div>
-              </article>
-            </section>
-
-            {data.updated_at ? (
-              <p className={styles.meta}>
-                Cash collected actualizado {formatDateTime(data.updated_at)}
-                {data.updated_by ? ` · ${data.updated_by}` : ''}
-                {' · '}Métricas de clientes en vivo
+            {analisisCompletoSinAccion ? (
+              <p className={styles.clientesSectionHint}>
+                Ninguno con win o upsell en este período — revisá cada ficha abajo.
               </p>
-            ) : (
-              <p className={styles.meta}>Métricas de clientes en vivo desde la base</p>
-            )}
-          </>
+            ) : null}
+            <div className={styles.clientesGrid}>
+              {clientesAnalizados.map((item) => (
+                <AnalisisClienteChip
+                  key={item.id}
+                  item={item}
+                  onOpenCliente={(id) => navigate(`/cliente/${id}`)}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {!loading && !ultimoAnalisis && !enEjecucion ? (
+          <section className={styles.iaEmpty}>
+            <div className={styles.iaEmptyIcon}>
+              <i className="ti ti-message-chatbot" />
+            </div>
+            <h2 className={styles.iaEmptyTitle}>Wins y Upsells</h2>
+            <p className={styles.iaEmptyText}>
+              El bot analiza todos los transcripts de Discord y solo muestra clientes que
+              generaron ingresos gracias al programa (Win) o están listos para un upgrade (Upsell).
+            </p>
+            <button type="button" className={styles.analyzeBtnLarge} onClick={runAnalisisIA}>
+              <i className="ti ti-sparkles" />
+              Ejecutar primer análisis
+            </button>
+          </section>
+        ) : null}
+
+        {enEjecucion ? (
+          <section className={styles.iaLoading}>
+            <i className="ti ti-loader-2" />
+            <p>Leyendo transcripts y detectando wins y upsells...</p>
+          </section>
+        ) : null}
+
+        {error ? <p className={styles.statusError}>{error}</p> : null}
+
+        {iaFiltered.length > 0 && !enEjecucion ? (
+          <section className={styles.iaList}>
+            {iaFiltered.map((item, index) => (
+              <div key={item.id} style={{ animationDelay: `${index * 60}ms` }}>
+                <AnalisisClienteCard
+                  item={item}
+                  onOpenCliente={(id) => navigate(`/cliente/${id}`)}
+                />
+              </div>
+            ))}
+          </section>
         ) : null}
       </main>
     </div>

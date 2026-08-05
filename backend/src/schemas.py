@@ -349,3 +349,40 @@ class AnalisisCashPatch(BaseModel):
     subtitulo: str | None = Field(default=None, max_length=255)
     historia: str | None = None
     fuentes: str | None = None
+
+
+class AnalisisIAItem(BaseModel):
+    id: str
+    cliente_id: int | None = None
+    cliente_nombre: str
+    plan: PlanActual
+    categoria: str | None = None
+    tipo: str | None = None
+    urgencia: Literal["alta", "media", "baja"] | None = None
+    status_crm: str | None = None
+    programa: PlanActual | None = None
+    monto_usd: float | int | None = None
+    confianza: int | None = None
+    evidencia: str | None = None
+    accion: str | None = None
+    titulo: str | None = None
+    señal: str | None = None
+    tendencia: str | None = None
+    frase_cliente: str | None = None
+    logros: list[str] = Field(default_factory=list)
+    accion_reunion: str | None = None
+    resumen: str | None = None
+    analizado_at: datetime | None = None
+
+
+class AnalisisIAResponse(BaseModel):
+    ultimo_analisis_en: datetime | None = None
+    proximo_analisis_en: datetime | None = None
+    intervalo_dias: int = 2
+    en_ejecucion: bool = False
+    origen: str | None = None
+    total_analizados: int = 0
+    requieren_accion: int = 0
+    clientes_analizados: list[AnalisisIAItem] = Field(default_factory=list)
+    resultados: list[AnalisisIAItem] = Field(default_factory=list)
+    error: str | None = None

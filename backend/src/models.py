@@ -129,3 +129,19 @@ class AnalisisCash(db.Entity):
     fuentes = Optional(str, sql_type="TEXT")
     updated_at = Optional(datetime, default=lambda: datetime.utcnow())
     updated_by = Optional(str, 255)
+
+
+class AnalisisIARun(db.Entity):
+    _table_ = ("clients", "analisis_ia_runs")
+
+    id = PrimaryKey(int, auto=True)
+    ejecutado_en = Required(datetime)
+    proximo_analisis_en = Optional(datetime)
+    estado = Required(str, 20, default="ok")
+    resultados = Optional(str, sql_type="TEXT")
+    error = Optional(str, sql_type="TEXT")
+    origen = Required(str, 20, default="programado")
+    total_analizados = Optional(int)
+    requieren_accion = Optional(int)
+    clientes_procesados = Optional(int)
+    clientes_con_error = Optional(int)

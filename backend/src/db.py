@@ -196,6 +196,33 @@ MIGRATIONS = [
         'Canal de wins · Canales privados · Boost / Mentoría / Advantage'
     WHERE NOT EXISTS (SELECT 1 FROM clients.analisis_cash);
     """,
+    """
+    CREATE TABLE IF NOT EXISTS clients.analisis_ia_runs (
+        id SERIAL PRIMARY KEY,
+        ejecutado_en TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
+        proximo_analisis_en TIMESTAMP,
+        estado VARCHAR(20) NOT NULL DEFAULT 'ok',
+        resultados TEXT,
+        error TEXT,
+        origen VARCHAR(20) NOT NULL DEFAULT 'programado'
+    );
+    """,
+    """
+    ALTER TABLE clients.analisis_ia_runs
+    ADD COLUMN IF NOT EXISTS total_analizados INTEGER;
+    """,
+    """
+    ALTER TABLE clients.analisis_ia_runs
+    ADD COLUMN IF NOT EXISTS requieren_accion INTEGER;
+    """,
+    """
+    ALTER TABLE clients.analisis_ia_runs
+    ADD COLUMN IF NOT EXISTS clientes_procesados INTEGER;
+    """,
+    """
+    ALTER TABLE clients.analisis_ia_runs
+    ADD COLUMN IF NOT EXISTS clientes_con_error INTEGER;
+    """,
 ]
 
 

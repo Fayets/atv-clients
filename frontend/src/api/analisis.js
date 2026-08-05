@@ -33,3 +33,11 @@ export function patchAnalisis(data) {
     body: JSON.stringify(data),
   })
 }
+
+export function fetchAnalisisIA() {
+  return request('/api/analisis/ia')
+}
+
+export function ejecutarAnalisisIA() {
+  return request('/api/analisis/ia/ejecutar', { method: 'POST' })
+}
