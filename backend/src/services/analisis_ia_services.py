@@ -20,6 +20,7 @@ from src.services.clientes_services import ClientesServices
 logger = logging.getLogger("analisis_ia")
 
 INTERVALO_DIAS = 2
+PRIMER_ANALISIS_DIAS = 7
 GUARD_DUPLICADO_MINUTOS = 45
 AR = pytz.timezone("America/Argentina/Buenos_Aires")
 # Horarios fijos AR — weekday Python (0=lu … 6=do), hora, minuto
@@ -84,15 +85,55 @@ def _calcular_proximo_slot(desde: datetime | None = None) -> datetime:
     return _ar_to_naive_utc(min(candidatos))
 
 
-def _ventana_analisis() -> tuple[datetime, datetime]:
-    """Últimos INTERVALO_DIAS — evita wins viejos del transcript acumulativo."""
-    hasta = _utcnow()
-    desde = hasta - timedelta(days=INTERVALO_DIAS)
-    return desde, hasta
-
-
 def _fmt_ventana(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M")
+
+
+_MSG_TS_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\] ([^\n]+)\n", re.MULTILINE)
+
+
+def _parse_mensajes_transcript(contenido: str) -> list[tuple[datetime, str]]:
+    """Separa el .txt acumulativo en bloques por mensaje ([YYYY-MM-DD HH:MM] Autor)."""
+    matches = list(_MSG_TS_RE.finditer(contenido))
+    mensajes: list[tuple[datetime, str]] = []
+    for i, match in enumerate(matches):
+        ts = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M")
+        start = match.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(contenido)
+        block = contenido[start:end].rstrip() + "\n\n"
+        mensajes.append((ts, block))
+    return mensajes
+
+
+def _filtrar_transcript_desde(contenido: str, desde: datetime) -> tuple[str, int]:
+    """Retorna transcript recortado (solo msgs con ts > desde) y cantidad de mensajes."""
+    nuevos = [(ts, block) for ts, block in _parse_mensajes_transcript(contenido) if ts > desde]
+    filtrado = "".join(block for _, block in nuevos).strip()
+    return filtrado, len(nuevos)
+
+
+@db_session
+def _mapa_ultimo_run_ok_por_cliente() -> dict[int, datetime]:
+    """cliente_id → ejecutado_en del run OK más reciente que lo incluyó."""
+    resultado: dict[int, datetime] = {}
+    runs: list[AnalisisIARun] = []
+    for run in AnalisisIARun.select():
+        if run.estado == "ok" and run.resultados and run.ejecutado_en:
+            runs.append(run)
+    runs.sort(key=lambda r: r.ejecutado_en or datetime.min, reverse=True)
+    for run in runs:
+        for item in _parse_resultados(run.resultados):
+            cid = item.get("cliente_id")
+            if cid and cid not in resultado:
+                resultado[cid] = run.ejecutado_en
+    return resultado
+
+
+def _cutoff_cliente(cliente_id: int, ultimo_ok: dict[int, datetime]) -> datetime:
+    """Punto de corte: última corrida OK del cliente, o últimos PRIMER_ANALISIS_DIAS si es nuevo."""
+    if cliente_id in ultimo_ok:
+        return ultimo_ok[cliente_id]
+    return _utcnow() - timedelta(days=PRIMER_ANALISIS_DIAS)
 
 
 def _armar_user_prompt(
@@ -107,7 +148,7 @@ def _armar_user_prompt(
         f"Programa actual: {programa}\n"
         f"Ventana de análisis (solo win/upsell con evidencia en este período): "
         f"{_fmt_ventana(ventana_desde)} → {_fmt_ventana(ventana_hasta)}\n"
-        f"Transcript del canal Discord (contexto completo; aplicar reglas de ventana arriba):\n"
+        f"Transcript del canal Discord (solo mensajes nuevos desde la última corrida):\n"
         f"{transcript}"
     )
 
@@ -274,12 +315,13 @@ def _analizar_transcripts() -> tuple[list[dict], list[dict], int, int, str | Non
         logger.warning("Análisis IA: no hay clientes con transcript del bot disponible.")
         return [], [], 0, 0, None
 
-    ventana_desde, ventana_hasta = _ventana_analisis()
+    ultimo_ok_por_cliente = _mapa_ultimo_run_ok_por_cliente()
+    ventana_hasta = _utcnow()
     logger.info(
-        "Ventana de análisis: %s → %s (%s candidatos)",
-        _fmt_ventana(ventana_desde),
-        _fmt_ventana(ventana_hasta),
+        "Análisis IA: %s candidatos con archivo; filtro por última corrida OK por cliente "
+        "(default %s días si es primera vez)",
         len(candidatos),
+        PRIMER_ANALISIS_DIAS,
     )
 
     ahora = _utcnow().isoformat()
@@ -294,15 +336,36 @@ def _analizar_transcripts() -> tuple[list[dict], list[dict], int, int, str | Non
         plan = candidato["plan"]
         transcript_id = candidato["transcript_id"]
 
-        contenido = _leer_transcript(cliente_id, transcript_id)
-        if not contenido:
+        contenido_completo = _leer_transcript(cliente_id, transcript_id)
+        if not contenido_completo:
             logger.warning("Análisis IA: transcript vacío o ilegible para %s (id=%s)", nombre, cliente_id)
             continue
+
+        cutoff = _cutoff_cliente(cliente_id, ultimo_ok_por_cliente)
+        contenido, msgs_nuevos = _filtrar_transcript_desde(contenido_completo, cutoff)
+        if not contenido or msgs_nuevos == 0:
+            logger.info(
+                "Análisis IA: %s (id=%s) — sin mensajes nuevos desde %s, omitido",
+                nombre,
+                cliente_id,
+                _fmt_ventana(cutoff),
+            )
+            continue
+
+        logger.info(
+            "Análisis IA: %s (id=%s) — %s msgs nuevos desde %s, transcript %s → %s chars",
+            nombre,
+            cliente_id,
+            msgs_nuevos,
+            _fmt_ventana(cutoff),
+            len(contenido_completo),
+            len(contenido),
+        )
 
         clientes_procesados += 1
         try:
             clasificacion = _clasificar_cliente(
-                nombre, plan, contenido, ventana_desde, ventana_hasta,
+                nombre, plan, contenido, cutoff, ventana_hasta,
             )
             crudo.append(_item_resultado(
                 cliente_id=cliente_id,
