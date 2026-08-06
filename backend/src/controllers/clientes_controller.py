@@ -8,6 +8,7 @@ from src.schemas import (
     ClienteResponse,
     ClienteListItem,
     CobranzaItem,
+    DashboardResponse,
     CuotaCreate,
     CuotaPatch,
     CuotaResponse,
@@ -59,6 +60,16 @@ def listar_clientes(
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error al listar clientes.")
+
+
+@router.get("/dashboard", response_model=DashboardResponse)
+def obtener_dashboard(_: str = Depends(get_current_user)):
+    try:
+        return service.obtener_dashboard()
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al cargar el dashboard.")
 
 
 @router.get("/cobranza", response_model=list[CobranzaItem])

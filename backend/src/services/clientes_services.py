@@ -51,6 +51,11 @@ PLANES_VALIDOS = frozenset({"mentoria", "boost", "advantage"})
 DURACION_POR_PLAN = {"boost": 240, "mentoria": 120, "advantage": 120}
 PRIORIDADES_VALIDAS = frozenset({"alta", "media", "baja"})
 PRIORIDAD_ORDEN = {"alta": 0, "media": 1, "baja": 2, None: 3}
+PRIORIDAD_DASHBOARD_ORDEN = {"p1": 0, "p2": 1, "p3": 2, "p4": 3}
+MESES_ES = (
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+)
 ESTADOS_CUOTA_VALIDOS = frozenset({"pendiente", "pagado", "vencido"})
 UPLOAD_DIR = Path(config("UPLOAD_DIR", default="uploads"))
 MAX_DISCORD_TXT_BYTES = 5 * 1024 * 1024
@@ -335,6 +340,106 @@ def _proxima_cuota_pendiente(
     }
 
 
+def _mes_label(fecha: date) -> str:
+    return f"{MESES_ES[fecha.month - 1]} {fecha.year}"
+
+
+def _inicio_mes(fecha: date) -> date:
+    return fecha.replace(day=1)
+
+
+def _cuotas_impagas(cuotas: list[Cuota]) -> list[Cuota]:
+    return [c for c in cuotas if c.estado in {"pendiente", "vencido"}]
+
+
+def _detalle_item(
+    *,
+    cliente_id: int,
+    nombre: str,
+    plan: str,
+    monto: Decimal,
+    subtitulo: str | None = None,
+    estado: str | None = None,
+) -> dict:
+    return {
+        "cliente_id": cliente_id,
+        "nombre": nombre,
+        "plan_actual": plan,
+        "monto_usd": monto,
+        "subtitulo": subtitulo,
+        "estado_efectivo": estado,
+    }
+
+
+def _mes_offset(base: date, offset: int) -> date:
+    """Primer día del mes `offset` meses antes de base (0 = mes actual)."""
+    year, month = base.year, base.month - offset
+    while month <= 0:
+        month += 12
+        year -= 1
+    return date(year, month, 1)
+
+
+ESTADO_LABELS = {
+    "vigente": "Vigente",
+    "proximo_a_vencer": "Próximo a vencer",
+    "vencido": "Vencido",
+    "pausa": "Pausa",
+    "no_va_a_renovar": "No renueva",
+    "llamada_recompra": "Llamada recompra",
+    "estan_bien": "Están bien",
+    "inactivo": "Inactivo",
+}
+
+
+def _clasificar_accion_cobranza(
+    *,
+    cuotas: list[Cuota],
+    base: dict,
+    hoy: date,
+) -> tuple[str, str, Cuota | None] | None:
+    impagas = _cuotas_impagas(cuotas)
+    inicio = _inicio_mes(hoy)
+
+    antiguas = [c for c in impagas if c.fecha_vence and c.fecha_vence < inicio]
+    if antiguas:
+        cuota = min(antiguas, key=lambda c: c.fecha_vence)
+        return "p1", f"Cuota de {_mes_label(cuota.fecha_vence)} sin pagar", cuota
+
+    del_mes = [
+        c for c in impagas
+        if c.fecha_vence and c.fecha_vence.year == hoy.year and c.fecha_vence.month == hoy.month
+    ]
+    if del_mes:
+        cuota = min(del_mes, key=lambda c: c.fecha_vence)
+        dias = (cuota.fecha_vence - hoy).days
+        if dias < 0:
+            motivo = f"Cuota de {_mes_label(cuota.fecha_vence)} vencida"
+        elif dias == 0:
+            motivo = f"Cuota de {_mes_label(cuota.fecha_vence)} vence hoy"
+        elif dias <= 7:
+            motivo = f"Cuota vence en {dias} días"
+        else:
+            motivo = f"Cuota de {_mes_label(cuota.fecha_vence)} pendiente"
+        return "p2", motivo, cuota
+
+    if impagas:
+        cuota = min(impagas, key=lambda c: c.fecha_vence or date.max)
+        return "p2", "Cuota pendiente", cuota
+
+    if base["estado_efectivo"] == "vencido":
+        return "p3", "Programa vencido", None
+    if base["estado_efectivo"] == "proximo_a_vencer":
+        dias = base.get("dias_restantes")
+        motivo = f"Programa vence en {dias} días" if dias is not None else "Programa próximo a vencer"
+        return "p3", motivo, None
+
+    if base.get("prioridad_cobro") == "alta" and base["total_adeudado_usd"] > 0:
+        return "p4", "Prioridad manual alta", None
+
+    return None
+
+
 def _format_respuesta(value) -> str:
     if value is None:
         return "—"
@@ -485,6 +590,251 @@ class ClientesServices:
             )
         )
         return items
+
+    def obtener_dashboard(self) -> dict:
+        hoy = _today()
+        inicio_mes = _inicio_mes(hoy)
+        if hoy.month == 1:
+            inicio_mes_anterior = date(hoy.year - 1, 12, 1)
+        else:
+            inicio_mes_anterior = date(hoy.year, hoy.month - 1, 1)
+
+        meses_grafico = [_mes_offset(hoy, i) for i in range(5, -1, -1)]
+        cobranza_por_mes: dict[tuple[int, int], dict] = {
+            (m.year, m.month): {"cobrado": Decimal("0"), "pendiente": Decimal("0")}
+            for m in meses_grafico
+        }
+        estados_count: dict[str, int] = defaultdict(int)
+        adeudo_plan: dict[str, dict] = defaultdict(lambda: {"monto": Decimal("0"), "clientes": 0})
+
+        detalles: dict[str, list] = {
+            "a_cobrar_mes": [],
+            "vencido_acumulado": [],
+            "cobrado_mes": [],
+            "clientes_vigentes": [],
+            "mes_anterior_impago": [],
+            "mes_actual_pendiente": [],
+            "programas_riesgo": [],
+        }
+
+        with db_session:
+            clientes: list[Cliente] = []
+            for cliente in Cliente.select():
+                clientes.append(cliente)
+            cache = _load_relations_cache()
+
+            a_cobrar_mes = Decimal("0")
+            vencido_acumulado = Decimal("0")
+            cobrado_mes = Decimal("0")
+            clientes_vigentes = 0
+            cuotas_mes_total = 0
+            cuotas_mes_pagadas = 0
+            cuotas_ant_total = 0
+            cuotas_ant_pagadas = 0
+            buckets = {"mes_anterior_impago": 0, "mes_actual_pendiente": 0, "programas_riesgo": 0}
+
+            for cliente in clientes:
+                base = _cliente_base_dict(cliente, cache)
+                cuotas = cache.cuotas.get(cliente.id, [])
+                estado = base["estado_efectivo"]
+                estados_count[estado] += 1
+
+                adeudado = base["total_adeudado_usd"]
+                if adeudado > 0:
+                    plan = base["plan_actual"]
+                    adeudo_plan[plan]["monto"] += adeudado
+                    adeudo_plan[plan]["clientes"] += 1
+
+                if estado in {"vigente", "estan_bien"}:
+                    clientes_vigentes += 1
+                    detalles["clientes_vigentes"].append(_detalle_item(
+                        cliente_id=cliente.id,
+                        nombre=base["nombre"],
+                        plan=base["plan_actual"],
+                        monto=adeudado,
+                        subtitulo=f"Programa hasta {base['fecha_vencimiento']}" if base.get("fecha_vencimiento") else None,
+                        estado=estado,
+                    ))
+
+                clientes_con_ant = False
+                clientes_con_mes = False
+                monto_ant_cliente = Decimal("0")
+                monto_mes_cliente = Decimal("0")
+                monto_cobrado_cliente = Decimal("0")
+
+                for cuota in cuotas:
+                    monto = _decimal(cuota.monto_usd)
+                    fv = cuota.fecha_vence
+                    if not fv:
+                        continue
+
+                    key = (fv.year, fv.month)
+                    if key in cobranza_por_mes:
+                        if cuota.estado == "pagado":
+                            cobranza_por_mes[key]["cobrado"] += monto
+                        elif cuota.estado in {"pendiente", "vencido"}:
+                            cobranza_por_mes[key]["pendiente"] += monto
+
+                    if cuota.estado == "pagado" and cuota.fecha_pago:
+                        if cuota.fecha_pago.year == hoy.year and cuota.fecha_pago.month == hoy.month:
+                            cobrado_mes += monto
+                            monto_cobrado_cliente += monto
+
+                    if fv.year == hoy.year and fv.month == hoy.month:
+                        cuotas_mes_total += 1
+                        if cuota.estado == "pagado":
+                            cuotas_mes_pagadas += 1
+                        elif cuota.estado in {"pendiente", "vencido"}:
+                            a_cobrar_mes += monto
+                            monto_mes_cliente += monto
+                            clientes_con_mes = True
+
+                    if fv.year == inicio_mes_anterior.year and fv.month == inicio_mes_anterior.month:
+                        cuotas_ant_total += 1
+                        if cuota.estado == "pagado":
+                            cuotas_ant_pagadas += 1
+
+                    if cuota.estado in {"pendiente", "vencido"} and fv < inicio_mes:
+                        vencido_acumulado += monto
+                        monto_ant_cliente += monto
+                        clientes_con_ant = True
+
+                if monto_mes_cliente > 0:
+                    prox = min(
+                        (c for c in cuotas if c.estado in {"pendiente", "vencido"}
+                         and c.fecha_vence and c.fecha_vence.year == hoy.year
+                         and c.fecha_vence.month == hoy.month),
+                        key=lambda c: c.fecha_vence,
+                        default=None,
+                    )
+                    detalles["a_cobrar_mes"].append(_detalle_item(
+                        cliente_id=cliente.id,
+                        nombre=base["nombre"],
+                        plan=base["plan_actual"],
+                        monto=monto_mes_cliente,
+                        subtitulo=f"Vence {prox.fecha_vence.isoformat()}" if prox else None,
+                        estado=estado,
+                    ))
+
+                if monto_ant_cliente > 0:
+                    detalles["vencido_acumulado"].append(_detalle_item(
+                        cliente_id=cliente.id,
+                        nombre=base["nombre"],
+                        plan=base["plan_actual"],
+                        monto=monto_ant_cliente,
+                        subtitulo="Cuotas de meses anteriores",
+                        estado=estado,
+                    ))
+
+                if monto_cobrado_cliente > 0:
+                    detalles["cobrado_mes"].append(_detalle_item(
+                        cliente_id=cliente.id,
+                        nombre=base["nombre"],
+                        plan=base["plan_actual"],
+                        monto=monto_cobrado_cliente,
+                        subtitulo=f"Cobrado en {_mes_label(hoy)}",
+                        estado=estado,
+                    ))
+
+                if clientes_con_ant:
+                    buckets["mes_anterior_impago"] += 1
+                    if monto_ant_cliente > 0:
+                        detalles["mes_anterior_impago"].append(_detalle_item(
+                            cliente_id=cliente.id,
+                            nombre=base["nombre"],
+                            plan=base["plan_actual"],
+                            monto=monto_ant_cliente,
+                            subtitulo="Impago mes anterior o antes",
+                            estado=estado,
+                        ))
+
+                if clientes_con_mes:
+                    buckets["mes_actual_pendiente"] += 1
+                    if monto_mes_cliente > 0:
+                        detalles["mes_actual_pendiente"].append(_detalle_item(
+                            cliente_id=cliente.id,
+                            nombre=base["nombre"],
+                            plan=base["plan_actual"],
+                            monto=monto_mes_cliente,
+                            subtitulo=f"Pendiente {_mes_label(hoy)}",
+                            estado=estado,
+                        ))
+
+                if estado in {"vencido", "proximo_a_vencer"}:
+                    buckets["programas_riesgo"] += 1
+                    dias = base.get("dias_restantes")
+                    subtitulo = (
+                        f"Programa vencido"
+                        if estado == "vencido"
+                        else f"Programa vence en {dias} días" if dias is not None else "Programa próximo a vencer"
+                    )
+                    detalles["programas_riesgo"].append(_detalle_item(
+                        cliente_id=cliente.id,
+                        nombre=base["nombre"],
+                        plan=base["plan_actual"],
+                        monto=adeudado,
+                        subtitulo=subtitulo,
+                        estado=estado,
+                    ))
+
+        for key in detalles:
+            detalles[key].sort(key=lambda x: float(x["monto_usd"]), reverse=True)
+
+        mes_actual_pct = (
+            round(cuotas_mes_pagadas / cuotas_mes_total * 100, 1)
+            if cuotas_mes_total else None
+        )
+        mes_anterior_pct = (
+            round(cuotas_ant_pagadas / cuotas_ant_total * 100, 1)
+            if cuotas_ant_total else None
+        )
+
+        cobranza_mensual = []
+        for mes in meses_grafico:
+            stats = cobranza_por_mes[(mes.year, mes.month)]
+            cobrado = stats["cobrado"]
+            pendiente = stats["pendiente"]
+            cobranza_mensual.append({
+                "mes": _mes_label(mes),
+                "cobrado_usd": cobrado,
+                "pendiente_usd": pendiente,
+                "total_usd": cobrado + pendiente,
+            })
+
+        estados_clientes = [
+            {"estado": estado, "label": ESTADO_LABELS.get(estado, estado), "count": count}
+            for estado, count in sorted(estados_count.items(), key=lambda x: -x[1])
+        ]
+
+        adeudo_por_plan = [
+            {
+                "plan": plan,
+                "monto_usd": data["monto"],
+                "clientes": data["clientes"],
+            }
+            for plan, data in sorted(adeudo_plan.items(), key=lambda x: -float(x[1]["monto"]))
+        ]
+
+        return {
+            "kpis": {
+                "a_cobrar_mes_usd": a_cobrar_mes,
+                "vencido_acumulado_usd": vencido_acumulado,
+                "cobrado_mes_usd": cobrado_mes,
+                "clientes_vigentes": clientes_vigentes,
+                "mes_actual_label": _mes_label(hoy),
+                "mes_actual_pct": mes_actual_pct,
+                "mes_anterior_label": _mes_label(inicio_mes_anterior),
+                "mes_anterior_pct": mes_anterior_pct,
+                "total_clientes": len(clientes),
+            },
+            "buckets": buckets,
+            "graficos": {
+                "cobranza_mensual": cobranza_mensual,
+                "estados_clientes": estados_clientes,
+                "adeudo_por_plan": adeudo_por_plan,
+            },
+            "detalles": detalles,
+        }
 
     def obtener_cliente(self, cliente_id: int) -> dict | None:
         with db_session:

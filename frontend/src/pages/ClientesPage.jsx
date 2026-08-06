@@ -68,7 +68,7 @@ function persistFilters({ search, estadoFilter, planFilter, orden, page }) {
     // ignore quota / private mode
   }
 
-  if (window.location.pathname !== '/') return
+  if (window.location.pathname !== '/clientes') return
 
   const params = new URLSearchParams()
   if (search.trim()) params.set('q', search.trim())
@@ -78,7 +78,7 @@ function persistFilters({ search, estadoFilter, planFilter, orden, page }) {
   if (page > 1) params.set('page', String(page))
 
   const qs = params.toString()
-  const next = qs ? `/?${qs}` : '/'
+  const next = qs ? `/clientes?${qs}` : '/clientes'
   const current = `${window.location.pathname}${window.location.search}`
   if (current !== next) {
     window.history.replaceState({}, '', next)
@@ -94,7 +94,7 @@ function planLabel(plan) {
   return PLANES_CLIENTE.find((option) => option.value === plan)?.label || plan || '—'
 }
 
-export default function DashboardPage() {
+export default function ClientesPage() {
   const initialFilters = useMemo(() => loadInitialFilters(), [])
   const [clientes, setClientes] = useState([])
   const [allClientes, setAllClientes] = useState([])
@@ -306,9 +306,16 @@ export default function DashboardPage() {
 
   return (
     <div className={styles.page}>
-      <Navbar currentPath="/" />
+      <Navbar currentPath="/clientes" />
 
       <main className={styles.content}>
+        <header className={styles.pageHeader}>
+          <div>
+            <h1 className={styles.pageTitle}>Clientes</h1>
+            <p className={styles.pageSubtitle}>Directorio completo — búsqueda, filtros y gestión</p>
+          </div>
+        </header>
+
         <section className={styles.metricsGrid}>
           <div className={styles.metricCard}>
             <div className={styles.metricHead}>

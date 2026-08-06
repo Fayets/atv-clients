@@ -110,7 +110,7 @@ export default function AnalisisPage() {
       <main className={styles.stage}>
         <div className={styles.topBar}>
           <div className={styles.topBarMain}>
-            <button type="button" className={styles.backBtn} onClick={() => navigate('/')}>
+            <button type="button" className={styles.backBtn} onClick={() => navigate('/clientes')}>
               ← Volver a clientes
             </button>
             <h1 className={styles.pageTitle}>Análisis</h1>

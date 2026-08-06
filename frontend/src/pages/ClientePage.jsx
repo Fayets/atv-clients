@@ -382,7 +382,7 @@ export default function ClientePage({ clienteId }) {
     setDeletingCliente(true)
     try {
       await deleteCliente(clienteId)
-      navigate('/')
+      navigate('/clientes')
     } catch (err) {
       alert(err.message || 'No se pudo eliminar el cliente.')
     } finally {
@@ -1040,11 +1040,11 @@ export default function ClientePage({ clienteId }) {
         <main className={styles.content}>
           <p className={styles.error}>{error || 'Cliente no encontrado'}</p>
           <a
-            href="/"
+            href="/clientes"
             className={styles.backLink}
             onClick={(event) => {
               event.preventDefault()
-              navigate('/')
+              navigate('/clientes')
             }}
           >
             ← Volver al dashboard
@@ -1060,11 +1060,11 @@ export default function ClientePage({ clienteId }) {
 
       <main className={styles.content}>
         <a
-          href="/"
+          href="/clientes"
           className={styles.backLink}
           onClick={(event) => {
             event.preventDefault()
-            navigate('/')
+            navigate('/clientes')
           }}
         >
           ← Volver a clientes

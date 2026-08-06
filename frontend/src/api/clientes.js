@@ -60,6 +60,10 @@ export function fetchClientes(params = {}) {
   return request(`/api/clientes${suffix}`)
 }
 
+export function fetchDashboard() {
+  return request('/api/clientes/dashboard')
+}
+
 export function fetchCobranza() {
   return request('/api/clientes/cobranza')
 }

@@ -1,0 +1,429 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.content {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.heroTitle {
+  font-family: var(--font-metric);
+  font-size: 36px;
+  letter-spacing: 0.03em;
+  margin: 0;
+}
+
+.heroSubtitle {
+  margin: 6px 0 0;
+  color: var(--label);
+  font-size: 15px;
+}
+
+.heroLinks {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.linkBtn:hover {
+  border-color: var(--red-accent);
+  color: var(--red-accent);
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.bucketsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.clickableCard {
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+
+.clickableCard:hover {
+  border-color: var(--red-accent);
+}
+
+.cardActive {
+  border-color: var(--red-accent) !important;
+  box-shadow: 0 0 0 1px var(--red-accent);
+}
+
+.metricCard,
+.bucketCard {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.metricHighlight {
+  border-top: 2px solid var(--red);
+}
+
+.metricHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.metricHead i {
+  font-size: 16px;
+  color: var(--label);
+}
+
+.metricLabel,
+.bucketLabel {
+  font-size: 14px;
+  color: var(--label);
+}
+
+.bucketLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 13px;
+}
+
+.metricNum,
+.bucketNum {
+  font-family: var(--font-metric);
+  font-size: 42px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.bucketNum {
+  font-size: 32px;
+  margin-top: 6px;
+}
+
+.metricNumRed {
+  color: var(--red-accent);
+}
+
+.metricSub {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--label);
+}
+
+.cardHint {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--label);
+  opacity: 0.85;
+}
+
+.detailPanel {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.detailHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.detailTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.detailMeta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--label);
+}
+
+.detailClose {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 0.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.detailList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 0.5px solid var(--border);
+  cursor: pointer;
+}
+
+.detailRow:hover {
+  background: var(--surface2);
+}
+
+.detailRowMain {
+  min-width: 0;
+}
+
+.detailName {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.detailSub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--label);
+}
+
+.detailAmount {
+  font-family: var(--font-metric);
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.detailEmpty {
+  padding: 24px 18px;
+  margin: 0;
+  color: var(--label);
+  text-align: center;
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 14px;
+}
+
+.chartCard {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chartHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.chartTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chartLegend {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--label);
+}
+
+.legendDotOk,
+.legendDotPending {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-right: 4px;
+}
+
+.legendDotOk { background: #12b76a; }
+.legendDotPending { background: #f79009; }
+
+.barChart {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.barGroup {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.barStack {
+  width: 100%;
+  max-width: 48px;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.barOk,
+.barPending {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+}
+
+.barOk { background: #12b76a; }
+.barPending { background: #f79009; }
+
+.barLabel {
+  font-size: 11px;
+  color: var(--label);
+  text-transform: capitalize;
+}
+
+.hBarChart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.hBarRow {
+  display: grid;
+  grid-template-columns: 110px 1fr 72px;
+  gap: 10px;
+  align-items: center;
+}
+
+.hBarLabel {
+  font-size: 12px;
+  color: var(--label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hBarTrack {
+  height: 10px;
+  background: var(--surface2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.hBarFill {
+  height: 100%;
+  background: #6172f3;
+  border-radius: 999px;
+}
+
+.hBarFillRed {
+  background: var(--red-accent);
+}
+
+.hBarValue {
+  font-size: 12px;
+  font-family: var(--font-metric);
+  text-align: right;
+}
+
+.errorBanner {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(180, 35, 24, 0.08);
+  color: var(--red-accent);
+  font-size: 14px;
+}
+
+@media (max-width: 1100px) {
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .metricsGrid,
+  .bucketsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .detailRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .metricsGrid,
+  .bucketsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .hBarRow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .hBarValue {
+    text-align: left;
+  }
+}

@@ -259,6 +259,75 @@ class CobranzaItem(ClienteListItem):
     proxima_cuota: ProximaCuotaResponse | None = None
 
 
+class DashboardDetalleItem(BaseModel):
+    cliente_id: int
+    nombre: str
+    plan_actual: PlanActual
+    monto_usd: Decimal
+    subtitulo: str | None = None
+    estado_efectivo: EstadoEfectivo | None = None
+
+
+class DashboardMesCobranza(BaseModel):
+    mes: str
+    cobrado_usd: Decimal
+    pendiente_usd: Decimal
+    total_usd: Decimal
+
+
+class DashboardEstadoCount(BaseModel):
+    estado: str
+    label: str
+    count: int
+
+
+class DashboardPlanAdeudo(BaseModel):
+    plan: PlanActual
+    monto_usd: Decimal
+    clientes: int
+
+
+class DashboardGraficos(BaseModel):
+    cobranza_mensual: list[DashboardMesCobranza] = Field(default_factory=list)
+    estados_clientes: list[DashboardEstadoCount] = Field(default_factory=list)
+    adeudo_por_plan: list[DashboardPlanAdeudo] = Field(default_factory=list)
+
+
+class DashboardDetalles(BaseModel):
+    a_cobrar_mes: list[DashboardDetalleItem] = Field(default_factory=list)
+    vencido_acumulado: list[DashboardDetalleItem] = Field(default_factory=list)
+    cobrado_mes: list[DashboardDetalleItem] = Field(default_factory=list)
+    clientes_vigentes: list[DashboardDetalleItem] = Field(default_factory=list)
+    mes_anterior_impago: list[DashboardDetalleItem] = Field(default_factory=list)
+    mes_actual_pendiente: list[DashboardDetalleItem] = Field(default_factory=list)
+    programas_riesgo: list[DashboardDetalleItem] = Field(default_factory=list)
+
+
+class DashboardKpis(BaseModel):
+    a_cobrar_mes_usd: Decimal
+    vencido_acumulado_usd: Decimal
+    cobrado_mes_usd: Decimal
+    clientes_vigentes: int
+    mes_actual_label: str
+    mes_actual_pct: float | None = None
+    mes_anterior_label: str
+    mes_anterior_pct: float | None = None
+    total_clientes: int = 0
+
+
+class DashboardBuckets(BaseModel):
+    mes_anterior_impago: int = 0
+    mes_actual_pendiente: int = 0
+    programas_riesgo: int = 0
+
+
+class DashboardResponse(BaseModel):
+    kpis: DashboardKpis
+    buckets: DashboardBuckets = Field(default_factory=DashboardBuckets)
+    graficos: DashboardGraficos = Field(default_factory=DashboardGraficos)
+    detalles: DashboardDetalles = Field(default_factory=DashboardDetalles)
+
+
 class ClienteResponse(ClienteListItem):
     session_id: int | None = None
     fecha_inicio: date | None = None

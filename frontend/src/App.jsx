@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import ProtectedRoute from './components/ProtectedRoute'
 import AnalisisPage from './pages/AnalisisPage'
+import ClientesPage from './pages/ClientesPage'
 import CobranzaPage from './pages/CobranzaPage'
 import ClientePage from './pages/ClientePage'
-import DashboardPage from './pages/DashboardPage'
+import HomePage from './pages/HomePage'
 import { matchClienteRoute } from './utils/navigation'
 
 export default function App() {
@@ -24,8 +25,10 @@ export default function App() {
     page = <CobranzaPage />
   } else if (path === '/analisis') {
     page = <AnalisisPage />
+  } else if (path === '/clientes') {
+    page = <ClientesPage />
   } else if (path === '/') {
-    page = <DashboardPage />
+    page = <HomePage />
   } else {
     window.location.replace('/')
     return null
