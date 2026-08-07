@@ -22,6 +22,9 @@ export default function App() {
     page = <ClientePage clienteId={clienteId} />
   } else if (path === '/cobranza') {
     page = <CobranzaPage />
+  } else if (path === '/analisis') {
+    window.location.replace('/')
+    return null
   } else if (path === '/clientes') {
     page = <ClientesPage />
   } else if (path === '/') {

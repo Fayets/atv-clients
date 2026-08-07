@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { navigate } from '../utils/navigation'
 import { applyTheme, getStoredTheme, toggleTheme } from '../utils/theme'
 import styles from './Navbar.module.css'
 
@@ -19,10 +20,21 @@ export default function Navbar({ currentPath }) {
     setTheme(toggleTheme())
   }
 
+  const handleNavClick = (event, href) => {
+    event.preventDefault()
+    if (window.location.pathname !== href) {
+      navigate(href)
+    }
+  }
+
   return (
     <nav className={styles.navbar}>
       <div className={styles.navLeft}>
-        <a href="/" className={styles.brand}>
+        <a
+          href="/"
+          className={styles.brand}
+          onClick={(event) => handleNavClick(event, '/')}
+        >
           <img
             src="/ATVLogin.png"
             alt="ATV — Aumenta Tu Valor"
@@ -38,6 +50,7 @@ export default function Navbar({ currentPath }) {
               key={link.href}
               href={link.href}
               className={`${styles.link} ${currentPath === link.href ? styles.linkActive : ''}`}
+              onClick={(event) => handleNavClick(event, link.href)}
             >
               {link.label}
             </a>
