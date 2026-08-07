@@ -6,62 +6,58 @@ import { formatUsd } from '../utils/format'
 import { navigate } from '../utils/navigation'
 import styles from './HomePage.module.css'
 
-const CARD_CONFIG = {
-  a_cobrar_mes: {
-    title: 'A cobrar este mes',
-    icon: 'ti-calendar-dollar',
-    highlight: true,
-  },
-  vencido_acumulado: {
-    title: 'Vencido acumulado',
-    icon: 'ti-alert-triangle',
-  },
-  cobrado_mes: {
-    title: 'Cobrado este mes',
-    icon: 'ti-circle-check',
-  },
-  clientes_vigentes: {
-    title: 'Clientes vigentes',
-    icon: 'ti-heartbeat',
-  },
-  mes_anterior_impago: {
-    title: 'Mes anterior impago',
-    icon: 'ti-clock-exclamation',
-    bucket: true,
-  },
-  mes_actual_pendiente: {
-    title: 'Mes actual pendiente',
-    icon: 'ti-calendar-event',
-    bucket: true,
-  },
-  programas_riesgo: {
-    title: 'Programas en riesgo',
-    icon: 'ti-shield-x',
-    bucket: true,
-  },
+const MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+function monthOptions() {
+  const hoy = new Date()
+  const options = []
+  for (let i = 0; i < 12; i += 1) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1)
+    options.push({
+      mes: d.getMonth() + 1,
+      anio: d.getFullYear(),
+      label: `${MESES[d.getMonth()]} ${d.getFullYear()}`,
+    })
+  }
+  return options
 }
 
-function pctLabel(value) {
-  if (value === null || value === undefined) return 'sin cuotas cargadas'
-  return `${value}% cobrado`
+const TAG_CLASS = {
+  cuota: 'detailTagCuota',
+  recompra: 'detailTagRecompra',
+  upsell: 'detailTagUpsell',
+  vencido: 'detailTagVencido',
+  default: 'detailTagDefault',
 }
 
-function maxChartValue(items, keys) {
-  return Math.max(
-    1,
-    ...items.flatMap((item) => keys.map((key) => Number(item[key] || 0))),
-  )
+function parseSubtitulo(subtitulo) {
+  if (!subtitulo) return { tag: null, extra: null }
+  const parts = subtitulo.split(' · ')
+  if (parts.length >= 2) {
+    return { tag: parts[0], extra: parts.slice(1).join(' · ') }
+  }
+  return { tag: subtitulo, extra: null }
 }
 
-function CardDetailPanel({ cardId, config, items, onClose }) {
-  if (!cardId) return null
+function tagVariant(tag) {
+  const t = tag.toLowerCase()
+  if (t.includes('upsell')) return 'upsell'
+  if (t.includes('recompra')) return 'recompra'
+  if (t.startsWith('cuota')) return 'cuota'
+  if (t.includes('vencido') || t.includes('vence')) return 'vencido'
+  return 'default'
+}
 
+function DetailPanel({ title, hint, items, onClose }) {
   return (
     <section className={styles.detailPanel}>
       <div className={styles.detailHead}>
         <div>
-          <h2 className={styles.detailTitle}>{config.title}</h2>
-          <p className={styles.detailMeta}>{items.length} registros</p>
+          <h2 className={styles.detailTitle}>{title}</h2>
+          {hint ? <p className={styles.detailMeta}>{hint}</p> : null}
         </div>
         <button type="button" className={styles.detailClose} onClick={onClose}>
           <i className="ti ti-x" />
@@ -69,25 +65,36 @@ function CardDetailPanel({ cardId, config, items, onClose }) {
         </button>
       </div>
       {items.length === 0 ? (
-        <p className={styles.detailEmpty}>No hay registros para mostrar.</p>
+        <p className={styles.detailEmpty}>Sin registros.</p>
       ) : (
         <ul className={styles.detailList}>
-          {items.map((item) => (
+          {items.map((item, index) => {
+            const { tag, extra } = parseSubtitulo(item.subtitulo)
+            const variant = tag ? tagVariant(tag) : 'default'
+            return (
             <li
-              key={`${cardId}-${item.cliente_id}`}
+              key={`${item.cliente_id}-${item.subtitulo}-${index}`}
               className={styles.detailRow}
               onClick={() => navigate(`/cliente/${item.cliente_id}`)}
             >
               <div className={styles.detailRowMain}>
                 <span className={styles.detailName}>{item.nombre}</span>
-                {item.subtitulo ? (
-                  <span className={styles.detailSub}>{item.subtitulo}</span>
+                {tag ? (
+                  <div className={styles.detailTags}>
+                    <span className={`${styles.detailTag} ${styles[TAG_CLASS[variant] || TAG_CLASS.default]}`}>
+                      {tag}
+                    </span>
+                    {extra ? (
+                      <span className={styles.detailTagExtra}>{extra}</span>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
               <PlanBadge plan={item.plan_actual} />
               <span className={styles.detailAmount}>{formatUsd(item.monto_usd)}</span>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </section>
@@ -95,16 +102,19 @@ function CardDetailPanel({ cardId, config, items, onClose }) {
 }
 
 export default function HomePage() {
+  const mesesDisponibles = useMemo(() => monthOptions(), [])
+  const [mes, setMes] = useState(mesesDisponibles[0].mes)
+  const [anio, setAnio] = useState(mesesDisponibles[0].anio)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selectedCard, setSelectedCard] = useState(null)
+  const [selected, setSelected] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const result = await fetchDashboard()
+      const result = await fetchDashboard({ mes, anio })
       setData(result)
     } catch (err) {
       setData(null)
@@ -112,60 +122,54 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [mes, anio])
 
   useEffect(() => {
     load()
   }, [load])
 
-  const kpis = data?.kpis
-  const buckets = data?.buckets
-  const graficos = data?.graficos
+  const resumen = data?.resumen
   const detalles = data?.detalles || {}
 
-  const toggleCard = (id) => {
-    setSelectedCard((prev) => (prev === id ? null : id))
+  const cards = [
+    {
+      id: 'cuotas',
+      label: 'Cuotas a cobrar',
+      value: resumen?.cuotas_a_cobrar_usd,
+      sub: 'Caja 2 · cobranza real del mes',
+      accent: styles.cardCuotas,
+    },
+    {
+      id: 'proyeccion',
+      label: 'Proyección',
+      value: resumen?.proyeccion_usd,
+      sub: 'Upsell y recompras · no suma a cuotas a cobrar',
+      accent: styles.cardProyeccion,
+    },
+    {
+      id: 'total',
+      label: 'Total del mes',
+      value: resumen?.total_mes_usd,
+      sub: resumen?.caja_1_usd != null
+        ? `Caja 1 ${formatUsd(resumen.caja_1_usd)} + Caja 2 ${formatUsd(resumen.caja_2_usd)}`
+        : `Caja 2 ${formatUsd(resumen?.caja_2_usd ?? 0)} (Caja 1 pendiente)`,
+      accent: styles.cardTotal,
+      big: true,
+    },
+  ]
+
+  const detailConfig = {
+    cuotas: {
+      title: `Cuotas a cobrar — ${resumen?.mes_label || ''}`,
+      hint: `${detalles.cuotas?.length || 0} cuotas · cargadas en ficha cliente`,
+      items: detalles.cuotas || [],
+    },
+    proyeccion: {
+      title: `Proyección — ${resumen?.mes_label || ''}`,
+      hint: `${detalles.proyeccion?.length || 0} oportunidades · estimado`,
+      items: detalles.proyeccion || [],
+    },
   }
-
-  const kpiCards = useMemo(() => [
-    {
-      id: 'a_cobrar_mes',
-      value: formatUsd(kpis?.a_cobrar_mes_usd),
-      sub: pctLabel(kpis?.mes_actual_pct),
-      red: true,
-      label: `A cobrar ${kpis?.mes_actual_label || 'este mes'}`,
-    },
-    {
-      id: 'vencido_acumulado',
-      value: formatUsd(kpis?.vencido_acumulado_usd),
-      sub: 'Cuotas de meses anteriores sin pagar',
-    },
-    {
-      id: 'cobrado_mes',
-      value: formatUsd(kpis?.cobrado_mes_usd),
-      sub: kpis?.mes_anterior_label
-        ? `${kpis.mes_anterior_label}: ${pctLabel(kpis.mes_anterior_pct)}`
-        : 'Mes anterior',
-    },
-    {
-      id: 'clientes_vigentes',
-      value: loading ? '…' : String(kpis?.clientes_vigentes ?? 0),
-      sub: `${kpis?.total_clientes ?? 0} clientes en total`,
-    },
-  ], [kpis, loading])
-
-  const bucketCards = useMemo(() => [
-    { id: 'mes_anterior_impago', count: buckets?.mes_anterior_impago ?? 0 },
-    { id: 'mes_actual_pendiente', count: buckets?.mes_actual_pendiente ?? 0 },
-    { id: 'programas_riesgo', count: buckets?.programas_riesgo ?? 0 },
-  ], [buckets])
-
-  const cobranzaMax = maxChartValue(graficos?.cobranza_mensual || [], ['cobrado_usd', 'pendiente_usd'])
-  const estadosMax = Math.max(1, ...(graficos?.estados_clientes || []).map((e) => e.count))
-  const planMax = maxChartValue(graficos?.adeudo_por_plan || [], ['monto_usd'])
-
-  const selectedConfig = selectedCard ? CARD_CONFIG[selectedCard] : null
-  const selectedItems = selectedCard ? (detalles[selectedCard] || []) : []
 
   return (
     <div className={styles.page}>
@@ -174,164 +178,75 @@ export default function HomePage() {
       <main className={styles.content}>
         <header className={styles.hero}>
           <div>
-            <h1 className={styles.heroTitle}>Salud del negocio</h1>
-            <p className={styles.heroSubtitle}>
-              Cobranza, cartera activa y riesgo — tocá una tarjeta para ver el detalle
-            </p>
+            <h1 className={styles.heroTitle}>Dashboard</h1>
+            <p className={styles.heroSubtitle}>Cuotas · proyección · total del mes</p>
           </div>
-          <div className={styles.heroLinks}>
-            <a href="/cobranza" className={styles.linkBtn}>
-              <i className="ti ti-cash" />
-              Cobranza
-            </a>
-            <a href="/clientes" className={styles.linkBtn}>
-              <i className="ti ti-users" />
-              Clientes
-            </a>
-          </div>
+          <label className={styles.monthPicker}>
+            <span>Mes</span>
+            <select
+              value={`${anio}-${mes}`}
+              onChange={(e) => {
+                const [y, m] = e.target.value.split('-').map(Number)
+                setAnio(y)
+                setMes(m)
+                setSelected(null)
+              }}
+            >
+              {mesesDisponibles.map((opt) => (
+                <option key={`${opt.anio}-${opt.mes}`} value={`${opt.anio}-${opt.mes}`}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </header>
 
         {error ? <div className={styles.errorBanner}>{error}</div> : null}
 
-        <section className={styles.metricsGrid}>
-          {kpiCards.map((card) => {
-            const cfg = CARD_CONFIG[card.id]
-            const active = selectedCard === card.id
+        <section className={styles.cardsGrid}>
+          {cards.map((card) => {
+            const active = selected === card.id
+            const clickable = card.id !== 'total'
             return (
               <button
                 key={card.id}
                 type="button"
+                disabled={!clickable}
                 className={[
-                  styles.metricCard,
-                  styles.clickableCard,
-                  cfg.highlight ? styles.metricHighlight : '',
+                  styles.card,
+                  card.accent,
+                  card.big ? styles.cardBig : '',
+                  clickable ? styles.clickable : '',
                   active ? styles.cardActive : '',
                 ].filter(Boolean).join(' ')}
-                onClick={() => toggleCard(card.id)}
+                onClick={() => {
+                  if (!clickable) return
+                  setSelected((prev) => (prev === card.id ? null : card.id))
+                }}
               >
-                <div className={styles.metricHead}>
-                  <span className={styles.metricLabel}>{card.label || cfg.title}</span>
-                  <i className={`ti ${cfg.icon}`} />
-                </div>
-                <div className={`${styles.metricNum} ${card.red ? styles.metricNumRed : ''}`}>
-                  {loading ? '…' : card.value}
-                </div>
-                <div className={styles.metricSub}>{loading ? '…' : card.sub}</div>
-                <span className={styles.cardHint}>{active ? 'Ocultar detalle' : 'Ver detalle'}</span>
+                <span className={styles.cardLabel}>{card.label}</span>
+                <span className={styles.cardValue}>
+                  {loading ? '…' : formatUsd(card.value ?? 0)}
+                </span>
+                <span className={styles.cardSub}>{loading ? '…' : card.sub}</span>
+                {clickable ? (
+                  <span className={styles.cardHint}>
+                    {active ? 'Ocultar detalle' : 'Ver detalle'}
+                  </span>
+                ) : null}
               </button>
             )
           })}
         </section>
 
-        <section className={styles.bucketsGrid}>
-          {bucketCards.map((card) => {
-            const cfg = CARD_CONFIG[card.id]
-            const active = selectedCard === card.id
-            return (
-              <button
-                key={card.id}
-                type="button"
-                className={[
-                  styles.bucketCard,
-                  styles.clickableCard,
-                  active ? styles.cardActive : '',
-                ].filter(Boolean).join(' ')}
-                onClick={() => toggleCard(card.id)}
-              >
-                <div className={styles.bucketLabel}>{cfg.title}</div>
-                <div className={`${styles.bucketNum} ${card.id === 'mes_anterior_impago' ? styles.metricNumRed : ''}`}>
-                  {loading ? '…' : card.count}
-                </div>
-                <span className={styles.cardHint}>{active ? 'Ocultar detalle' : 'Ver detalle'}</span>
-              </button>
-            )
-          })}
-        </section>
-
-        {selectedCard && selectedConfig ? (
-          <CardDetailPanel
-            cardId={selectedCard}
-            config={selectedConfig}
-            items={selectedItems}
-            onClose={() => setSelectedCard(null)}
+        {selected && detailConfig[selected] ? (
+          <DetailPanel
+            title={detailConfig[selected].title}
+            hint={detailConfig[selected].hint}
+            items={detailConfig[selected].items}
+            onClose={() => setSelected(null)}
           />
         ) : null}
-
-        <section className={styles.chartsGrid}>
-          <article className={styles.chartCard}>
-            <header className={styles.chartHead}>
-              <h2 className={styles.chartTitle}>Cobranza mensual</h2>
-              <span className={styles.chartLegend}>
-                <span className={styles.legendDotOk} /> Cobrado
-                <span className={styles.legendDotPending} /> Pendiente
-              </span>
-            </header>
-            <div className={styles.barChart}>
-              {(graficos?.cobranza_mensual || []).map((mes) => (
-                <div key={mes.mes} className={styles.barGroup}>
-                  <div className={styles.barStack}>
-                    <div
-                      className={styles.barOk}
-                      style={{ height: `${(Number(mes.cobrado_usd) / cobranzaMax) * 100}%` }}
-                      title={`Cobrado: ${formatUsd(mes.cobrado_usd)}`}
-                    />
-                    <div
-                      className={styles.barPending}
-                      style={{ height: `${(Number(mes.pendiente_usd) / cobranzaMax) * 100}%` }}
-                      title={`Pendiente: ${formatUsd(mes.pendiente_usd)}`}
-                    />
-                  </div>
-                  <span className={styles.barLabel}>{mes.mes.split(' ')[0]}</span>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className={styles.chartCard}>
-            <header className={styles.chartHead}>
-              <h2 className={styles.chartTitle}>Estado de la cartera</h2>
-            </header>
-            <div className={styles.hBarChart}>
-              {(graficos?.estados_clientes || []).slice(0, 6).map((item) => (
-                <div key={item.estado} className={styles.hBarRow}>
-                  <span className={styles.hBarLabel}>{item.label}</span>
-                  <div className={styles.hBarTrack}>
-                    <div
-                      className={styles.hBarFill}
-                      style={{ width: `${(item.count / estadosMax) * 100}%` }}
-                    />
-                  </div>
-                  <span className={styles.hBarValue}>{item.count}</span>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className={styles.chartCard}>
-            <header className={styles.chartHead}>
-              <h2 className={styles.chartTitle}>Adeudo por plan</h2>
-            </header>
-            <div className={styles.hBarChart}>
-              {(graficos?.adeudo_por_plan || []).map((item) => (
-                <div key={item.plan} className={styles.hBarRow}>
-                  <span className={styles.hBarLabel}>
-                    <PlanBadge plan={item.plan} />
-                  </span>
-                  <div className={styles.hBarTrack}>
-                    <div
-                      className={`${styles.hBarFill} ${styles.hBarFillRed}`}
-                      style={{ width: `${(Number(item.monto_usd) / planMax) * 100}%` }}
-                    />
-                  </div>
-                  <span className={styles.hBarValue}>{formatUsd(item.monto_usd)}</span>
-                </div>
-              ))}
-              {!graficos?.adeudo_por_plan?.length && !loading ? (
-                <p className={styles.detailEmpty}>Sin adeudo registrado por plan.</p>
-              ) : null}
-            </div>
-          </article>
-        </section>
       </main>
     </div>
   )

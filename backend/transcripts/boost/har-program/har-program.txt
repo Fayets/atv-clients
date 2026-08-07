@@ -1,0 +1,23 @@
+[2026-08-07 19:47] Facu Appiolaza
+<@725490403410706482> <@959634902763065426> 
+
+Pibes ya tengo armado el scrip para las llamadas del SDR
+
+[2026-08-07 19:51] Facu Appiolaza
+Me gustaría que podamos revisarlo y que me puedan dar su feedback y no sé si tendrán alguna SOP de cómo deberíamos organizarnos con este tema. 
+
+1. Organizarnos para llamar a los leads (si fijamos horarios de llamada) 
+2. Que hacer con los leads que no atienen el teléfono 
+3. Como rebatir algunas objeciones que salgan en esa misma llamada (ejemplo: “ahora no puedo hablar”, “me podes llamar más tarde”, “te aviso más tarde si tengo disponibilidad para la llamada” etc) 
+
+4. Hay que agendarlos en la misma Call o pásale link de Calendly por WhatsApp para que se agenden ? 
+ 
+5. Si no responden, quien y de qué manera debería mandarle un WhatsApp para contactarse con el. 
+
+6. Si el lead ya habló por WhatsApp se le llama igual? O se sigue la conversación por chat?
+
+[2026-08-07 20:15] Facu Appiolaza
+https://docs.google.com/document/d/10Lfy9m0WoGlyM8Z8iUqNcjn9PaTK5srphAmsjb7tv3g/edit?usp=drivesdk
+
+acá les dejo el script
+

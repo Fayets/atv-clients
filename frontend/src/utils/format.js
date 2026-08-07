@@ -1,7 +1,47 @@
+export function isValidDateISO(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return false
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr)
+  if (!match) return false
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (month < 1 || month > 12 || day < 1) return false
+  const parsed = new Date(year, month - 1, day)
+  return (
+    parsed.getFullYear() === year
+    && parsed.getMonth() === month - 1
+    && parsed.getDate() === day
+  )
+}
+
+export function parseDateValue(value) {
+  if (!value) return null
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+  if (typeof value !== 'string') return null
+
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim())
+  if (isoDate) {
+    const year = Number(isoDate[1])
+    const month = Number(isoDate[2])
+    const day = Number(isoDate[3])
+    const parsed = new Date(year, month - 1, day)
+    if (
+      parsed.getFullYear() === year
+      && parsed.getMonth() === month - 1
+      && parsed.getDate() === day
+    ) {
+      return parsed
+    }
+  }
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 export function parseLocalDate(dateStr) {
-  if (!dateStr) return null
-  const [year, month, day] = dateStr.split('-').map(Number)
-  return new Date(year, month - 1, day)
+  return parseDateValue(dateStr)
 }
 
 export function formatLocalDateISO(date) {
@@ -72,28 +112,20 @@ export function formatUsd(value) {
   }).format(num)
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
 export function formatDate(value) {
-  if (!value) return '—'
-  const d = parseLocalDate(value)
+  const d = parseDateValue(value)
   if (!d) return '—'
-  return d.toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`
 }
 
 export function formatDateTime(value) {
-  if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const d = parseDateValue(value)
+  if (!d) return '—'
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
 export function formatPlan(plan) {

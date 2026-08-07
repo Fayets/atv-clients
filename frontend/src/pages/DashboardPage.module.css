@@ -201,33 +201,6 @@
   font-size: 16px;
 }
 
-.analisisBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 8px;
-  border: 0.5px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-  font-family: var(--font-body);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.analisisBtn:hover {
-  background: var(--surface2);
-  border-color: var(--red);
-}
-
-.analisisBtn i {
-  font-size: 16px;
-  color: var(--red-accent);
-}
-
 .discordSyncBtn {
   display: inline-flex;
   align-items: center;

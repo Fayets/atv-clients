@@ -403,13 +403,9 @@ export default function ClientesPage() {
             </button>
             <button
               type="button"
-              className={styles.analisisBtn}
-              onClick={() => navigate('/analisis')}
+              className={styles.createBtn}
+              onClick={() => setShowCreate((prev) => !prev)}
             >
-              <i className="ti ti-chart-bar" />
-              Ver análisis
-            </button>
-            <button type="button" className={styles.createBtn} onClick={() => setShowCreate((prev) => !prev)}>
               <i className="ti ti-plus" />
               Nuevo cliente
             </button>

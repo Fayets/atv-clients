@@ -60,8 +60,12 @@ export function fetchClientes(params = {}) {
   return request(`/api/clientes${suffix}`)
 }
 
-export function fetchDashboard() {
-  return request('/api/clientes/dashboard')
+export function fetchDashboard({ mes, anio } = {}) {
+  const query = new URLSearchParams()
+  if (mes) query.set('mes', String(mes))
+  if (anio) query.set('anio', String(anio))
+  const suffix = query.toString() ? `?${query.toString()}` : ''
+  return request(`/api/clientes/dashboard${suffix}`)
 }
 
 export function fetchCobranza() {

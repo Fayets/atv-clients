@@ -12,7 +12,6 @@ export default function Navbar({ currentPath }) {
   const links = [
     { href: '/', label: 'Inicio' },
     { href: '/cobranza', label: 'Cobranza' },
-    { href: '/analisis', label: 'Análisis' },
     { href: '/clientes', label: 'Clientes' },
   ]
 

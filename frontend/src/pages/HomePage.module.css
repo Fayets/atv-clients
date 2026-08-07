@@ -6,10 +6,12 @@
 }
 
 .content {
-  padding: 24px 28px;
+  padding: 32px 28px;
+  max-width: 1100px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 28px;
 }
 
 .hero {
@@ -22,8 +24,7 @@
 
 .heroTitle {
   font-family: var(--font-metric);
-  font-size: 36px;
-  letter-spacing: 0.03em;
+  font-size: 32px;
   margin: 0;
 }
 
@@ -33,46 +34,43 @@
   font-size: 15px;
 }
 
-.heroLinks {
+.monthPicker {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--label);
 }
 
-.linkBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 38px;
-  padding: 0 14px;
+.monthPicker select {
+  height: 40px;
+  padding: 0 12px;
   border-radius: 8px;
   border: 0.5px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  font-size: 14px;
-  cursor: pointer;
-  text-decoration: none;
+  font-size: 15px;
+  min-width: 180px;
 }
 
-.linkBtn:hover {
-  border-color: var(--red-accent);
-  color: var(--red-accent);
-}
-
-.metricsGrid {
+.cardsGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 16px;
 }
 
-.bucketsGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-
-.clickableCard {
+.card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
   text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clickable {
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
   font: inherit;
@@ -80,7 +78,7 @@
   width: 100%;
 }
 
-.clickableCard:hover {
+.clickable:hover {
   border-color: var(--red-accent);
 }
 
@@ -89,71 +87,49 @@
   box-shadow: 0 0 0 1px var(--red-accent);
 }
 
-.metricCard,
-.bucketCard {
-  background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: 12px;
-  padding: 18px 20px;
+.card:disabled {
+  cursor: default;
 }
 
-.metricHighlight {
-  border-top: 2px solid var(--red);
+.cardCuotas {
+  border-top: 3px solid #f79009;
 }
 
-.metricHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+.cardProyeccion {
+  border-top: 3px solid #6172f3;
 }
 
-.metricHead i {
-  font-size: 16px;
-  color: var(--label);
+.cardTotal {
+  border-top: 3px solid #12b76a;
 }
 
-.metricLabel,
-.bucketLabel {
+.cardBig .cardValue {
+  font-size: 52px;
+}
+
+.cardLabel {
   font-size: 14px;
   color: var(--label);
-}
-
-.bucketLabel {
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 13px;
+  letter-spacing: 0.04em;
 }
 
-.metricNum,
-.bucketNum {
+.cardValue {
   font-family: var(--font-metric);
-  font-size: 42px;
+  font-size: 44px;
   line-height: 1;
-  color: var(--text);
 }
 
-.bucketNum {
-  font-size: 32px;
-  margin-top: 6px;
-}
-
-.metricNumRed {
-  color: var(--red-accent);
-}
-
-.metricSub {
-  margin-top: 8px;
+.cardSub {
   font-size: 13px;
   color: var(--label);
+  line-height: 1.4;
 }
 
 .cardHint {
-  display: block;
-  margin-top: 10px;
+  margin-top: 4px;
   font-size: 12px;
   color: var(--label);
-  opacity: 0.85;
 }
 
 .detailPanel {
@@ -174,7 +150,7 @@
 
 .detailTitle {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
 }
 
@@ -202,7 +178,7 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 360px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
@@ -227,6 +203,57 @@
 .detailName {
   font-weight: 600;
   font-size: 14px;
+  display: block;
+}
+
+.detailTags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.detailTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.detailTagCuota {
+  background: rgba(247, 144, 9, 0.14);
+  color: #b54708;
+}
+
+.detailTagRecompra {
+  background: rgba(97, 114, 243, 0.14);
+  color: #444ce7;
+}
+
+.detailTagUpsell {
+  background: rgba(127, 86, 217, 0.14);
+  color: #6941c6;
+}
+
+.detailTagVencido {
+  background: rgba(180, 35, 24, 0.1);
+  color: var(--red-accent);
+}
+
+.detailTagDefault {
+  background: var(--surface2);
+  color: var(--label);
+}
+
+.detailTagExtra {
+  font-size: 12px;
+  color: var(--label);
 }
 
 .detailSub {
@@ -249,144 +276,6 @@
   text-align: center;
 }
 
-.chartsGrid {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
-  gap: 14px;
-}
-
-.chartCard {
-  background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 18px;
-  min-height: 280px;
-  display: flex;
-  flex-direction: column;
-}
-
-.chartHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.chartTitle {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.chartLegend {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--label);
-}
-
-.legendDotOk,
-.legendDotPending {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  margin-right: 4px;
-}
-
-.legendDotOk { background: #12b76a; }
-.legendDotPending { background: #f79009; }
-
-.barChart {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  padding-top: 8px;
-}
-
-.barGroup {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.barStack {
-  width: 100%;
-  max-width: 48px;
-  height: 180px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 2px;
-}
-
-.barOk,
-.barPending {
-  width: 100%;
-  border-radius: 4px 4px 0 0;
-  min-height: 2px;
-}
-
-.barOk { background: #12b76a; }
-.barPending { background: #f79009; }
-
-.barLabel {
-  font-size: 11px;
-  color: var(--label);
-  text-transform: capitalize;
-}
-
-.hBarChart {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  flex: 1;
-}
-
-.hBarRow {
-  display: grid;
-  grid-template-columns: 110px 1fr 72px;
-  gap: 10px;
-  align-items: center;
-}
-
-.hBarLabel {
-  font-size: 12px;
-  color: var(--label);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hBarTrack {
-  height: 10px;
-  background: var(--surface2);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.hBarFill {
-  height: 100%;
-  background: #6172f3;
-  border-radius: 999px;
-}
-
-.hBarFillRed {
-  background: var(--red-accent);
-}
-
-.hBarValue {
-  font-size: 12px;
-  font-family: var(--font-metric);
-  text-align: right;
-}
-
 .errorBanner {
   padding: 12px 14px;
   border-radius: 10px;
@@ -395,35 +284,16 @@
   font-size: 14px;
 }
 
-@media (max-width: 1100px) {
-  .chartsGrid {
+@media (max-width: 900px) {
+  .cardsGrid {
     grid-template-columns: 1fr;
   }
-}
 
-@media (max-width: 960px) {
-  .metricsGrid,
-  .bucketsGrid {
-    grid-template-columns: repeat(2, 1fr);
+  .cardBig .cardValue {
+    font-size: 44px;
   }
 
   .detailRow {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .metricsGrid,
-  .bucketsGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .hBarRow {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-
-  .hBarValue {
-    text-align: left;
   }
 }

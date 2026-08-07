@@ -30,6 +30,7 @@ PlanActual = Literal["mentoria", "boost", "advantage"]
 Oportunidad = Literal["upsell_boost", "upsell_advantage", "recompra", "consultar"]
 PrioridadCobro = Literal["alta", "media", "baja"]
 EstadoCuota = Literal["pendiente", "pagado", "vencido"]
+CuotaNotaTipo = Literal["cuota", "recompra", "upsell"]
 OrdenListado = Literal["venc_asc", "venc_desc"]
 
 
@@ -42,8 +43,49 @@ class CuotaResponse(BaseModel):
     fecha_vence: date
     fecha_pago: date | None = None
     estado: EstadoCuota
+    tipo: CuotaNotaTipo
     notas: str | None = None
+    nota_label: str | None = None
     created_at: datetime | None = None
+
+
+class AgentCobrosCuotaItem(BaseModel):
+    cliente_id: int
+    cliente_nombre: str
+    monto_usd: float
+    fecha_vence: date
+    mes_vencimiento: str
+    es_arrastre: bool
+    estado: EstadoCuota
+    tipo: CuotaNotaTipo
+
+
+class AgentCobrosResponse(BaseModel):
+    mes: str
+    total_pendiente_usd: float
+    cantidad: int
+    cuotas: list[AgentCobrosCuotaItem] = Field(default_factory=list)
+
+
+class AgentProyeccionCuotaItem(BaseModel):
+    cliente_id: int
+    cliente_nombre: str
+    monto_usd: float
+    fecha_vence: date
+    estado: EstadoCuota
+
+
+class AgentProyeccionGrupo(BaseModel):
+    cantidad: int
+    monto_usd: float
+    cuotas: list[AgentProyeccionCuotaItem] = Field(default_factory=list)
+
+
+class AgentProyeccionesResponse(BaseModel):
+    mes: str
+    total_proyectado_usd: float
+    recompras: AgentProyeccionGrupo
+    upsells: AgentProyeccionGrupo
 
 
 class CuotaCreate(BaseModel):
@@ -293,38 +335,32 @@ class DashboardGraficos(BaseModel):
     adeudo_por_plan: list[DashboardPlanAdeudo] = Field(default_factory=list)
 
 
+class DashboardProyeccionItem(BaseModel):
+    cliente_id: int
+    nombre: str
+    plan_actual: PlanActual
+    monto_usd: Decimal
+    subtitulo: str | None = None
+
+
+class DashboardResumen(BaseModel):
+    mes_label: str
+    mes: int
+    anio: int
+    cuotas_a_cobrar_usd: Decimal
+    proyeccion_usd: Decimal
+    caja_1_usd: Decimal | None = None
+    caja_2_usd: Decimal
+    total_mes_usd: Decimal
+
+
 class DashboardDetalles(BaseModel):
-    a_cobrar_mes: list[DashboardDetalleItem] = Field(default_factory=list)
-    vencido_acumulado: list[DashboardDetalleItem] = Field(default_factory=list)
-    cobrado_mes: list[DashboardDetalleItem] = Field(default_factory=list)
-    clientes_vigentes: list[DashboardDetalleItem] = Field(default_factory=list)
-    mes_anterior_impago: list[DashboardDetalleItem] = Field(default_factory=list)
-    mes_actual_pendiente: list[DashboardDetalleItem] = Field(default_factory=list)
-    programas_riesgo: list[DashboardDetalleItem] = Field(default_factory=list)
-
-
-class DashboardKpis(BaseModel):
-    a_cobrar_mes_usd: Decimal
-    vencido_acumulado_usd: Decimal
-    cobrado_mes_usd: Decimal
-    clientes_vigentes: int
-    mes_actual_label: str
-    mes_actual_pct: float | None = None
-    mes_anterior_label: str
-    mes_anterior_pct: float | None = None
-    total_clientes: int = 0
-
-
-class DashboardBuckets(BaseModel):
-    mes_anterior_impago: int = 0
-    mes_actual_pendiente: int = 0
-    programas_riesgo: int = 0
+    cuotas: list[DashboardDetalleItem] = Field(default_factory=list)
+    proyeccion: list[DashboardProyeccionItem] = Field(default_factory=list)
 
 
 class DashboardResponse(BaseModel):
-    kpis: DashboardKpis
-    buckets: DashboardBuckets = Field(default_factory=DashboardBuckets)
-    graficos: DashboardGraficos = Field(default_factory=DashboardGraficos)
+    resumen: DashboardResumen
     detalles: DashboardDetalles = Field(default_factory=DashboardDetalles)
 
 

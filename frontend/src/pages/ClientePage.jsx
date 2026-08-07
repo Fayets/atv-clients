@@ -6,7 +6,7 @@ import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
 import PlanBadge from '../components/PlanBadge'
 import StatusBadge from '../components/StatusBadge'
-import { ESTADOS_CLIENTE, MESES_DURACION, OPORTUNIDADES, PLANES_CLIENTE, PRIORIDADES } from '../constants/options'
+import { ESTADOS_CLIENTE, MESES_DURACION, OPORTUNIDADES, PLANES_CLIENTE, PRIORIDADES, TIPOS_CUOTA_NOTA, labelTipoCuotaNota } from '../constants/options'
 import {
   formatDate,
   formatDateTime,
@@ -14,10 +14,38 @@ import {
   formatOportunidad,
   formatPrioridad,
   formatUsd,
+  isValidDateISO,
   monthsToDays,
   daysToMonths,
 } from '../utils/format'
 import styles from './ClientePage.module.css'
+
+const CUOTA_FECHA_INVALIDA = 'La fecha no es válida. Revisá día y mes (ej. septiembre tiene 30 días).'
+
+function validateCuotaFields(monto, fechaVence, dateInput) {
+  if (!monto || Number.isNaN(Number(monto)) || Number(monto) <= 0) {
+    return 'Completá un monto válido.'
+  }
+  if (dateInput?.validity?.badInput || (fechaVence && !isValidDateISO(fechaVence))) {
+    return CUOTA_FECHA_INVALIDA
+  }
+  if (!fechaVence || !isValidDateISO(fechaVence)) {
+    return CUOTA_FECHA_INVALIDA
+  }
+  return null
+}
+
+function handleCuotaFechaChange(setter, event, setError) {
+  const { value, validity } = event.target
+  setter((prev) => ({ ...prev, fecha_vence: value }))
+  if (validity.badInput || (value && !isValidDateISO(value))) {
+    setError(CUOTA_FECHA_INVALIDA)
+  } else if (!value) {
+    setError('')
+  } else {
+    setError('')
+  }
+}
 
 const MENTORES = ['Juampi', 'Juan Cruz', 'Lucas', 'Nick', 'Maite', 'Emi', 'Lucho', 'Franco', 'Alejandro', 'Otro']
 
@@ -425,8 +453,9 @@ export default function ClientePage({ clienteId }) {
 
   const guardarNuevaCuota = async () => {
     setCuotaError('')
-    if (!newCuota.monto_usd || !newCuota.fecha_vence) {
-      setCuotaError('Completá monto y fecha de vencimiento.')
+    const validationError = validateCuotaFields(newCuota.monto_usd, newCuota.fecha_vence)
+    if (validationError) {
+      setCuotaError(validationError)
       return
     }
     try {
@@ -444,8 +473,9 @@ export default function ClientePage({ clienteId }) {
 
   const guardarEditCuota = async (cuotaId) => {
     setCuotaError('')
-    if (!editCuota.monto_usd || !editCuota.fecha_vence) {
-      setCuotaError('Completá monto y fecha de vencimiento.')
+    const validationError = validateCuotaFields(editCuota.monto_usd, editCuota.fecha_vence)
+    if (validationError) {
+      setCuotaError(validationError)
       return
     }
     try {
@@ -1672,7 +1702,7 @@ export default function ClientePage({ clienteId }) {
                     <th>Vence</th>
                     <th>Pago</th>
                     <th>Estado</th>
-                    <th>Notas</th>
+                    <th>Tipo</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -1693,18 +1723,21 @@ export default function ClientePage({ clienteId }) {
                             type="date"
                             className={styles.tableInput}
                             value={editCuota.fecha_vence}
-                            onChange={(e) => setEditCuota((prev) => ({ ...prev, fecha_vence: e.target.value }))}
+                            onChange={(e) => handleCuotaFechaChange(setEditCuota, e, setCuotaError)}
                           />
                         </td>
                         <td>{formatDate(cuota.fecha_pago)}</td>
                         <td>{cuota.estado}</td>
                         <td>
-                          <input
-                            type="text"
+                          <select
                             className={styles.tableInput}
                             value={editCuota.notas}
                             onChange={(e) => setEditCuota((prev) => ({ ...prev, notas: e.target.value }))}
-                          />
+                          >
+                            {TIPOS_CUOTA_NOTA.map((opt) => (
+                              <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
                         </td>
                         <td>
                           <div className={styles.cuotaActions}>
@@ -1723,7 +1756,7 @@ export default function ClientePage({ clienteId }) {
                         <td>{formatDate(cuota.fecha_vence)}</td>
                         <td>{formatDate(cuota.fecha_pago)}</td>
                         <td>{cuota.estado}</td>
-                        <td>{cuota.notas || '—'}</td>
+                        <td>{labelTipoCuotaNota(cuota.notas, cuota.nota_label)}</td>
                         <td>
                           <div className={styles.cuotaActions}>
                             {cuota.estado !== 'pagado' ? (
@@ -1772,19 +1805,21 @@ export default function ClientePage({ clienteId }) {
                           type="date"
                           className={styles.tableInput}
                           value={newCuota.fecha_vence}
-                          onChange={(e) => setNewCuota((prev) => ({ ...prev, fecha_vence: e.target.value }))}
+                          onChange={(e) => handleCuotaFechaChange(setNewCuota, e, setCuotaError)}
                         />
                       </td>
                       <td>—</td>
                       <td>pendiente</td>
                       <td>
-                        <input
-                          type="text"
+                        <select
                           className={styles.tableInput}
-                          placeholder="Notas (opcional)"
                           value={newCuota.notas}
                           onChange={(e) => setNewCuota((prev) => ({ ...prev, notas: e.target.value }))}
-                        />
+                        >
+                          {TIPOS_CUOTA_NOTA.map((opt) => (
+                            <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
                       </td>
                       <td>
                         <div className={styles.cuotaActions}>
@@ -1862,12 +1897,7 @@ export default function ClientePage({ clienteId }) {
                       <span className={`${styles.discordDot} ${styles.discordDotOk}`} />
                       <span className={styles.discordStatusText}>
                         Estado: ok · Última:{' '}
-                        {new Date(discordEstado.ultima_actualizacion).toLocaleString('es-AR', {
-                          day: '2-digit', month: '2-digit', year: 'numeric',
-                          hour: '2-digit', minute: '2-digit',
-                          hour12: false,
-                          timeZone: 'America/Argentina/Buenos_Aires',
-                        })}
+                        {formatDateTime(discordEstado.ultima_actualizacion)}
                         {countdownDisplay ? ` · Próxima en ${countdownDisplay}` : ''}
                       </span>
                     </>
@@ -1930,7 +1960,7 @@ export default function ClientePage({ clienteId }) {
                   <div key={t.id} className={styles.botTranscriptViewer}>
                     <div className={styles.botTranscriptViewerHeader}>
                       <span className={styles.botTranscriptViewerTitle}>
-                        #{t.canal} — {t.fecha}
+                        #{t.canal} — {formatDate(t.fecha)}
                       </span>
                       <div className={styles.botTranscriptViewerActions}>
                         <button
@@ -1968,7 +1998,7 @@ export default function ClientePage({ clienteId }) {
                     <div className={styles.botTranscriptItemInfo}>
                       <span className={styles.botTranscriptCanal}>#{t.canal}</span>
                       <span className={styles.botTranscriptMeta}>
-                        {t.categoria.toUpperCase()} · {t.fecha} · {t.mensajes} msgs
+                        {t.categoria.toUpperCase()} · {formatDate(t.fecha)} · {t.mensajes} msgs
                       </span>
                     </div>
                     <button

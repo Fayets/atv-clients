@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 
+from src.agent_caja import obtener_cobros, obtener_proyecciones
 from src.services.clientes_services import ClientesServices, _sanitize_cliente_for_agent
 
 
@@ -42,3 +43,15 @@ class AgentServices:
 
     def obtener_discord_transcript(self, cliente_id: int, transcript_id: int) -> dict | None:
         return self._clientes.obtener_discord_transcript_contenido(cliente_id, transcript_id)
+
+    def listar_cobros(
+        self,
+        month: str | None,
+        *,
+        arrastre: bool = False,
+        tipo: str | None = None,
+    ) -> dict:
+        return obtener_cobros(month, arrastre=arrastre, tipo=tipo)
+
+    def listar_proyecciones(self, month: str | None) -> dict:
+        return obtener_proyecciones(month)

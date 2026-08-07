@@ -2,13 +2,44 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.deps import get_agent_auth
 from src.schemas import (
+    AgentCobrosResponse,
     AgentDiscordTranscriptContenido,
     AgentDiscordTranscriptItem,
+    AgentProyeccionesResponse,
+    CuotaNotaTipo,
 )
 from src.services.agent_services import AgentServices
 
 router = APIRouter()
 service = AgentServices()
+
+
+@router.get("/cobros", response_model=AgentCobrosResponse)
+def listar_cobros(
+    month: str | None = Query(default=None, description="Mes en formato YYYY-MM"),
+    arrastre: bool = Query(default=False),
+    tipo: CuotaNotaTipo | None = Query(default=None),
+    _: None = Depends(get_agent_auth),
+):
+    try:
+        return service.listar_cobros(month, arrastre=arrastre, tipo=tipo)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al listar cobros.")
+
+
+@router.get("/proyecciones", response_model=AgentProyeccionesResponse)
+def listar_proyecciones(
+    month: str | None = Query(default=None, description="Mes en formato YYYY-MM"),
+    _: None = Depends(get_agent_auth),
+):
+    try:
+        return service.listar_proyecciones(month)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al listar proyecciones.")
 
 
 @router.get("/clientes")

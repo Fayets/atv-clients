@@ -38,6 +38,20 @@ export const OPORTUNIDADES = [
   { value: 'consultar', label: 'Consultar' },
 ]
 
+export const TIPOS_CUOTA_NOTA = [
+  { value: '', label: 'Sin tipo' },
+  { value: 'cuota', label: 'Cuota' },
+  { value: 'recompra', label: 'Recompra' },
+  { value: 'upsell', label: 'Upsell' },
+]
+
+export function labelTipoCuotaNota(value, fallbackLabel) {
+  const found = TIPOS_CUOTA_NOTA.find((item) => item.value === value)
+  if (found?.value) return found.label
+  if (fallbackLabel) return fallbackLabel
+  return value || '—'
+}
+
 export const PRIORIDADES = [
   { value: '', label: 'Sin prioridad' },
   { value: 'alta', label: 'Alta' },

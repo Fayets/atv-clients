@@ -63,9 +63,13 @@ def listar_clientes(
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
-def obtener_dashboard(_: str = Depends(get_current_user)):
+def obtener_dashboard(
+    mes: int | None = Query(default=None, ge=1, le=12),
+    anio: int | None = Query(default=None, ge=2020, le=2100),
+    _: str = Depends(get_current_user),
+):
     try:
-        return service.obtener_dashboard()
+        return service.obtener_dashboard(mes=mes, anio=anio)
     except HTTPException as e:
         raise e
     except Exception:
