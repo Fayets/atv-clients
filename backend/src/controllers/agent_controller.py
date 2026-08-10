@@ -1,8 +1,14 @@
+from typing import Union
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.deps import get_agent_auth
 from src.schemas import (
+    AgentCobrosArrastreResponse,
     AgentCobrosResponse,
+    AgentCuotaAccionResponse,
+    AgentCuotaBuscarResponse,
+    AgentCuotaIdRequest,
     AgentDiscordTranscriptContenido,
     AgentDiscordTranscriptItem,
     AgentProyeccionesResponse,
@@ -14,7 +20,10 @@ router = APIRouter()
 service = AgentServices()
 
 
-@router.get("/cobros", response_model=AgentCobrosResponse)
+@router.get(
+    "/cobros",
+    response_model=Union[AgentCobrosResponse, AgentCobrosArrastreResponse],
+)
 def listar_cobros(
     month: str | None = Query(default=None, description="Mes en formato YYYY-MM"),
     arrastre: bool = Query(default=False),
@@ -40,6 +49,45 @@ def listar_proyecciones(
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Error al listar proyecciones.")
+
+
+@router.get("/cuotas/buscar", response_model=AgentCuotaBuscarResponse)
+def buscar_cuotas_agente(
+    cliente: str = Query(..., min_length=1, description="Nombre del cliente (substring)"),
+    _: None = Depends(get_agent_auth),
+):
+    try:
+        return service.buscar_cuotas(cliente)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al buscar cuotas.")
+
+
+@router.post("/cuota/marcar-pagada", response_model=AgentCuotaAccionResponse)
+def marcar_cuota_pagada_agente(
+    body: AgentCuotaIdRequest,
+    _: None = Depends(get_agent_auth),
+):
+    try:
+        return service.marcar_cuota_pagada(body.cuota_id)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al marcar la cuota como pagada.")
+
+
+@router.post("/cuota/revertir-pago", response_model=AgentCuotaAccionResponse)
+def revertir_pago_cuota_agente(
+    body: AgentCuotaIdRequest,
+    _: None = Depends(get_agent_auth),
+):
+    try:
+        return service.revertir_pago_cuota(body.cuota_id)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al revertir el pago de la cuota.")
 
 
 @router.get("/clientes")

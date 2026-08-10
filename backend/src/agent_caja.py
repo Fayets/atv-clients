@@ -105,6 +105,31 @@ def _grupo_proyeccion(cuotas: list[dict]) -> dict:
     }
 
 
+def _grupo_cobros_detalle(filas: list[dict]) -> dict:
+    total = round(sum(item["monto_usd"] for item in filas), 2)
+    return {
+        "total_usd": total,
+        "cantidad": len(filas),
+        "detalle": filas,
+    }
+
+
+def _respuesta_cobros_arrastre(
+    mes_label: str,
+    filas: list[dict],
+) -> dict:
+    cuotas_filas = [fila for fila in filas if fila["tipo"] == "cuota"]
+    proyeccion_filas = [fila for fila in filas if fila["tipo"] in {"recompra", "upsell"}]
+    grupo_cuotas = _grupo_cobros_detalle(cuotas_filas)
+    grupo_proyeccion = _grupo_cobros_detalle(proyeccion_filas)
+    return {
+        "mes": mes_label,
+        "cuotas": grupo_cuotas,
+        "recompras_upsells": grupo_proyeccion,
+        "total_general_usd": round(grupo_cuotas["total_usd"] + grupo_proyeccion["total_usd"], 2),
+    }
+
+
 def obtener_cobros(
     month: str | None,
     *,
@@ -137,6 +162,10 @@ def _obtener_cobros_db(
         for cuota in cuotas
         if _matches_tipo(cuota, tipo)
     ]
+
+    if arrastre:
+        return _respuesta_cobros_arrastre(mes_label, filas)
+
     total = sum(fila["monto_usd"] for fila in filas)
 
     return {

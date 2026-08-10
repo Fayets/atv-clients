@@ -67,6 +67,19 @@ class AgentCobrosResponse(BaseModel):
     cuotas: list[AgentCobrosCuotaItem] = Field(default_factory=list)
 
 
+class AgentCobrosDetalleGrupo(BaseModel):
+    total_usd: float
+    cantidad: int
+    detalle: list[AgentCobrosCuotaItem] = Field(default_factory=list)
+
+
+class AgentCobrosArrastreResponse(BaseModel):
+    mes: str
+    cuotas: AgentCobrosDetalleGrupo
+    recompras_upsells: AgentCobrosDetalleGrupo
+    total_general_usd: float
+
+
 class AgentProyeccionCuotaItem(BaseModel):
     cliente_id: int
     cliente_nombre: str
@@ -86,6 +99,32 @@ class AgentProyeccionesResponse(BaseModel):
     total_proyectado_usd: float
     recompras: AgentProyeccionGrupo
     upsells: AgentProyeccionGrupo
+
+
+class AgentCuotaBuscarItem(BaseModel):
+    cuota_id: int
+    cliente_nombre: str
+    monto_usd: float
+    fecha_vence: date
+    estado: EstadoCuota
+    tipo: CuotaNotaTipo
+
+
+class AgentCuotaBuscarResponse(BaseModel):
+    cuotas: list[AgentCuotaBuscarItem] = Field(default_factory=list)
+
+
+class AgentCuotaIdRequest(BaseModel):
+    cuota_id: int = Field(gt=0)
+
+
+class AgentCuotaAccionResponse(BaseModel):
+    cuota_id: int
+    cliente_nombre: str
+    monto_usd: float
+    estado: EstadoCuota
+    fecha_pago: date | None = None
+    mensaje: str | None = None
 
 
 class CuotaCreate(BaseModel):

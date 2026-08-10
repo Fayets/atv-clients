@@ -1,6 +1,11 @@
 from fastapi import HTTPException
 
 from src.agent_caja import obtener_cobros, obtener_proyecciones
+from src.agent_cuotas import (
+    buscar_cuotas_por_cliente,
+    marcar_cuota_pagada_agente,
+    revertir_pago_cuota_agente,
+)
 from src.services.clientes_services import ClientesServices, _sanitize_cliente_for_agent
 
 
@@ -55,3 +60,12 @@ class AgentServices:
 
     def listar_proyecciones(self, month: str | None) -> dict:
         return obtener_proyecciones(month)
+
+    def buscar_cuotas(self, cliente: str | None) -> dict:
+        return buscar_cuotas_por_cliente(cliente)
+
+    def marcar_cuota_pagada(self, cuota_id: int) -> dict:
+        return marcar_cuota_pagada_agente(cuota_id)
+
+    def revertir_pago_cuota(self, cuota_id: int) -> dict:
+        return revertir_pago_cuota_agente(cuota_id)
