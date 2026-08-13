@@ -111,6 +111,7 @@ export default function ClientesPage() {
   const [discordCreating, setDiscordCreating] = useState(false)
   const [discordResult, setDiscordResult] = useState(null)
   const [discordError, setDiscordError] = useState('')
+  const [discordProgress, setDiscordProgress] = useState(0)
   const skipPageResetRef = useRef(true)
 
   const hasActiveFilters = Boolean(
@@ -184,13 +185,15 @@ export default function ClientesPage() {
     setDiscordSyncing(true)
     setDiscordError('')
     setDiscordResult(null)
+    setDiscordProgress(0)
     try {
-      const result = await triggerDiscordActualizacionTodos()
+      const result = await triggerDiscordActualizacionTodos(setDiscordProgress)
       setDiscordResult(result)
     } catch (error) {
       setDiscordError(error.message || 'Error al sincronizar Discord')
     } finally {
       setDiscordSyncing(false)
+      setDiscordProgress(0)
     }
   }
 
@@ -399,7 +402,11 @@ export default function ClientesPage() {
               disabled={discordSyncing}
             >
               <i className={`ti ${discordSyncing ? 'ti-loader-2' : 'ti-brand-discord'}`} />
-              {discordSyncing ? 'Actualizando...' : 'Actualizar Discord'}
+              {discordSyncing
+                ? (discordProgress > 0
+                  ? `Actualizando... ${discordProgress} canales`
+                  : 'Actualizando...')
+                : 'Actualizar Discord'}
             </button>
             <button
               type="button"

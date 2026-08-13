@@ -18,6 +18,15 @@ from src.discord_transcript_paths import (
 
 logger = logging.getLogger("discord_bot")
 
+_sync_todos_state: dict = {
+    "status": "idle",
+    "started_at": None,
+    "finished_at": None,
+    "canales_procesados": 0,
+    "result": None,
+    "error": None,
+}
+
 
 def _now_ar():
     """Hora actual en Argentina (UTC-3)."""
@@ -399,7 +408,54 @@ async def sync_canal(
         return base
 
 
-async def sync_guild(guild: discord.Guild) -> dict:
+def _set_sync_progress(canales_procesados: int) -> None:
+    _sync_todos_state["canales_procesados"] = canales_procesados
+
+
+def obtener_estado_sync_todos() -> dict:
+    return {
+        "ok": True,
+        "status": _sync_todos_state["status"],
+        "started_at": _sync_todos_state["started_at"],
+        "finished_at": _sync_todos_state["finished_at"],
+        "canales_procesados": _sync_todos_state["canales_procesados"],
+        "result": _sync_todos_state["result"],
+        "error": _sync_todos_state["error"],
+    }
+
+
+async def _run_sync_guild(guild: discord.Guild) -> None:
+    try:
+        result = await sync_guild(guild, on_progress=_set_sync_progress)
+        _sync_todos_state["status"] = "done"
+        _sync_todos_state["result"] = result
+        _sync_todos_state["error"] = None
+        _sync_todos_state["canales_procesados"] = result.get("canales_procesados", 0)
+    except Exception as exc:
+        logger.exception("Error en sincronización Discord masiva")
+        _sync_todos_state["status"] = "error"
+        _sync_todos_state["result"] = None
+        _sync_todos_state["error"] = "Error al sincronizar Discord."
+        logger.error("sync_guild falló: %s", exc)
+    finally:
+        _sync_todos_state["finished_at"] = datetime.utcnow().isoformat()
+
+
+def iniciar_sync_guild(guild: discord.Guild) -> dict:
+    if _sync_todos_state["status"] == "running":
+        return obtener_estado_sync_todos()
+
+    _sync_todos_state["status"] = "running"
+    _sync_todos_state["started_at"] = datetime.utcnow().isoformat()
+    _sync_todos_state["finished_at"] = None
+    _sync_todos_state["canales_procesados"] = 0
+    _sync_todos_state["result"] = None
+    _sync_todos_state["error"] = None
+    asyncio.create_task(_run_sync_guild(guild))
+    return obtener_estado_sync_todos()
+
+
+async def sync_guild(guild: discord.Guild, on_progress=None) -> dict:
     """Sincroniza todos los canales de Discord y resume clientes actualizados."""
     faltantes = detectar_faltantes(guild)
     actualizados: list[dict] = []
@@ -413,6 +469,8 @@ async def sync_guild(guild: discord.Guild) -> dict:
             continue
         for canal in category.text_channels:
             canales_procesados += 1
+            if on_progress:
+                on_progress(canales_procesados)
             result = await sync_canal(canal, slug)
             mensajes = result.get("mensajes", 0)
             if mensajes <= 0:

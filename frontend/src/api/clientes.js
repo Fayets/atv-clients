@@ -270,8 +270,35 @@ export function triggerDiscordActualizacion(clienteId) {
   return request(`/api/discord/${clienteId}/actualizar`, { method: 'POST' })
 }
 
-export function triggerDiscordActualizacionTodos() {
-  return request('/api/discord/actualizar-todos', { method: 'POST' })
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function triggerDiscordActualizacionTodos(onProgress) {
+  const started = await request('/api/discord/actualizar-todos', { method: 'POST' })
+  if (started?.status === 'done' && started.result) {
+    return started.result
+  }
+  if (started?.status === 'error') {
+    throw new Error(started.error || 'Error al sincronizar Discord')
+  }
+
+  const startedAt = Date.now()
+  const maxWaitMs = 15 * 60 * 1000
+  while (Date.now() - startedAt < maxWaitMs) {
+    await sleep(2000)
+    const state = await request('/api/discord/actualizar-todos/estado')
+    if (typeof onProgress === 'function' && state.canales_procesados != null) {
+      onProgress(state.canales_procesados)
+    }
+    if (state.status === 'done') {
+      return state.result
+    }
+    if (state.status === 'error') {
+      throw new Error(state.error || 'Error al sincronizar Discord')
+    }
+  }
+  throw new Error('La sincronización está tardando demasiado. Recargá en unos minutos.')
 }
 
 export function crearDiscordFaltantes(canales = null) {
