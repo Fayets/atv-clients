@@ -109,7 +109,12 @@ def buscar_cliente(canal_name: str, plan: str | None = None) -> int | None:
     if len(fuzzy) == 1:
         return fuzzy[0].id
 
-    primera = nombre_lower.split()[0]
+    # Solo primer nombre si el canal tiene UN token (ej. #tomas).
+    # #miguel-diego no puede matchear a "Miguel Posada".
+    partes = [p for p in slug_canal.split("-") if p and p != "y"]
+    if len(partes) != 1:
+        return None
+    primera = partes[0]
     candidatos = [c for c in clientes if primera in c.nombre.lower()]
     return candidatos[0].id if len(candidatos) == 1 else None
 
