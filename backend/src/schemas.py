@@ -311,6 +311,7 @@ class ProximaCuotaResponse(BaseModel):
     monto_usd: Decimal
     fecha_vence: date
     estado: EstadoCuota
+    tipo: CuotaNotaTipo | None = None
 
 
 class FormRespuesta(BaseModel):

@@ -103,16 +103,29 @@
   font-weight: 600;
 }
 
-.payBtn {
+.tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 0.5px solid var(--red);
-  background: var(--red-dim);
-  color: var(--text);
-  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tagCuota {
+  background: rgba(247, 144, 9, 0.14);
+  color: #b54708;
+}
+
+.tagRecompra {
+  background: rgba(97, 114, 243, 0.14);
+  color: #444ce7;
+}
+
+.tagUpsell {
+  background: rgba(127, 86, 217, 0.14);
+  color: #6941c6;
 }
 
 @media (max-width: 720px) {

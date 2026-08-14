@@ -357,17 +357,19 @@ def _proxima_cuota_pendiente(
 ) -> dict | None:
     cuotas = cache.cuotas.get(cliente.id, []) if cache else list(cliente.cuotas)
     pendientes = sorted(
-        [c for c in cuotas if c.estado == "pendiente"],
+        [c for c in cuotas if c.estado in {"pendiente", "vencido"}],
         key=lambda c: c.fecha_vence,
     )
     if not pendientes:
         return None
     cuota = pendientes[0]
+    nota = normalizar_nota_cuota(cuota.notas) or "cuota"
     return {
         "id": cuota.id,
         "monto_usd": _decimal(cuota.monto_usd),
         "fecha_vence": cuota.fecha_vence,
         "estado": cuota.estado,
+        "tipo": nota,
     }
 
 
