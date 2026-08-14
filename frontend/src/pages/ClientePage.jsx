@@ -6,17 +6,20 @@ import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
 import PlanBadge from '../components/PlanBadge'
 import StatusBadge from '../components/StatusBadge'
-import { ESTADOS_CLIENTE, MESES_DURACION, OPORTUNIDADES, PLANES_CLIENTE, PRIORIDADES, TIPOS_CUOTA_NOTA, labelTipoCuotaNota } from '../constants/options'
+import { ESTADOS_CLIENTE, MESES_DURACION, OPORTUNIDADES, PLANES_CLIENTE, PRIORIDADES, RESPONSABLES, TIPOS_CUOTA_NOTA, labelTipoCuotaNota } from '../constants/options'
 import {
+  calcFechaVencimiento,
   formatDate,
   formatDateTime,
   formatDuracionMeses,
   formatOportunidad,
   formatPrioridad,
+  formatResponsable,
   formatUsd,
   isValidDateISO,
   monthsToDays,
   daysToMonths,
+  MESES_POR_PLAN,
 } from '../utils/format'
 import styles from './ClientePage.module.css'
 
@@ -55,6 +58,25 @@ function todayInputDate() {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+const TIPOS_RENOVACION = new Set(['recompra', 'upsell'])
+
+function defaultDuracionMeses(cliente) {
+  const actual = daysToMonths(cliente?.duracion_dias)
+  if (actual) return String(actual)
+  const porPlan = MESES_POR_PLAN[cliente?.plan_actual]
+  return porPlan ? String(porPlan) : '4'
+}
+
+function emptyNewCuota(cliente) {
+  return {
+    monto_usd: '',
+    fecha_vence: '',
+    notas: '',
+    fecha_inicio: todayInputDate(),
+    duracion_meses: defaultDuracionMeses(cliente),
+  }
 }
 
 function buildProximosPasosDraft() {
@@ -200,7 +222,7 @@ export default function ClientePage({ clienteId }) {
   const [error, setError] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [addingCuota, setAddingCuota] = useState(false)
-  const [newCuota, setNewCuota] = useState({ monto_usd: '', fecha_vence: '', notas: '' })
+  const [newCuota, setNewCuota] = useState(() => emptyNewCuota())
   const [editingCuotaId, setEditingCuotaId] = useState(null)
   const [editCuota, setEditCuota] = useState({ monto_usd: '', fecha_vence: '', notas: '' })
   const [cuotaError, setCuotaError] = useState('')
@@ -430,7 +452,7 @@ export default function ClientePage({ clienteId }) {
 
   const resetNewCuota = () => {
     setAddingCuota(false)
-    setNewCuota({ monto_usd: '', fecha_vence: '', notas: '' })
+    setNewCuota(emptyNewCuota(cliente))
     setCuotaError('')
   }
 
@@ -458,14 +480,30 @@ export default function ClientePage({ clienteId }) {
       setCuotaError(validationError)
       return
     }
+    const esRenovacion = TIPOS_RENOVACION.has(newCuota.notas)
+    if (esRenovacion) {
+      if (!newCuota.fecha_inicio || !isValidDateISO(newCuota.fecha_inicio)) {
+        setCuotaError('Indicá la nueva fecha de inicio del programa.')
+        return
+      }
+      if (!newCuota.duracion_meses) {
+        setCuotaError('Indicá la duración en meses del upsell o recompra.')
+        return
+      }
+    }
     try {
-      await createCuota(clienteId, {
+      const payload = {
         monto_usd: Number(newCuota.monto_usd),
         fecha_vence: newCuota.fecha_vence,
         notas: newCuota.notas.trim() || null,
-      })
+      }
+      if (esRenovacion) {
+        payload.fecha_inicio = newCuota.fecha_inicio
+        payload.duracion_meses = Number(newCuota.duracion_meses)
+      }
+      await createCuota(clienteId, payload)
       resetNewCuota()
-      await refreshFinanciero()
+      await load()
     } catch (err) {
       setCuotaError(err.message || 'No se pudo crear la cuota.')
     }
@@ -1640,6 +1678,7 @@ export default function ClientePage({ clienteId }) {
                   className={styles.payBtn}
                   onClick={() => {
                     resetEditCuota()
+                    setNewCuota(emptyNewCuota(cliente))
                     setAddingCuota(true)
                   }}
                 >
@@ -1790,6 +1829,7 @@ export default function ClientePage({ clienteId }) {
                     </tr>
                   ) : null}
                   {addingCuota ? (
+                    <>
                     <tr>
                       <td>
                         <input
@@ -1814,7 +1854,15 @@ export default function ClientePage({ clienteId }) {
                         <select
                           className={styles.tableInput}
                           value={newCuota.notas}
-                          onChange={(e) => setNewCuota((prev) => ({ ...prev, notas: e.target.value }))}
+                          onChange={(e) => {
+                            const notas = e.target.value
+                            setNewCuota((prev) => ({
+                              ...prev,
+                              notas,
+                              fecha_inicio: prev.fecha_inicio || todayInputDate(),
+                              duracion_meses: prev.duracion_meses || defaultDuracionMeses(cliente),
+                            }))
+                          }}
                         >
                           {TIPOS_CUOTA_NOTA.map((opt) => (
                             <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
@@ -1832,6 +1880,51 @@ export default function ClientePage({ clienteId }) {
                         </div>
                       </td>
                     </tr>
+                    {TIPOS_RENOVACION.has(newCuota.notas) ? (
+                      <tr>
+                        <td colSpan={6}>
+                          <div className={styles.renovarBox}>
+                            <p className={styles.renovarTitle}>
+                              Renovar programa — {newCuota.notas === 'recompra' ? 'recompra' : 'upsell'}
+                            </p>
+                            <div className={styles.renovarGrid}>
+                              <label>
+                                <span className={styles.label}>Nueva fecha de inicio</span>
+                                <input
+                                  type="date"
+                                  className={styles.tableInput}
+                                  value={newCuota.fecha_inicio}
+                                  onChange={(e) => setNewCuota((prev) => ({ ...prev, fecha_inicio: e.target.value }))}
+                                />
+                              </label>
+                              <label>
+                                <span className={styles.label}>Duración (meses)</span>
+                                <select
+                                  className={styles.tableInput}
+                                  value={newCuota.duracion_meses}
+                                  onChange={(e) => setNewCuota((prev) => ({ ...prev, duracion_meses: e.target.value }))}
+                                >
+                                  {MESES_DURACION.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <div>
+                                <span className={styles.label}>Nuevo vencimiento</span>
+                                <p className={styles.renovarVence}>
+                                  {formatDate(calcFechaVencimiento(
+                                    newCuota.fecha_inicio,
+                                    cliente.plan_actual,
+                                    newCuota.duracion_meses,
+                                  )) || '—'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    </>
                   ) : null}
                 </tbody>
               </table>
@@ -1861,6 +1954,22 @@ export default function ClientePage({ clienteId }) {
                   options={OPORTUNIDADES}
                   onSave={(value) => updateField('oportunidad', value || null)}
                 />
+              </div>
+              <div>
+                <span className={styles.label}>Responsable upsell / recompra</span>
+                <InlineField
+                  type="select"
+                  variant="chip"
+                  value={cliente.responsable || ''}
+                  displayValue={formatResponsable(cliente.responsable)}
+                  options={RESPONSABLES}
+                  onSave={(value) => updateField('responsable', value || null)}
+                />
+                {!cliente.responsable && ['upsell_boost', 'upsell_advantage', 'recompra'].includes(cliente.oportunidad) ? (
+                  <p className={styles.muted} style={{ marginTop: 6 }}>
+                    Asigná un responsable para que nadie más pitchee este cliente.
+                  </p>
+                ) : null}
               </div>
               <div>
                 <span className={styles.label}>Prioridad cobro</span>

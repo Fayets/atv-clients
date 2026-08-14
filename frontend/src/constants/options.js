@@ -58,3 +58,11 @@ export const PRIORIDADES = [
   { value: 'media', label: 'Media' },
   { value: 'baja', label: 'Baja' },
 ]
+
+export const RESPONSABLES = [
+  { value: '', label: 'Sin responsable' },
+  { value: 'lucas', label: 'Lucas' },
+  { value: 'juampi', label: 'Juampi' },
+  { value: 'juan', label: 'Juan' },
+  { value: 'ale', label: 'Ale' },
+]

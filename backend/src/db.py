@@ -223,6 +223,7 @@ MIGRATIONS = [
     ALTER TABLE clients.analisis_ia_runs
     ADD COLUMN IF NOT EXISTS clientes_con_error INTEGER;
     """,
+    "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS responsable VARCHAR(20);",
 ]
 
 

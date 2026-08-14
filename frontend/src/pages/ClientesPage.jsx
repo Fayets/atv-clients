@@ -5,8 +5,8 @@ import Navbar from '../components/Navbar'
 import NuevoClienteForm from '../components/NuevoClienteForm'
 import PlanBadge from '../components/PlanBadge'
 import StatusBadge from '../components/StatusBadge'
-import { ESTADOS_CLIENTE, ESTADOS_FILTRO, OPORTUNIDADES, PLANES, PLANES_CLIENTE } from '../constants/options'
-import { formatDate, formatOportunidad, formatUsd } from '../utils/format'
+import { ESTADOS_CLIENTE, ESTADOS_FILTRO, OPORTUNIDADES, PLANES, PLANES_CLIENTE, RESPONSABLES } from '../constants/options'
+import { formatDate, formatOportunidad, formatResponsable, formatUsd } from '../utils/format'
 import { navigate } from '../utils/navigation'
 import styles from './DashboardPage.module.css'
 
@@ -548,6 +548,7 @@ export default function ClientesPage() {
                   <th>Plan</th>
                   <th>Estado</th>
                   <th>Oportunidad</th>
+                  <th>Responsable</th>
                   <th>Próximos pasos</th>
                   <th>Miro</th>
                   <th>Última call</th>
@@ -556,11 +557,11 @@ export default function ClientesPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className={styles.cellMuted}>Cargando...</td>
+                    <td colSpan={8} className={styles.cellMuted}>Cargando...</td>
                   </tr>
                 ) : clientes.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className={styles.cellMuted}>No hay clientes con esos filtros</td>
+                    <td colSpan={8} className={styles.cellMuted}>No hay clientes con esos filtros</td>
                   </tr>
                 ) : (
                   paginatedClientes.map((cliente) => (
@@ -612,6 +613,18 @@ export default function ClientesPage() {
                             displayValue={formatOportunidad(cliente.oportunidad)}
                             options={OPORTUNIDADES}
                             onSave={(value) => updateCliente(cliente.id, { oportunidad: value || null })}
+                          />
+                        </span>
+                      </td>
+                      <td className={styles.cellEditable}>
+                        <span className={styles.cellInteractive} data-row-action onClick={stopRowNav}>
+                          <InlineField
+                            type="select"
+                            variant="chip"
+                            value={cliente.responsable || ''}
+                            displayValue={formatResponsable(cliente.responsable)}
+                            options={RESPONSABLES}
+                            onSave={(value) => updateCliente(cliente.id, { responsable: value || null })}
                           />
                         </span>
                       </td>

@@ -19,6 +19,7 @@ class Cliente(db.Entity):
     fecha_vencimiento = Optional(date)
     estado_cliente = Required(str, 50, default="vigente")
     oportunidad = Optional(str, 50, nullable=True)
+    responsable = Optional(str, 20, nullable=True)
     prioridad_cobro = Optional(str, 10, nullable=True)
     total_pagado_usd = Optional(Decimal, 10, 2, default=0)
     total_adeudado_usd = Optional(Decimal, 10, 2, default=0)

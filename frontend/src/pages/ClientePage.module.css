@@ -706,6 +706,42 @@
   font-family: inherit;
 }
 
+.renovarBox {
+  padding: 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.renovarTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.renovarGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.renovarVence {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .renovarGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .accordionBtn {
   width: 100%;
   display: flex;

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import json
 import shutil
 import uuid
@@ -16,6 +17,7 @@ from pony.orm import db_session, flush
 
 from src.cuota_notas import (
     CUOTA_NOTAS_VALIDAS,
+    NOTAS_PROYECCION,
     es_nota_proyeccion,
     etiqueta_cuota_auto,
     etiqueta_nota_cuota,
@@ -58,6 +60,13 @@ PLANES_VALIDOS = frozenset({"mentoria", "boost", "advantage"})
 PLAN_ORDEN = {"boost": 0, "advantage": 1, "mentoria": 2}
 DURACION_POR_PLAN = {"boost": 240, "mentoria": 120, "advantage": 120}
 PRIORIDADES_VALIDAS = frozenset({"alta", "media", "baja"})
+RESPONSABLES_VALIDOS = frozenset({"lucas", "juampi", "juan", "ale"})
+RESPONSABLE_LABELS = {
+    "lucas": "Lucas",
+    "juampi": "Juampi",
+    "juan": "Juan",
+    "ale": "Ale",
+}
 PRIORIDAD_ORDEN = {"alta": 0, "media": 1, "baja": 2, None: 3}
 PRIORIDAD_DASHBOARD_ORDEN = {"p1": 0, "p2": 1, "p3": 2, "p4": 3}
 MESES_ES = (
@@ -71,6 +80,14 @@ MAX_DISCORD_TXT_BYTES = 5 * 1024 * 1024
 
 def _today() -> date:
     return date.today()
+
+
+def _add_months(value: date, months: int) -> date:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
 
 
 def calcular_estado_efectivo(cliente: Cliente) -> str:
@@ -321,6 +338,7 @@ def _cliente_base_dict(
         "estado_efectivo": calcular_estado_efectivo(cliente),
         "dias_restantes": calcular_dias_restantes(cliente),
         "oportunidad": cliente.oportunidad,
+        "responsable": cliente.responsable,
         "prioridad_cobro": cliente.prioridad_cobro,
         "total_pagado_usd": _decimal(cliente.total_pagado_usd),
         "total_adeudado_usd": _decimal(cliente.total_adeudado_usd),
@@ -433,6 +451,7 @@ def _proyeccion_item(
     plan: str,
     monto: Decimal,
     subtitulo: str | None = None,
+    responsable: str | None = None,
 ) -> dict:
     return {
         "cliente_id": cliente_id,
@@ -440,47 +459,8 @@ def _proyeccion_item(
         "plan_actual": plan,
         "monto_usd": monto,
         "subtitulo": subtitulo,
+        "responsable": responsable,
     }
-
-
-def _promedio_cuota_plan(
-    clientes: list[Cliente],
-    cache: _ClienteRelationsCache,
-    plan: str,
-) -> Decimal | None:
-    total = Decimal("0")
-    count = 0
-    for cliente in clientes:
-        if cliente.plan_actual != plan:
-            continue
-        for cuota in cache.cuotas.get(cliente.id, []):
-            total += _decimal(cuota.monto_usd)
-            count += 1
-    if count == 0:
-        return None
-    return total / count
-
-
-def _promedio_cuota_cliente(cuotas: list[Cuota]) -> Decimal | None:
-    if not cuotas:
-        return None
-    total = sum(_decimal(c.monto_usd) for c in cuotas)
-    return total / len(cuotas)
-
-
-def _estimar_monto_proyeccion(
-    *,
-    oportunidad: str | None,
-    cuotas: list[Cuota],
-    clientes: list[Cliente],
-    cache: _ClienteRelationsCache,
-    fallback: Decimal,
-) -> Decimal:
-    if oportunidad == "upsell_boost":
-        return _promedio_cuota_plan(clientes, cache, "boost") or fallback
-    if oportunidad == "upsell_advantage":
-        return _promedio_cuota_plan(clientes, cache, "advantage") or fallback
-    return _promedio_cuota_cliente(cuotas) or fallback
 
 
 def _clasificar_accion_cobranza(
@@ -691,24 +671,12 @@ class ClientesServices:
 
         detalles_cuotas: list[dict] = []
         detalles_proyeccion: list[dict] = []
-        proyeccion_cliente_mes: set[int] = set()
-        proyeccion_upsell_ids: set[int] = set()
-        proyeccion_recompra_ids: set[int] = set()
 
         with db_session:
             clientes: list[Cliente] = []
             for cliente in Cliente.select():
                 clientes.append(cliente)
             cache = _load_relations_cache()
-
-            todas_cuotas = [
-                _decimal(cuota.monto_usd)
-                for cuota_list in cache.cuotas.values()
-                for cuota in cuota_list
-            ]
-            fallback_cuota = (
-                sum(todas_cuotas) / len(todas_cuotas) if todas_cuotas else Decimal("0")
-            )
 
             cuotas_a_cobrar = Decimal("0")
             proyeccion_total = Decimal("0")
@@ -728,13 +696,18 @@ class ClientesServices:
 
                     if es_nota_proyeccion(cuota.notas):
                         proyeccion_total += monto
-                        proyeccion_cliente_mes.add(cliente.id)
+                        responsable = base.get("responsable")
+                        responsable_label = RESPONSABLE_LABELS.get(responsable)
+                        subtitulo = f"{nota_label} · vence {format_fecha_ar(fv)}"
+                        if responsable_label:
+                            subtitulo = f"{subtitulo} · {responsable_label}"
                         detalles_proyeccion.append(_proyeccion_item(
                             cliente_id=cliente.id,
                             nombre=base["nombre"],
                             plan=base["plan_actual"],
                             monto=monto,
-                            subtitulo=f"{nota_label} · vence {format_fecha_ar(fv)}",
+                            subtitulo=subtitulo,
+                            responsable=responsable,
                         ))
                         continue
 
@@ -747,65 +720,6 @@ class ClientesServices:
                         subtitulo=f"{nota_label} · vence {format_fecha_ar(fv)}",
                         estado=estado,
                     ))
-
-                oportunidad = base.get("oportunidad")
-                if cliente.id in proyeccion_cliente_mes:
-                    continue
-
-                if oportunidad in {"upsell_boost", "upsell_advantage"}:
-                    proyeccion_upsell_ids.add(cliente.id)
-                    destino = "Boost" if oportunidad == "upsell_boost" else "Advantage"
-                    monto_est = _estimar_monto_proyeccion(
-                        oportunidad=oportunidad,
-                        cuotas=cuotas,
-                        clientes=clientes,
-                        cache=cache,
-                        fallback=fallback_cuota,
-                    )
-                    proyeccion_total += monto_est
-                    detalles_proyeccion.append(_proyeccion_item(
-                        cliente_id=cliente.id,
-                        nombre=base["nombre"],
-                        plan=base["plan_actual"],
-                        monto=monto_est,
-                        subtitulo=f"Upsell → {destino}",
-                    ))
-
-                es_recompra = (
-                    oportunidad == "recompra"
-                    or base["estado_cliente"] == "llamada_recompra"
-                )
-                if not es_recompra and cliente.id not in proyeccion_upsell_ids:
-                    if estado in {"vencido", "proximo_a_vencer"}:
-                        es_recompra = True
-
-                if es_recompra and cliente.id not in proyeccion_upsell_ids:
-                    if cliente.id not in proyeccion_recompra_ids:
-                        proyeccion_recompra_ids.add(cliente.id)
-                        monto_est = _estimar_monto_proyeccion(
-                            oportunidad=oportunidad,
-                            cuotas=cuotas,
-                            clientes=clientes,
-                            cache=cache,
-                            fallback=fallback_cuota,
-                        )
-                        proyeccion_total += monto_est
-                        if oportunidad == "recompra":
-                            sub = "Recompra marcada"
-                        elif base["estado_cliente"] == "llamada_recompra":
-                            sub = "Llamada de recompra"
-                        elif estado == "vencido":
-                            sub = "Programa vencido"
-                        else:
-                            dias = base.get("dias_restantes")
-                            sub = f"Vence en {dias} días" if dias is not None else "Próximo a vencer"
-                        detalles_proyeccion.append(_proyeccion_item(
-                            cliente_id=cliente.id,
-                            nombre=base["nombre"],
-                            plan=base["plan_actual"],
-                            monto=monto_est,
-                            subtitulo=sub,
-                        ))
 
         _sort_detalle_por_plan(detalles_cuotas)
         _sort_detalle_por_plan(detalles_proyeccion)
@@ -897,6 +811,9 @@ class ClientesServices:
         if "prioridad_cobro" in payload and payload["prioridad_cobro"] not in PRIORIDADES_VALIDAS:
             raise HTTPException(status_code=400, detail="Prioridad de cobro inválida.")
 
+        if "responsable" in payload and payload["responsable"] is not None and payload["responsable"] not in RESPONSABLES_VALIDOS:
+            raise HTTPException(status_code=400, detail="Responsable inválido.")
+
         if "email" in payload:
             payload["email"] = str(payload["email"]).strip().lower()
 
@@ -951,11 +868,23 @@ class ClientesServices:
                 "fecha_vence": data.fecha_vence,
                 "estado": "pendiente",
             }
+            nota = normalizar_nota_cuota(data.notas) if data.notas else None
             if data.notas:
-                nota = normalizar_nota_cuota(data.notas)
                 if nota not in CUOTA_NOTAS_VALIDAS:
                     raise HTTPException(status_code=400, detail="Tipo de cuota inválido.")
                 cuota_kwargs["notas"] = nota
+
+            if nota in NOTAS_PROYECCION:
+                if not data.fecha_inicio or not data.duracion_meses:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Para upsell o recompra indicá la nueva fecha de inicio y la duración en meses.",
+                    )
+                cliente.fecha_inicio = data.fecha_inicio
+                cliente.duracion_dias = data.duracion_meses * 30
+                cliente.fecha_vencimiento = _add_months(data.fecha_inicio, data.duracion_meses)
+                cliente.estado_cliente = "vigente"
+                cliente.fecha_baja = None
 
             cuota = Cuota(**cuota_kwargs)
             _recalcular_totales_cliente(cliente)

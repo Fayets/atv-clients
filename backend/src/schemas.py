@@ -29,6 +29,7 @@ EstadoEfectivo = Literal[
 PlanActual = Literal["mentoria", "boost", "advantage"]
 Oportunidad = Literal["upsell_boost", "upsell_advantage", "recompra", "consultar"]
 PrioridadCobro = Literal["alta", "media", "baja"]
+Responsable = Literal["lucas", "juampi", "juan", "ale"]
 EstadoCuota = Literal["pendiente", "pagado", "vencido"]
 CuotaNotaTipo = Literal["cuota", "recompra", "upsell"]
 OrdenListado = Literal["venc_asc", "venc_desc"]
@@ -131,6 +132,8 @@ class CuotaCreate(BaseModel):
     monto_usd: Decimal
     fecha_vence: date
     notas: str | None = None
+    fecha_inicio: date | None = None
+    duracion_meses: int | None = Field(default=None, ge=1, le=12)
 
 
 class CuotaPatch(BaseModel):
@@ -326,6 +329,7 @@ class ClienteListItem(BaseModel):
     estado_efectivo: EstadoEfectivo
     dias_restantes: int | None = None
     oportunidad: Oportunidad | None = None
+    responsable: Responsable | None = None
     prioridad_cobro: PrioridadCobro | None = None
     total_pagado_usd: Decimal
     total_adeudado_usd: Decimal
@@ -380,6 +384,7 @@ class DashboardProyeccionItem(BaseModel):
     plan_actual: PlanActual
     monto_usd: Decimal
     subtitulo: str | None = None
+    responsable: Responsable | None = None
 
 
 class DashboardResumen(BaseModel):
@@ -460,6 +465,7 @@ class ClientePatch(BaseModel):
     estado_cliente: EstadoCliente | None = None
     plan_actual: PlanActual | None = None
     oportunidad: Oportunidad | None = None
+    responsable: Responsable | None = None
     prioridad_cobro: PrioridadCobro | None = None
     miro_url: str | None = None
     fathoms_url: str | None = None

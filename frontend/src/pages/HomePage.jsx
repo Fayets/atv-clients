@@ -166,7 +166,7 @@ export default function HomePage() {
     },
     proyeccion: {
       title: `Proyección — ${resumen?.mes_label || ''}`,
-      hint: `${detalles.proyeccion?.length || 0} oportunidades · estimado`,
+      hint: `${detalles.proyeccion?.length || 0} recompras y upsells · cargados en ficha cliente`,
       items: detalles.proyeccion || [],
     },
   }

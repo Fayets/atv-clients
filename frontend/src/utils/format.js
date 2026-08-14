@@ -169,3 +169,13 @@ export function formatPrioridad(value) {
   }
   return value ? (labels[value] || value) : '—'
 }
+
+export function formatResponsable(value) {
+  const labels = {
+    lucas: 'Lucas',
+    juampi: 'Juampi',
+    juan: 'Juan',
+    ale: 'Ale',
+  }
+  return value ? (labels[value] || value) : '—'
+}
