@@ -42,7 +42,7 @@ def inicio_de_mes(anio: int, mes: int) -> date:
 
 
 def cuota_tipo(cuota: Cuota) -> str:
-    return normalizar_nota_cuota(cuota.notas) or "cuota"
+    return normalizar_nota_cuota(cuota.notas) or "cuota_venta"
 
 
 def monto_usd_redondeado(value: Decimal | None) -> float:
@@ -118,8 +118,8 @@ def _respuesta_cobros_arrastre(
     mes_label: str,
     filas: list[dict],
 ) -> dict:
-    cuotas_filas = [fila for fila in filas if fila["tipo"] in {"cuota", "sena"}]
-    proyeccion_filas = [fila for fila in filas if fila["tipo"] in {"recompra", "upsell"}]
+    cuotas_filas = [fila for fila in filas if fila["tipo"] in {"cuota_venta", "sena"}]
+    proyeccion_filas = [fila for fila in filas if fila["tipo"] in {"cuota_recompra", "cuota_upsell"}]
     grupo_cuotas = _grupo_cobros_detalle(cuotas_filas)
     grupo_proyeccion = _grupo_cobros_detalle(proyeccion_filas)
     return {
@@ -196,9 +196,9 @@ def _obtener_proyecciones_db(month: str | None) -> dict:
     upsells: list[dict] = []
     for cuota in cuotas:
         nota_tipo = cuota_tipo(cuota)
-        if nota_tipo == "recompra":
+        if nota_tipo == "cuota_recompra":
             recompras.append(build_proyeccion_item(cuota, clientes))
-        elif nota_tipo == "upsell":
+        elif nota_tipo == "cuota_upsell":
             upsells.append(build_proyeccion_item(cuota, clientes))
 
     total = round(

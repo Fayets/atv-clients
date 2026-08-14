@@ -55,7 +55,7 @@
 
 .cardsGrid {
   display: grid;
-  grid-template-columns: 1.15fr 1fr 1fr 1.15fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 16px;
 }
 
@@ -95,20 +95,12 @@
   border-top: 3px solid #f79009;
 }
 
-.cardCobrado {
-  border-top: 3px solid #12b76a;
-}
-
 .cardProyeccion {
   border-top: 3px solid #6172f3;
 }
 
 .cardTotal {
   border-top: 3px solid #12b76a;
-}
-
-.cardBig .cardValue {
-  font-size: 52px;
 }
 
 .cardLabel {
@@ -134,6 +126,59 @@
   margin-top: 4px;
   font-size: 12px;
   color: var(--label);
+}
+
+.popupBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(12, 12, 12, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.popup {
+  width: min(520px, 100%);
+  max-height: min(72vh, 640px);
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.popupHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.popupTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.popupMeta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--label);
+}
+
+.popup .detailList {
+  max-height: none;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.popup .detailEmpty {
+  padding: 28px 18px;
 }
 
 .detailPanel {
@@ -291,6 +336,167 @@
   background: rgba(180, 35, 24, 0.08);
   color: var(--red-accent);
   font-size: 14px;
+}
+
+.splitCard {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.splitHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.splitTotal {
+  font-family: var(--font-metric);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.splitGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.cajaCard {
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.cajaVenta {
+  border-top: 3px solid #f79009;
+}
+
+.cajaProyeccion {
+  border-top: 3px solid #6172f3;
+}
+
+.cajaKicker {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--label);
+}
+
+.cajaTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cajaValue {
+  font-family: var(--font-metric);
+  font-size: 34px;
+  line-height: 1;
+  margin: 6px 0 4px;
+}
+
+.cajaTrack {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border);
+  margin-top: 4px;
+}
+
+.cajaFillCobrado {
+  display: block;
+  height: 100%;
+  background: #12b76a;
+}
+
+.cajaFillPendiente {
+  display: block;
+  height: 100%;
+  background: #f79009;
+}
+
+.cajaMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--label);
+  align-items: center;
+}
+
+.cajaCobradoBtn {
+  appearance: none;
+  border: 0;
+  background: rgba(18, 183, 106, 0.14);
+  color: #087443;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.cajaCobradoBtn:hover,
+.cajaCobradoBtnActive {
+  background: rgba(18, 183, 106, 0.28);
+}
+
+.cajaExtra {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--label);
+}
+
+.splitBarWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.splitBar {
+  display: flex;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.splitBar span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.splitLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--label);
+}
+
+.splitLegend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chartCard {
@@ -454,8 +660,12 @@
     grid-template-columns: 1fr;
   }
 
-  .cardBig .cardValue {
-    font-size: 44px;
+  .splitGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .cajaValue {
+    font-size: 28px;
   }
 
   .detailRow {

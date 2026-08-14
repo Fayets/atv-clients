@@ -110,6 +110,11 @@
   color: #b54708;
 }
 
+.tagSena {
+  background: rgba(18, 183, 106, 0.14);
+  color: #087443;
+}
+
 .tagRecompra {
   background: rgba(97, 114, 243, 0.14);
   color: #444ce7;

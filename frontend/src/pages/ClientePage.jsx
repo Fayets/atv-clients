@@ -6,7 +6,7 @@ import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
 import PlanBadge from '../components/PlanBadge'
 import StatusBadge from '../components/StatusBadge'
-import { ESTADOS_CLIENTE, MESES_DURACION, OPORTUNIDADES, PLANES_CLIENTE, PRIORIDADES, RESPONSABLES, TIPOS_CUOTA_NOTA, labelTipoCuotaNota } from '../constants/options'
+import { ESTADOS_CLIENTE, MESES_DURACION, OPORTUNIDADES, PLANES_CLIENTE, PRIORIDADES, RESPONSABLES, TIPOS_CUOTA_NOTA, canonicalTipoCuota, labelTipoCuotaNota } from '../constants/options'
 import {
   calcFechaVencimiento,
   formatDate,
@@ -72,7 +72,7 @@ function todayInputDate() {
   return `${y}-${m}-${day}`
 }
 
-const TIPOS_RENOVACION = new Set(['recompra', 'upsell'])
+const TIPOS_RENOVACION = new Set(['cuota_recompra', 'cuota_upsell'])
 
 function defaultDuracionMeses(cliente) {
   const actual = daysToMonths(cliente?.duracion_dias)
@@ -85,7 +85,7 @@ function emptyNewCuota(cliente) {
   return {
     monto_usd: '',
     fecha_vence: '',
-    notas: '',
+    notas: 'cuota_venta',
     fecha_inicio: todayInputDate(),
     duracion_meses: defaultDuracionMeses(cliente),
   }
@@ -488,7 +488,7 @@ export default function ClientePage({ clienteId }) {
       monto_usd: String(cuota.monto_usd),
       fecha_vence: cuota.fecha_vence || '',
       fecha_pago: (cuota.fecha_pago || '').slice(0, 10),
-      notas: cuota.notas || '',
+      notas: canonicalTipoCuota(cuota.notas),
     })
   }
 
@@ -514,7 +514,7 @@ export default function ClientePage({ clienteId }) {
       const payload = {
         monto_usd: Number(newCuota.monto_usd),
         fecha_vence: newCuota.fecha_vence,
-        notas: newCuota.notas.trim() || null,
+        notas: newCuota.notas.trim() || 'cuota_venta',
       }
       if (esRenovacion) {
         payload.fecha_inicio = newCuota.fecha_inicio
@@ -544,7 +544,7 @@ export default function ClientePage({ clienteId }) {
     const payload = {
       monto_usd: Number(editCuota.monto_usd),
       fecha_vence: editCuota.fecha_vence,
-      notas: editCuota.notas.trim() || null,
+      notas: editCuota.notas.trim() || 'cuota_venta',
       fecha_pago: fechaPago,
     }
     if (fechaPago) {
@@ -2033,7 +2033,7 @@ export default function ClientePage({ clienteId }) {
                         <td colSpan={7}>
                           <div className={styles.renovarBox}>
                             <p className={styles.renovarTitle}>
-                              Renovar programa — {newCuota.notas === 'recompra' ? 'recompra' : 'upsell'}
+                              Renovar programa — {newCuota.notas === 'cuota_recompra' ? 'recompra' : 'upsell'}
                             </p>
                             <div className={styles.renovarGrid}>
                               <label>

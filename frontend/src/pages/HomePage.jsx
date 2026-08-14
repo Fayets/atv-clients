@@ -54,10 +54,21 @@ function tagVariant(tag) {
 }
 
 const SERIES = [
-  { key: 'cuotas_usd', label: 'Cuotas', bar: 'barCuotas' },
-  { key: 'upsell_usd', label: 'Upsell', bar: 'barUpsell' },
-  { key: 'recompra_usd', label: 'Recompra', bar: 'barRecompra' },
+  { key: 'cuotas_usd', label: 'Cuota venta', bar: 'barCuotas' },
+  { key: 'upsell_usd', label: 'Cuota upsell', bar: 'barUpsell' },
+  { key: 'recompra_usd', label: 'Cuota recompra', bar: 'barRecompra' },
 ]
+
+const CAJA2_TIPOS = new Set(['cuota_upsell', 'cuota_recompra'])
+
+function num(value) {
+  return Number(value) || 0
+}
+
+function pct(part, total) {
+  if (!total) return 0
+  return Math.max(0, (num(part) / num(total)) * 100)
+}
 
 function niceMax(value) {
   const n = Number(value) || 0
@@ -71,6 +82,110 @@ function niceMax(value) {
 function shortMonthLabel(item) {
   const name = MESES[(item.mes || 1) - 1] || ''
   return `${name.slice(0, 3)} ${item.anio}`
+}
+
+function CajaMesCard({ kicker, title, parte, extra, accent, cobradoActive, onCobradoClick }) {
+  const cobrado = num(parte?.cobrado_usd)
+  const pendiente = num(parte?.pendiente_usd)
+  const total = num(parte?.total_usd) || cobrado + pendiente
+  return (
+    <div className={[styles.cajaCard, accent].filter(Boolean).join(' ')}>
+      <span className={styles.cajaKicker}>{kicker}</span>
+      <span className={styles.cajaTitle}>{title}</span>
+      <span className={styles.cajaValue}>{formatUsd(total)}</span>
+      <div className={styles.cajaTrack} aria-hidden="true">
+        <span className={styles.cajaFillCobrado} style={{ width: `${pct(cobrado, total)}%` }} />
+        <span className={styles.cajaFillPendiente} style={{ width: `${pct(pendiente, total)}%` }} />
+      </div>
+      <div className={styles.cajaMeta}>
+        <button
+          type="button"
+          className={[
+            styles.cajaCobradoBtn,
+            cobradoActive ? styles.cajaCobradoBtnActive : '',
+          ].filter(Boolean).join(' ')}
+          onClick={onCobradoClick}
+        >
+          Cobrado {formatUsd(cobrado)}
+        </button>
+        <span>Pendiente {formatUsd(pendiente)}</span>
+      </div>
+      {extra ? <p className={styles.cajaExtra}>{extra}</p> : null}
+    </div>
+  )
+}
+
+function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
+  const venta = mesCajas?.venta
+  const upsell = mesCajas?.upsell
+  const recompra = mesCajas?.recompra
+  const caja1 = num(mesCajas?.caja_1_usd) || num(venta?.total_usd)
+  const caja2 = num(mesCajas?.caja_2_usd) || num(upsell?.total_usd) + num(recompra?.total_usd)
+  const total = caja1 + caja2
+  const upsellTotal = num(upsell?.total_usd)
+  const recompraTotal = num(recompra?.total_usd)
+
+  return (
+    <section className={styles.splitCard}>
+      <div className={styles.splitHead}>
+        <div>
+          <h2 className={styles.chartTitle}>Plata del mes</h2>
+          <p className={styles.chartMeta}>
+            {mesLabel || 'Mes'} · cobrado + pendiente por vencer
+          </p>
+        </div>
+        <span className={styles.splitTotal}>
+          {loading ? '…' : formatUsd(total)}
+        </span>
+      </div>
+
+      <div className={styles.splitGrid}>
+        <CajaMesCard
+          kicker="Caja 1"
+          title="Cuota venta"
+          parte={venta}
+          accent={styles.cajaVenta}
+          cobradoActive={popupId === 'caja1'}
+          onCobradoClick={() => onCobrado('caja1')}
+        />
+        <CajaMesCard
+          kicker="Caja 2"
+          title="Upsell y recompra"
+          parte={{
+            cobrado_usd: num(upsell?.cobrado_usd) + num(recompra?.cobrado_usd),
+            pendiente_usd: num(upsell?.pendiente_usd) + num(recompra?.pendiente_usd),
+            total_usd: caja2,
+          }}
+          extra={`Upsell ${formatUsd(upsellTotal)} · Recompra ${formatUsd(recompraTotal)}`}
+          accent={styles.cajaProyeccion}
+          cobradoActive={popupId === 'caja2'}
+          onCobradoClick={() => onCobrado('caja2')}
+        />
+      </div>
+
+      <div className={styles.splitBarWrap}>
+        <div className={styles.splitBar} aria-hidden="true">
+          <span className={styles.barCuotas} style={{ width: `${pct(caja1, total)}%` }} />
+          <span className={styles.barUpsell} style={{ width: `${pct(upsellTotal, total)}%` }} />
+          <span className={styles.barRecompra} style={{ width: `${pct(recompraTotal, total)}%` }} />
+        </div>
+        <ul className={styles.splitLegend}>
+          <li>
+            <span className={`${styles.legendSwatch} ${styles.barCuotas}`} />
+            Caja 1 · venta {loading ? '…' : formatUsd(caja1)}
+          </li>
+          <li>
+            <span className={`${styles.legendSwatch} ${styles.barUpsell}`} />
+            Upsell {loading ? '…' : formatUsd(upsellTotal)}
+          </li>
+          <li>
+            <span className={`${styles.legendSwatch} ${styles.barRecompra}`} />
+            Recompra {loading ? '…' : formatUsd(recompraTotal)}
+          </li>
+        </ul>
+      </div>
+    </section>
+  )
 }
 
 function ProyeccionChart({ meses, loading }) {
@@ -87,7 +202,7 @@ function ProyeccionChart({ meses, loading }) {
       <div className={styles.chartHead}>
         <div>
           <h2 className={styles.chartTitle}>Próximos 6 meses</h2>
-          <p className={styles.chartMeta}>Pendiente por vencer · cuotas, upsell y recompras</p>
+          <p className={styles.chartMeta}>Pendiente por vencer · cuota venta, upsell y recompra</p>
         </div>
         <ul className={styles.chartLegend}>
           {SERIES.map((serie) => (
@@ -145,6 +260,43 @@ function ProyeccionChart({ meses, loading }) {
   )
 }
 
+function DetailList({ items }) {
+  if (items.length === 0) {
+    return <p className={styles.detailEmpty}>Sin registros.</p>
+  }
+  return (
+    <ul className={styles.detailList}>
+      {items.map((item, index) => {
+        const { tag, extra } = parseSubtitulo(item.subtitulo)
+        const variant = tag ? tagVariant(tag) : 'default'
+        return (
+          <li
+            key={`${item.cliente_id}-${item.subtitulo}-${index}`}
+            className={styles.detailRow}
+            onClick={() => navigate(`/cliente/${item.cliente_id}`)}
+          >
+            <div className={styles.detailRowMain}>
+              <span className={styles.detailName}>{item.nombre}</span>
+              {tag ? (
+                <div className={styles.detailTags}>
+                  <span className={`${styles.detailTag} ${styles[TAG_CLASS[variant] || TAG_CLASS.default]}`}>
+                    {tag}
+                  </span>
+                  {extra ? (
+                    <span className={styles.detailTagExtra}>{extra}</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            <PlanBadge plan={item.plan_actual} />
+            <span className={styles.detailAmount}>{formatUsd(item.monto_usd)}</span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 function DetailPanel({ title, hint, items, onClose }) {
   return (
     <section className={styles.detailPanel}>
@@ -158,40 +310,47 @@ function DetailPanel({ title, hint, items, onClose }) {
           Cerrar
         </button>
       </div>
-      {items.length === 0 ? (
-        <p className={styles.detailEmpty}>Sin registros.</p>
-      ) : (
-        <ul className={styles.detailList}>
-          {items.map((item, index) => {
-            const { tag, extra } = parseSubtitulo(item.subtitulo)
-            const variant = tag ? tagVariant(tag) : 'default'
-            return (
-            <li
-              key={`${item.cliente_id}-${item.subtitulo}-${index}`}
-              className={styles.detailRow}
-              onClick={() => navigate(`/cliente/${item.cliente_id}`)}
-            >
-              <div className={styles.detailRowMain}>
-                <span className={styles.detailName}>{item.nombre}</span>
-                {tag ? (
-                  <div className={styles.detailTags}>
-                    <span className={`${styles.detailTag} ${styles[TAG_CLASS[variant] || TAG_CLASS.default]}`}>
-                      {tag}
-                    </span>
-                    {extra ? (
-                      <span className={styles.detailTagExtra}>{extra}</span>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-              <PlanBadge plan={item.plan_actual} />
-              <span className={styles.detailAmount}>{formatUsd(item.monto_usd)}</span>
-            </li>
-            )
-          })}
-        </ul>
-      )}
+      <DetailList items={items} />
     </section>
+  )
+}
+
+function PagosPopup({ title, hint, items, onClose }) {
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  return (
+    <div className={styles.popupBackdrop} onClick={onClose} role="presentation">
+      <div
+        className={styles.popup}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pagos-popup-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={styles.popupHead}>
+          <div>
+            <h2 id="pagos-popup-title" className={styles.popupTitle}>{title}</h2>
+            {hint ? <p className={styles.popupMeta}>{hint}</p> : null}
+          </div>
+          <button type="button" className={styles.detailClose} onClick={onClose}>
+            <i className="ti ti-x" />
+            Cerrar
+          </button>
+        </div>
+        <DetailList items={items} />
+      </div>
+    </div>
   )
 }
 
@@ -203,6 +362,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState(null)
+  const [popupId, setPopupId] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -227,44 +387,29 @@ export default function HomePage() {
 
   const cards = [
     {
-      id: 'cobrado',
-      label: 'Caja 2 cobrado',
-      value: resumen?.caja_2_cobrado_usd,
-      sub: `Este mes · acumulado ${formatUsd(resumen?.caja_2_cobrado_total_usd ?? 0)}`,
-      accent: styles.cardCobrado,
-      big: true,
-    },
-    {
       id: 'cuotas',
       label: 'Cuotas a cobrar',
       value: resumen?.cuotas_a_cobrar_usd,
-      sub: 'Caja 2 · pendiente del mes',
+      sub: 'Caja 1 · cuota venta pendiente del mes',
       accent: styles.cardCuotas,
     },
     {
       id: 'proyeccion',
       label: 'Proyección',
       value: resumen?.proyeccion_usd,
-      sub: 'Upsell y recompras · no suma a cuotas a cobrar',
+      sub: 'Caja 2 · upsell y recompras pendientes',
       accent: styles.cardProyeccion,
     },
     {
       id: 'total',
       label: 'Pendiente del mes',
       value: resumen?.total_mes_usd,
-      sub: resumen?.caja_1_usd != null
-        ? `Caja 1 ${formatUsd(resumen.caja_1_usd)} + Caja 2 ${formatUsd(resumen.caja_2_usd)}`
-        : `Caja 2 ${formatUsd(resumen?.caja_2_usd ?? 0)} (Caja 1 pendiente)`,
+      sub: `Caja 1 ${formatUsd(resumen?.cuotas_a_cobrar_usd ?? 0)} + Caja 2 ${formatUsd(resumen?.proyeccion_usd ?? 0)}`,
       accent: styles.cardTotal,
     },
   ]
 
   const detailConfig = {
-    cobrado: {
-      title: `Caja 2 cobrado — ${resumen?.mes_label || ''}`,
-      hint: `${detalles.cobrado?.length || 0} pagos · acumulado ${formatUsd(resumen?.caja_2_cobrado_total_usd ?? 0)}`,
-      items: detalles.cobrado || [],
-    },
     cuotas: {
       title: `Cuotas a cobrar — ${resumen?.mes_label || ''}`,
       hint: `${detalles.cuotas?.length || 0} cuotas · cargadas en ficha cliente`,
@@ -277,6 +422,29 @@ export default function HomePage() {
     },
   }
 
+  const cobradoVenta = (detalles.cobrado || []).filter((item) => !CAJA2_TIPOS.has(item.tipo))
+  const cobradoCaja2 = (detalles.cobrado || []).filter((item) => CAJA2_TIPOS.has(item.tipo))
+  const popupConfig = {
+    caja1: {
+      title: `Cobrado · Caja 1 — ${resumen?.mes_label || ''}`,
+      hint: `${cobradoVenta.length} pagos · cuota venta y seña`,
+      items: cobradoVenta,
+    },
+    caja2: {
+      title: `Cobrado · Caja 2 — ${resumen?.mes_label || ''}`,
+      hint: `${cobradoCaja2.length} pagos · upsell y recompra`,
+      items: cobradoCaja2,
+    },
+  }
+
+  const openCobradoPopup = (id) => {
+    setSelected(null)
+    setPopupId((prev) => (prev === id ? null : id))
+  }
+
+  const closePopup = useCallback(() => setPopupId(null), [])
+  const popup = popupId ? popupConfig[popupId] : null
+
   return (
     <div className={styles.page}>
       <Navbar currentPath="/" />
@@ -285,7 +453,7 @@ export default function HomePage() {
         <header className={styles.hero}>
           <div>
             <h1 className={styles.heroTitle}>Dashboard</h1>
-            <p className={styles.heroSubtitle}>Cobrado · cuotas · proyección · total del mes</p>
+            <p className={styles.heroSubtitle}>Cuotas · proyección · plata del mes</p>
           </div>
           <label className={styles.monthPicker}>
             <span>Mes</span>
@@ -296,6 +464,7 @@ export default function HomePage() {
                 setAnio(y)
                 setMes(m)
                 setSelected(null)
+                setPopupId(null)
               }}
             >
               {mesesDisponibles.map((opt) => (
@@ -321,12 +490,12 @@ export default function HomePage() {
                 className={[
                   styles.card,
                   card.accent,
-                  card.big ? styles.cardBig : '',
                   clickable ? styles.clickable : '',
                   active ? styles.cardActive : '',
                 ].filter(Boolean).join(' ')}
                 onClick={() => {
                   if (!clickable) return
+                  setPopupId(null)
                   setSelected((prev) => (prev === card.id ? null : card.id))
                 }}
               >
@@ -345,12 +514,29 @@ export default function HomePage() {
           })}
         </section>
 
+        <MesCajas
+          mesLabel={resumen?.mes_label}
+          mesCajas={data?.mes_cajas}
+          loading={loading}
+          popupId={popupId}
+          onCobrado={openCobradoPopup}
+        />
+
         {selected && detailConfig[selected] ? (
           <DetailPanel
             title={detailConfig[selected].title}
             hint={detailConfig[selected].hint}
             items={detailConfig[selected].items}
             onClose={() => setSelected(null)}
+          />
+        ) : null}
+
+        {popup ? (
+          <PagosPopup
+            title={popup.title}
+            hint={popup.hint}
+            items={popup.items}
+            onClose={closePopup}
           />
         ) : null}
 

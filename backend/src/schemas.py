@@ -31,7 +31,7 @@ Oportunidad = Literal["upsell_boost", "upsell_advantage", "recompra", "consultar
 PrioridadCobro = Literal["alta", "media", "baja"]
 Responsable = Literal["lucas", "juampi", "juan", "ale"]
 EstadoCuota = Literal["pendiente", "pagado", "vencido"]
-CuotaNotaTipo = Literal["sena", "cuota", "upsell", "recompra"]
+CuotaNotaTipo = Literal["cuota_venta", "cuota_upsell", "cuota_recompra", "sena"]
 OrdenListado = Literal["venc_asc", "venc_desc"]
 
 
@@ -140,7 +140,7 @@ class AgentCuotaAccionResponse(BaseModel):
 class CuotaCreate(BaseModel):
     monto_usd: Decimal
     fecha_vence: date
-    notas: str | None = None
+    notas: str | None = "cuota_venta"
     fecha_inicio: date | None = None
     duracion_meses: int | None = Field(default=None, ge=1, le=12)
 
@@ -361,6 +361,7 @@ class DashboardDetalleItem(BaseModel):
     monto_usd: Decimal
     subtitulo: str | None = None
     estado_efectivo: EstadoEfectivo | None = None
+    tipo: CuotaNotaTipo | None = None
 
 
 class DashboardMesCobranza(BaseModel):
@@ -395,6 +396,7 @@ class DashboardProyeccionItem(BaseModel):
     monto_usd: Decimal
     subtitulo: str | None = None
     responsable: Responsable | None = None
+    tipo: CuotaNotaTipo | None = None
 
 
 class DashboardResumen(BaseModel):
@@ -425,10 +427,25 @@ class DashboardMesProyeccion(BaseModel):
     recompra_usd: Decimal = 0
 
 
+class DashboardCajaParte(BaseModel):
+    cobrado_usd: Decimal = 0
+    pendiente_usd: Decimal = 0
+    total_usd: Decimal = 0
+
+
+class DashboardMesCajas(BaseModel):
+    venta: DashboardCajaParte
+    upsell: DashboardCajaParte
+    recompra: DashboardCajaParte
+    caja_1_usd: Decimal = 0
+    caja_2_usd: Decimal = 0
+
+
 class DashboardResponse(BaseModel):
     resumen: DashboardResumen
     detalles: DashboardDetalles = Field(default_factory=DashboardDetalles)
     proyeccion_meses: list[DashboardMesProyeccion] = Field(default_factory=list)
+    mes_cajas: DashboardMesCajas | None = None
 
 
 class ClienteResponse(ClienteListItem):

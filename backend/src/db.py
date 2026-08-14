@@ -258,6 +258,16 @@ MIGRATIONS = [
 ]
 
 
+def _migrar_catalogo_tipos_cuota(cur) -> None:
+    from src.cuota_notas import canonicalizar_valor_notas
+
+    cur.execute("SELECT id, notas FROM clients.cuotas")
+    for cuota_id, notas in cur.fetchall():
+        nuevo = canonicalizar_valor_notas(notas)
+        if nuevo != notas:
+            cur.execute("UPDATE clients.cuotas SET notas = %s WHERE id = %s", (nuevo, cuota_id))
+
+
 def run_migrations() -> None:
     database_url = config("DATABASE_URL", default="")
     if not database_url:
@@ -271,6 +281,10 @@ def run_migrations() -> None:
                     cur.execute(sql)
                 except Exception:
                     pass
+            try:
+                _migrar_catalogo_tipos_cuota(cur)
+            except Exception:
+                pass
     finally:
         conn.close()
 

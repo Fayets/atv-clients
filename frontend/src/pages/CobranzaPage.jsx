@@ -8,9 +8,10 @@ import { navigate } from '../utils/navigation'
 import styles from './CobranzaPage.module.css'
 
 const TIPO_CLASS = {
-  cuota: 'tagCuota',
-  recompra: 'tagRecompra',
-  upsell: 'tagUpsell',
+  cuota_venta: 'tagCuota',
+  sena: 'tagSena',
+  cuota_recompra: 'tagRecompra',
+  cuota_upsell: 'tagUpsell',
 }
 
 export default function CobranzaPage() {

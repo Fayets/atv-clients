@@ -18,6 +18,7 @@ from pony.orm import db_session, flush
 from src.cuota_notas import (
     CUOTA_NOTAS_VALIDAS,
     NOTAS_PROYECCION,
+    TIPO_DEFAULT,
     es_nota_proyeccion,
     etiqueta_cuota_auto,
     etiqueta_nota_cuota,
@@ -359,7 +360,7 @@ def _sorted_comprobantes(cuota: Cuota) -> list[CuotaComprobante]:
 
 def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> dict:
     nota = normalizar_nota_cuota(cuota.notas)
-    tipo = nota or "cuota"
+    tipo = nota or TIPO_DEFAULT
     cuotas_ref = cuotas_cliente if cuotas_cliente is not None else list(cuota.cliente.cuotas)
     return {
         "id": cuota.id,
@@ -369,7 +370,7 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
         "fecha_pago": cuota.fecha_pago,
         "estado": cuota.estado,
         "tipo": tipo,
-        "notas": nota,
+        "notas": tipo,
         "nota_label": etiqueta_cuota_auto(cuota, cuotas_ref),
         "comprobantes": [_comprobante_to_dict(c) for c in _sorted_comprobantes(cuota)],
         "created_at": cuota.created_at,
@@ -422,7 +423,7 @@ def _proxima_cuota_pendiente(
     if not pendientes:
         return None
     cuota = pendientes[0]
-    nota = normalizar_nota_cuota(cuota.notas) or "cuota"
+    nota = normalizar_nota_cuota(cuota.notas) or TIPO_DEFAULT
     return {
         "id": cuota.id,
         "monto_usd": _decimal(cuota.monto_usd),
@@ -466,6 +467,7 @@ def _detalle_item(
     monto: Decimal,
     subtitulo: str | None = None,
     estado: str | None = None,
+    tipo: str | None = None,
 ) -> dict:
     return {
         "cliente_id": cliente_id,
@@ -474,6 +476,7 @@ def _detalle_item(
         "monto_usd": monto,
         "subtitulo": subtitulo,
         "estado_efectivo": estado,
+        "tipo": tipo,
     }
 
 
@@ -513,6 +516,7 @@ def _proyeccion_item(
     monto: Decimal,
     subtitulo: str | None = None,
     responsable: str | None = None,
+    tipo: str | None = None,
 ) -> dict:
     return {
         "cliente_id": cliente_id,
@@ -521,6 +525,15 @@ def _proyeccion_item(
         "monto_usd": monto,
         "subtitulo": subtitulo,
         "responsable": responsable,
+        "tipo": tipo,
+    }
+
+
+def _caja_parte(cobrado: Decimal, pendiente: Decimal) -> dict:
+    return {
+        "cobrado_usd": cobrado,
+        "pendiente_usd": pendiente,
+        "total_usd": cobrado + pendiente,
     }
 
 
@@ -755,6 +768,12 @@ class ClientesServices:
             proyeccion_total = Decimal("0")
             caja_2_cobrado_usd = Decimal("0")
             caja_2_cobrado_total_usd = Decimal("0")
+            venta_cobrado = Decimal("0")
+            upsell_cobrado = Decimal("0")
+            recompra_cobrado = Decimal("0")
+            venta_pendiente = Decimal("0")
+            upsell_pendiente = Decimal("0")
+            recompra_pendiente = Decimal("0")
 
             for cliente in clientes:
                 base = _cliente_base_dict(cliente, cache)
@@ -762,7 +781,7 @@ class ClientesServices:
                 estado = base["estado_efectivo"]
                 for cuota in cuotas:
                     monto = _decimal(cuota.monto_usd)
-                    tipo = normalizar_nota_cuota(cuota.notas) or "cuota"
+                    tipo = normalizar_nota_cuota(cuota.notas) or TIPO_DEFAULT
                     fv = cuota.fecha_vence
 
                     if cuota.estado == "pagado":
@@ -771,6 +790,12 @@ class ClientesServices:
                             caja_2_cobrado_total_usd += monto
                             if fp.year == ref.year and fp.month == ref.month:
                                 caja_2_cobrado_usd += monto
+                                if tipo == "cuota_upsell":
+                                    upsell_cobrado += monto
+                                elif tipo == "cuota_recompra":
+                                    recompra_cobrado += monto
+                                else:
+                                    venta_cobrado += monto
                                 nota_label = etiqueta_cuota_auto(cuota, cuotas)
                                 detalles_cobrado.append(_detalle_item(
                                     cliente_id=cliente.id,
@@ -779,6 +804,7 @@ class ClientesServices:
                                     monto=monto,
                                     subtitulo=f"{nota_label} · pagó {format_fecha_ar(fp)}",
                                     estado=base["estado_efectivo"],
+                                    tipo=tipo,
                                 ))
                         continue
 
@@ -788,9 +814,9 @@ class ClientesServices:
                         continue
                     bucket = meses_proyeccion.get((fv.year, fv.month))
                     if bucket is not None:
-                        if tipo == "upsell":
+                        if tipo == "cuota_upsell":
                             bucket["upsell_usd"] += monto
-                        elif tipo == "recompra":
+                        elif tipo == "cuota_recompra":
                             bucket["recompra_usd"] += monto
                         else:
                             bucket["cuotas_usd"] += monto
@@ -801,6 +827,10 @@ class ClientesServices:
 
                     if es_nota_proyeccion(cuota.notas):
                         proyeccion_total += monto
+                        if tipo == "cuota_upsell":
+                            upsell_pendiente += monto
+                        else:
+                            recompra_pendiente += monto
                         responsable = base.get("responsable")
                         responsable_label = RESPONSABLE_LABELS.get(responsable)
                         subtitulo = f"{nota_label} · vence {format_fecha_ar(fv)}"
@@ -813,10 +843,12 @@ class ClientesServices:
                             monto=monto,
                             subtitulo=subtitulo,
                             responsable=responsable,
+                            tipo=tipo,
                         ))
                         continue
 
                     cuotas_a_cobrar += monto
+                    venta_pendiente += monto
                     detalles_cuotas.append(_detalle_item(
                         cliente_id=cliente.id,
                         nombre=base["nombre"],
@@ -824,6 +856,7 @@ class ClientesServices:
                         monto=monto,
                         subtitulo=f"{nota_label} · vence {format_fecha_ar(fv)}",
                         estado=estado,
+                        tipo=tipo,
                     ))
 
         _sort_detalle_por_plan(detalles_cuotas)
@@ -833,6 +866,9 @@ class ClientesServices:
         caja_1_usd: Decimal | None = None
         caja_2_usd = cuotas_a_cobrar + proyeccion_total
         total_mes_usd = (caja_1_usd or Decimal("0")) + caja_2_usd
+        venta_parte = _caja_parte(venta_cobrado, venta_pendiente)
+        upsell_parte = _caja_parte(upsell_cobrado, upsell_pendiente)
+        recompra_parte = _caja_parte(recompra_cobrado, recompra_pendiente)
 
         return {
             "resumen": {
@@ -853,6 +889,13 @@ class ClientesServices:
                 "cobrado": detalles_cobrado,
             },
             "proyeccion_meses": list(meses_proyeccion.values()),
+            "mes_cajas": {
+                "venta": venta_parte,
+                "upsell": upsell_parte,
+                "recompra": recompra_parte,
+                "caja_1_usd": venta_parte["total_usd"],
+                "caja_2_usd": upsell_parte["total_usd"] + recompra_parte["total_usd"],
+            },
         }
 
     def obtener_cliente(self, cliente_id: int) -> dict | None:
@@ -982,17 +1025,16 @@ class ClientesServices:
                 "fecha_vence": data.fecha_vence,
                 "estado": "pendiente",
             }
-            nota = normalizar_nota_cuota(data.notas) if data.notas else None
-            if data.notas:
-                if nota not in CUOTA_NOTAS_VALIDAS:
-                    raise HTTPException(status_code=400, detail="Tipo de cuota inválido.")
-                cuota_kwargs["notas"] = nota
+            nota = normalizar_nota_cuota(data.notas) if data.notas else TIPO_DEFAULT
+            if nota not in CUOTA_NOTAS_VALIDAS:
+                raise HTTPException(status_code=400, detail="Tipo de cuota inválido.")
+            cuota_kwargs["notas"] = nota
 
             if nota in NOTAS_PROYECCION:
                 if not data.fecha_inicio or not data.duracion_meses:
                     raise HTTPException(
                         status_code=400,
-                        detail="Para upsell o recompra indicá la nueva fecha de inicio y la duración en meses.",
+                        detail="Para cuota upsell o cuota recompra indicá la nueva fecha de inicio y la duración en meses.",
                     )
                 cliente.fecha_inicio = data.fecha_inicio
                 cliente.duracion_dias = data.duracion_meses * 30
@@ -1023,7 +1065,7 @@ class ClientesServices:
                     raise HTTPException(status_code=400, detail="Tipo de cuota inválido.")
                 payload["notas"] = nota
             else:
-                payload["notas"] = None
+                payload["notas"] = TIPO_DEFAULT
 
         with db_session:
             cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)

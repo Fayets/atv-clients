@@ -39,15 +39,39 @@ export const OPORTUNIDADES = [
 ]
 
 export const TIPOS_CUOTA_NOTA = [
-  { value: '', label: 'Sin tipo' },
+  { value: 'cuota_venta', label: 'Cuota venta' },
+  { value: 'cuota_upsell', label: 'Cuota upsell' },
+  { value: 'cuota_recompra', label: 'Cuota recompra' },
   { value: 'sena', label: 'Seña' },
-  { value: 'cuota', label: 'Cuota' },
-  { value: 'upsell', label: 'Upsell' },
-  { value: 'recompra', label: 'Recompra' },
 ]
 
+const TIPOS_CUOTA_VALIDOS = new Set(TIPOS_CUOTA_NOTA.map((item) => item.value))
+
+const TIPOS_CUOTA_LEGACY = {
+  cuota: 'cuota_venta',
+  venta: 'cuota_venta',
+  cuota_venta: 'cuota_venta',
+  upsell: 'cuota_upsell',
+  cuota_upsell: 'cuota_upsell',
+  recompra: 'cuota_recompra',
+  cuota_recompra: 'cuota_recompra',
+  renovacion: 'cuota_recompra',
+  sena: 'sena',
+  seña: 'sena',
+  senia: 'sena',
+}
+
+export function canonicalTipoCuota(value) {
+  if (!value) return 'cuota_venta'
+  const first = String(value).trim().split('\n')[0].trim().toLowerCase().replace(/ /g, '_')
+  if (TIPOS_CUOTA_LEGACY[first]) return TIPOS_CUOTA_LEGACY[first]
+  if (TIPOS_CUOTA_VALIDOS.has(first)) return first
+  return 'cuota_venta'
+}
+
 export function labelTipoCuotaNota(value, fallbackLabel) {
-  const found = TIPOS_CUOTA_NOTA.find((item) => item.value === value)
+  const canonical = canonicalTipoCuota(value)
+  const found = TIPOS_CUOTA_NOTA.find((item) => item.value === canonical)
   if (found?.value) return found.label
   if (fallbackLabel) return fallbackLabel
   return value || '—'

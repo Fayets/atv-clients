@@ -3,58 +3,74 @@
 from datetime import date
 from typing import Literal
 
-CuotaNotaTipo = Literal["sena", "cuota", "upsell", "recompra"]
+CuotaNotaTipo = Literal["cuota_venta", "cuota_upsell", "cuota_recompra", "sena"]
+
+TIPO_DEFAULT = "cuota_venta"
 
 CUOTA_NOTA_LABELS: dict[str, str] = {
+    "cuota_venta": "Cuota venta",
+    "cuota_upsell": "Cuota upsell",
+    "cuota_recompra": "Cuota recompra",
     "sena": "Seña",
-    "cuota": "Cuota",
-    "upsell": "Upsell",
-    "recompra": "Recompra",
 }
 
 CUOTA_NOTAS_VALIDAS = frozenset(CUOTA_NOTA_LABELS)
 
-NOTAS_PROYECCION = frozenset({"recompra", "upsell"})
-NOTAS_SIN_NUMERO = frozenset({"sena", "recompra", "upsell"})
+NOTAS_PROYECCION = frozenset({"cuota_upsell", "cuota_recompra"})
+NOTAS_SIN_NUMERO = frozenset({"sena", "cuota_upsell", "cuota_recompra"})
 
 _ALIASES: dict[str, str] = {
+    "cuota": TIPO_DEFAULT,
+    "venta": TIPO_DEFAULT,
+    "cuota_venta": TIPO_DEFAULT,
+    "upsell": "cuota_upsell",
+    "cuota_upsell": "cuota_upsell",
+    "recompra": "cuota_recompra",
+    "cuota_recompra": "cuota_recompra",
+    "renovacion": "cuota_recompra",
     "seña": "sena",
     "senia": "sena",
     "deposito": "sena",
-    "ingreso": "cuota",
-    "ultima": "cuota",
-    "renovacion": "recompra",
-    "evento": "cuota",
-    "meta_20k": "cuota",
-    "otro": "cuota",
+    "ingreso": TIPO_DEFAULT,
+    "ultima": TIPO_DEFAULT,
+    "evento": TIPO_DEFAULT,
+    "meta_20k": TIPO_DEFAULT,
+    "otro": TIPO_DEFAULT,
 }
 
 _LEGACY_NOTA_MAP: dict[str, str] = {
-    "1RA CUOTA BOOST": "cuota",
-    "1RA CUOTA MENTORIA": "cuota",
-    "1RA CUOTA ADVANTAGE": "cuota",
-    "CUOTA 1": "cuota",
-    "2DA CUOTA BOOST": "cuota",
-    "2DA CUOTA MENTORIA": "cuota",
-    "2DA CUOTA ADVANTAGE": "cuota",
-    "2DA CUOTA RENOVACION BOOST": "cuota",
-    "CUOTA 2": "cuota",
-    "3RA CUOTA BOOST": "cuota",
-    "3RA CUOTA MENTORIA": "cuota",
-    "CUOTA 3": "cuota",
-    "4TA CUOTA BOOST": "cuota",
-    "ULTIMA CUOTA BOOST": "cuota",
-    "ULTIMA CUOTA MENTORIA": "cuota",
-    "UPSELL": "upsell",
-    "RENOVACION": "recompra",
-    "RENOVACION BOOST": "recompra",
-    "RENOVACION MENTORIA": "recompra",
-    "PAGA EN EVENTO": "cuota",
-    "CUOTA HASTA COMPLETAR 20K": "cuota",
-    "CUOTA HASTA COMPLETATAR 20K": "cuota",
+    "1RA CUOTA BOOST": TIPO_DEFAULT,
+    "1RA CUOTA MENTORIA": TIPO_DEFAULT,
+    "1RA CUOTA ADVANTAGE": TIPO_DEFAULT,
+    "CUOTA 1": TIPO_DEFAULT,
+    "2DA CUOTA BOOST": TIPO_DEFAULT,
+    "2DA CUOTA MENTORIA": TIPO_DEFAULT,
+    "2DA CUOTA ADVANTAGE": TIPO_DEFAULT,
+    "2DA CUOTA RENOVACION BOOST": TIPO_DEFAULT,
+    "CUOTA 2": TIPO_DEFAULT,
+    "3RA CUOTA BOOST": TIPO_DEFAULT,
+    "3RA CUOTA MENTORIA": TIPO_DEFAULT,
+    "CUOTA 3": TIPO_DEFAULT,
+    "4TA CUOTA BOOST": TIPO_DEFAULT,
+    "ULTIMA CUOTA BOOST": TIPO_DEFAULT,
+    "ULTIMA CUOTA MENTORIA": TIPO_DEFAULT,
+    "UPSELL": "cuota_upsell",
+    "RENOVACION": "cuota_recompra",
+    "RENOVACION BOOST": "cuota_recompra",
+    "RENOVACION MENTORIA": "cuota_recompra",
+    "PAGA EN EVENTO": TIPO_DEFAULT,
+    "CUOTA HASTA COMPLETAR 20K": TIPO_DEFAULT,
+    "CUOTA HASTA COMPLETATAR 20K": TIPO_DEFAULT,
     "SEÑA": "sena",
     "SENA": "sena",
+    "CUOTA VENTA": TIPO_DEFAULT,
+    "CUOTA UPSELL": "cuota_upsell",
+    "CUOTA RECOMPRA": "cuota_recompra",
 }
+
+
+def _primera_linea(raw: str) -> str:
+    return raw.strip().split("\n", 1)[0].strip()
 
 
 def normalizar_nota_cuota(raw: str | None) -> str | None:
@@ -63,19 +79,32 @@ def normalizar_nota_cuota(raw: str | None) -> str | None:
     texto = raw.strip()
     if not texto:
         return None
-    clave = texto.lower().replace(" ", "_")
+    primera = _primera_linea(texto)
+    clave = primera.lower().replace(" ", "_")
     if clave in CUOTA_NOTAS_VALIDAS:
         return clave
     if clave in _ALIASES:
         return _ALIASES[clave]
-    legacy = _LEGACY_NOTA_MAP.get(texto.upper())
+    legacy = _LEGACY_NOTA_MAP.get(primera.upper())
     if legacy:
         return legacy
     if clave.startswith("cuota_") and clave[6:].isdigit():
-        return "cuota"
+        return TIPO_DEFAULT
     if clave == "cuota":
-        return "cuota"
+        return TIPO_DEFAULT
     return None
+
+
+def canonicalizar_valor_notas(raw: str | None) -> str:
+    """Deja solo un tipo válido en la primera línea; el resto de notas se conserva."""
+    if raw is None or not str(raw).strip():
+        return TIPO_DEFAULT
+    texto = str(raw)
+    primera, sep, resto = texto.partition("\n")
+    clave = normalizar_nota_cuota(primera) or TIPO_DEFAULT
+    if not sep:
+        return clave
+    return f"{clave}\n{resto}"
 
 
 def es_nota_proyeccion(raw: str | None) -> bool:
@@ -95,7 +124,7 @@ def _cuotas_cobranza_ordenadas(cuotas_cliente: list) -> list:
         [
             c
             for c in cuotas_cliente
-            if (normalizar_nota_cuota(c.notas) or "cuota") not in NOTAS_SIN_NUMERO
+            if (normalizar_nota_cuota(c.notas) or TIPO_DEFAULT) not in NOTAS_SIN_NUMERO
         ],
         key=lambda c: (c.fecha_vence or date.max, c.id),
     )
@@ -110,4 +139,4 @@ def etiqueta_cuota_auto(cuota, cuotas_cliente: list) -> str:
     for idx, c in enumerate(cobranza, start=1):
         if c.id == cuota.id:
             return f"Cuota {idx}"
-    return "Cuota"
+    return "Cuota venta"

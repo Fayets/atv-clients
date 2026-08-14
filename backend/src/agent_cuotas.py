@@ -12,9 +12,9 @@ from src.services.clientes_services import _recalcular_totales_cliente
 
 def _tipo_from_notas(notas: str | None) -> str:
     if not notas or not notas.strip():
-        return "cuota"
+        return "cuota_venta"
     first_line = notas.strip().split("\n")[0].strip()
-    return normalizar_nota_cuota(first_line) or "cuota"
+    return normalizar_nota_cuota(first_line) or "cuota_venta"
 
 
 def _append_nota_agente(cuota: Cuota, accion: str) -> None:
@@ -24,7 +24,7 @@ def _append_nota_agente(cuota: Cuota, accion: str) -> None:
     if raw:
         cuota.notas = f"{raw}\n{mensaje}"
         return
-    tipo = "cuota"
+    tipo = "cuota_venta"
     cuota.notas = f"{tipo}\n{mensaje}"
 
 
