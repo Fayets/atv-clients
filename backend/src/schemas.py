@@ -405,17 +405,30 @@ class DashboardResumen(BaseModel):
     proyeccion_usd: Decimal
     caja_1_usd: Decimal | None = None
     caja_2_usd: Decimal
+    caja_2_cobrado_usd: Decimal = 0
+    caja_2_cobrado_total_usd: Decimal = 0
     total_mes_usd: Decimal
 
 
 class DashboardDetalles(BaseModel):
     cuotas: list[DashboardDetalleItem] = Field(default_factory=list)
     proyeccion: list[DashboardProyeccionItem] = Field(default_factory=list)
+    cobrado: list[DashboardDetalleItem] = Field(default_factory=list)
+
+
+class DashboardMesProyeccion(BaseModel):
+    mes: int
+    anio: int
+    mes_label: str
+    cuotas_usd: Decimal = 0
+    upsell_usd: Decimal = 0
+    recompra_usd: Decimal = 0
 
 
 class DashboardResponse(BaseModel):
     resumen: DashboardResumen
     detalles: DashboardDetalles = Field(default_factory=DashboardDetalles)
+    proyeccion_meses: list[DashboardMesProyeccion] = Field(default_factory=list)
 
 
 class ClienteResponse(ClienteListItem):

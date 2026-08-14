@@ -7,7 +7,7 @@
 
 .content {
   padding: 32px 28px;
-  max-width: 1100px;
+  max-width: 1180px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -55,7 +55,7 @@
 
 .cardsGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.2fr;
+  grid-template-columns: 1.15fr 1fr 1fr 1.15fr;
   gap: 16px;
 }
 
@@ -93,6 +93,10 @@
 
 .cardCuotas {
   border-top: 3px solid #f79009;
+}
+
+.cardCobrado {
+  border-top: 3px solid #12b76a;
 }
 
 .cardProyeccion {
@@ -289,6 +293,162 @@
   font-size: 14px;
 }
 
+.chartCard {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px 18px;
+}
+
+.chartHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.chartTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.chartMeta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--label);
+}
+
+.chartLegend {
+  display: flex;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--label);
+}
+
+.chartLegend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.chartEmpty {
+  margin: 0;
+  padding: 36px 0;
+  text-align: center;
+  color: var(--label);
+}
+
+.chartBody {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 10px;
+  min-height: 240px;
+}
+
+.chartYAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 0 28px;
+  font-size: 11px;
+  color: var(--label);
+  white-space: nowrap;
+}
+
+.chartPlot {
+  position: relative;
+  height: 240px;
+}
+
+.chartGrid {
+  position: absolute;
+  inset: 0 0 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.chartGridLine {
+  display: block;
+  height: 0;
+  border-top: 0.5px dashed var(--border);
+}
+
+.chartGroups {
+  position: relative;
+  z-index: 1;
+  height: 240px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  padding-bottom: 28px;
+  box-sizing: border-box;
+}
+
+.chartGroup {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chartBars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0;
+}
+
+.chartBarWrap {
+  flex: 1;
+  max-width: 22px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.chartBar {
+  width: 100%;
+  min-height: 0;
+  border-radius: 4px 4px 0 0;
+}
+
+.barCuotas {
+  background: #f79009;
+}
+
+.barUpsell {
+  background: #7f56d9;
+}
+
+.barRecompra {
+  background: #6172f3;
+}
+
+.chartMonth {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--label);
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .cardsGrid {
     grid-template-columns: 1fr;
@@ -300,5 +460,17 @@
 
   .detailRow {
     grid-template-columns: 1fr;
+  }
+
+  .chartBody {
+    grid-template-columns: 72px 1fr;
+  }
+
+  .chartGroups {
+    gap: 6px;
+  }
+
+  .chartMonth {
+    font-size: 11px;
   }
 }

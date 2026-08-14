@@ -53,6 +53,98 @@ function tagVariant(tag) {
   return 'default'
 }
 
+const SERIES = [
+  { key: 'cuotas_usd', label: 'Cuotas', bar: 'barCuotas' },
+  { key: 'upsell_usd', label: 'Upsell', bar: 'barUpsell' },
+  { key: 'recompra_usd', label: 'Recompra', bar: 'barRecompra' },
+]
+
+function niceMax(value) {
+  const n = Number(value) || 0
+  if (n <= 0) return 1000
+  const exp = 10 ** Math.floor(Math.log10(n))
+  const nrm = n / exp
+  const nice = nrm <= 1 ? 1 : nrm <= 2 ? 2 : nrm <= 5 ? 5 : 10
+  return nice * exp
+}
+
+function shortMonthLabel(item) {
+  const name = MESES[(item.mes || 1) - 1] || ''
+  return `${name.slice(0, 3)} ${item.anio}`
+}
+
+function ProyeccionChart({ meses, loading }) {
+  const rows = meses || []
+  const peak = Math.max(
+    0,
+    ...rows.flatMap((item) => SERIES.map((serie) => Number(item[serie.key]) || 0)),
+  )
+  const max = niceMax(peak)
+  const ticks = [max, max / 2, 0]
+
+  return (
+    <section className={styles.chartCard}>
+      <div className={styles.chartHead}>
+        <div>
+          <h2 className={styles.chartTitle}>Próximos 6 meses</h2>
+          <p className={styles.chartMeta}>Pendiente por vencer · cuotas, upsell y recompras</p>
+        </div>
+        <ul className={styles.chartLegend}>
+          {SERIES.map((serie) => (
+            <li key={serie.key}>
+              <span className={`${styles.legendSwatch} ${styles[serie.bar]}`} />
+              {serie.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {loading && !rows.length ? (
+        <p className={styles.chartEmpty}>Cargando proyección…</p>
+      ) : (
+        <div className={styles.chartBody}>
+          <div className={styles.chartYAxis} aria-hidden="true">
+            {ticks.map((tick) => (
+              <span key={tick}>{formatUsd(tick)}</span>
+            ))}
+          </div>
+          <div className={styles.chartPlot}>
+            <div className={styles.chartGrid} aria-hidden="true">
+              {ticks.map((tick) => (
+                <span key={tick} className={styles.chartGridLine} />
+              ))}
+            </div>
+            <div className={styles.chartGroups}>
+              {rows.map((item) => (
+                <div key={`${item.anio}-${item.mes}`} className={styles.chartGroup}>
+                  <div className={styles.chartBars}>
+                    {SERIES.map((serie) => {
+                      const value = Number(item[serie.key]) || 0
+                      const height = Math.max(0, (value / max) * 100)
+                      return (
+                        <div
+                          key={serie.key}
+                          className={styles.chartBarWrap}
+                          title={`${serie.label}: ${formatUsd(value)}`}
+                        >
+                          <div
+                            className={`${styles.chartBar} ${styles[serie.bar]}`}
+                            style={{ height: `${height}%` }}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <span className={styles.chartMonth}>{shortMonthLabel(item)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function DetailPanel({ title, hint, items, onClose }) {
   return (
     <section className={styles.detailPanel}>
@@ -135,10 +227,18 @@ export default function HomePage() {
 
   const cards = [
     {
+      id: 'cobrado',
+      label: 'Caja 2 cobrado',
+      value: resumen?.caja_2_cobrado_usd,
+      sub: `Este mes · acumulado ${formatUsd(resumen?.caja_2_cobrado_total_usd ?? 0)}`,
+      accent: styles.cardCobrado,
+      big: true,
+    },
+    {
       id: 'cuotas',
       label: 'Cuotas a cobrar',
       value: resumen?.cuotas_a_cobrar_usd,
-      sub: 'Caja 2 · cobranza real del mes',
+      sub: 'Caja 2 · pendiente del mes',
       accent: styles.cardCuotas,
     },
     {
@@ -150,17 +250,21 @@ export default function HomePage() {
     },
     {
       id: 'total',
-      label: 'Total del mes',
+      label: 'Pendiente del mes',
       value: resumen?.total_mes_usd,
       sub: resumen?.caja_1_usd != null
         ? `Caja 1 ${formatUsd(resumen.caja_1_usd)} + Caja 2 ${formatUsd(resumen.caja_2_usd)}`
         : `Caja 2 ${formatUsd(resumen?.caja_2_usd ?? 0)} (Caja 1 pendiente)`,
       accent: styles.cardTotal,
-      big: true,
     },
   ]
 
   const detailConfig = {
+    cobrado: {
+      title: `Caja 2 cobrado — ${resumen?.mes_label || ''}`,
+      hint: `${detalles.cobrado?.length || 0} pagos · acumulado ${formatUsd(resumen?.caja_2_cobrado_total_usd ?? 0)}`,
+      items: detalles.cobrado || [],
+    },
     cuotas: {
       title: `Cuotas a cobrar — ${resumen?.mes_label || ''}`,
       hint: `${detalles.cuotas?.length || 0} cuotas · cargadas en ficha cliente`,
@@ -181,7 +285,7 @@ export default function HomePage() {
         <header className={styles.hero}>
           <div>
             <h1 className={styles.heroTitle}>Dashboard</h1>
-            <p className={styles.heroSubtitle}>Cuotas · proyección · total del mes</p>
+            <p className={styles.heroSubtitle}>Cobrado · cuotas · proyección · total del mes</p>
           </div>
           <label className={styles.monthPicker}>
             <span>Mes</span>
@@ -249,6 +353,8 @@ export default function HomePage() {
             onClose={() => setSelected(null)}
           />
         ) : null}
+
+        <ProyeccionChart meses={data?.proyeccion_meses} loading={loading} />
       </main>
     </div>
   )

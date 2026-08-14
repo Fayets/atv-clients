@@ -732,6 +732,18 @@ class ClientesServices:
 
         detalles_cuotas: list[dict] = []
         detalles_proyeccion: list[dict] = []
+        detalles_cobrado: list[dict] = []
+        meses_proyeccion: dict[tuple[int, int], dict] = {}
+        for offset in range(6):
+            punto = _add_months(ref, offset)
+            meses_proyeccion[(punto.year, punto.month)] = {
+                "mes": punto.month,
+                "anio": punto.year,
+                "mes_label": _mes_label(punto),
+                "cuotas_usd": Decimal("0"),
+                "upsell_usd": Decimal("0"),
+                "recompra_usd": Decimal("0"),
+            }
 
         with db_session:
             clientes: list[Cliente] = []
@@ -741,18 +753,50 @@ class ClientesServices:
 
             cuotas_a_cobrar = Decimal("0")
             proyeccion_total = Decimal("0")
+            caja_2_cobrado_usd = Decimal("0")
+            caja_2_cobrado_total_usd = Decimal("0")
 
             for cliente in clientes:
                 base = _cliente_base_dict(cliente, cache)
                 cuotas = cache.cuotas.get(cliente.id, [])
                 estado = base["estado_efectivo"]
                 for cuota in cuotas:
+                    monto = _decimal(cuota.monto_usd)
+                    tipo = normalizar_nota_cuota(cuota.notas) or "cuota"
+                    fv = cuota.fecha_vence
+
+                    if cuota.estado == "pagado":
+                        fp = cuota.fecha_pago or fv
+                        if fp:
+                            caja_2_cobrado_total_usd += monto
+                            if fp.year == ref.year and fp.month == ref.month:
+                                caja_2_cobrado_usd += monto
+                                nota_label = etiqueta_cuota_auto(cuota, cuotas)
+                                detalles_cobrado.append(_detalle_item(
+                                    cliente_id=cliente.id,
+                                    nombre=base["nombre"],
+                                    plan=base["plan_actual"],
+                                    monto=monto,
+                                    subtitulo=f"{nota_label} · pagó {format_fecha_ar(fp)}",
+                                    estado=base["estado_efectivo"],
+                                ))
+                        continue
+
                     if cuota.estado not in {"pendiente", "vencido"}:
                         continue
-                    fv = cuota.fecha_vence
-                    if not fv or fv.year != ref.year or fv.month != ref.month:
+                    if not fv:
                         continue
-                    monto = _decimal(cuota.monto_usd)
+                    bucket = meses_proyeccion.get((fv.year, fv.month))
+                    if bucket is not None:
+                        if tipo == "upsell":
+                            bucket["upsell_usd"] += monto
+                        elif tipo == "recompra":
+                            bucket["recompra_usd"] += monto
+                        else:
+                            bucket["cuotas_usd"] += monto
+
+                    if fv.year != ref.year or fv.month != ref.month:
+                        continue
                     nota_label = etiqueta_cuota_auto(cuota, cuotas)
 
                     if es_nota_proyeccion(cuota.notas):
@@ -784,6 +828,7 @@ class ClientesServices:
 
         _sort_detalle_por_plan(detalles_cuotas)
         _sort_detalle_por_plan(detalles_proyeccion)
+        _sort_detalle_por_plan(detalles_cobrado)
 
         caja_1_usd: Decimal | None = None
         caja_2_usd = cuotas_a_cobrar + proyeccion_total
@@ -798,12 +843,16 @@ class ClientesServices:
                 "proyeccion_usd": proyeccion_total,
                 "caja_1_usd": caja_1_usd,
                 "caja_2_usd": caja_2_usd,
+                "caja_2_cobrado_usd": caja_2_cobrado_usd,
+                "caja_2_cobrado_total_usd": caja_2_cobrado_total_usd,
                 "total_mes_usd": total_mes_usd,
             },
             "detalles": {
                 "cuotas": detalles_cuotas,
                 "proyeccion": detalles_proyeccion,
+                "cobrado": detalles_cobrado,
             },
+            "proyeccion_meses": list(meses_proyeccion.values()),
         }
 
     def obtener_cliente(self, cliente_id: int) -> dict | None:
