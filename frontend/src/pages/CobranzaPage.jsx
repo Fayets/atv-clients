@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { fetchCobranza, patchCliente } from '../api/clientes'
-import InlineField from '../components/InlineField'
+import { fetchCobranza } from '../api/clientes'
 import Navbar from '../components/Navbar'
 import StatusBadge from '../components/StatusBadge'
-import { PRIORIDADES, labelTipoCuotaNota } from '../constants/options'
-import { formatPrioridad, formatUsd } from '../utils/format'
+import { labelTipoCuotaNota } from '../constants/options'
+import { formatDate, formatUsd } from '../utils/format'
 import { navigate } from '../utils/navigation'
 import styles from './CobranzaPage.module.css'
 
@@ -18,26 +17,22 @@ export default function CobranzaPage() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      const data = await fetchCobranza()
-      setItems(data)
-    } catch {
-      setItems([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      try {
+        const data = await fetchCobranza()
+        if (!cancelled) setItems(data)
+      } catch {
+        if (!cancelled) setItems([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
     load()
+    return () => { cancelled = true }
   }, [])
-
-  const updatePrioridad = async (id, value) => {
-    const updated = await patchCliente(id, { prioridad_cobro: value || null })
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updated } : item)))
-  }
 
   return (
     <div className={styles.page}>
@@ -57,20 +52,18 @@ export default function CobranzaPage() {
                   <th>Nombre</th>
                   <th>Tipo</th>
                   <th>Estado</th>
-                  <th>Días</th>
-                  <th>Adeudado</th>
-                  <th>Prioridad</th>
                   <th>Monto</th>
+                  <th>Vence</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className={styles.cellMuted}>Cargando...</td>
+                    <td colSpan={5} className={styles.cellMuted}>Cargando...</td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className={styles.cellMuted}>No hay clientes en cobranza</td>
+                    <td colSpan={5} className={styles.cellMuted}>No hay clientes en cobranza</td>
                   </tr>
                 ) : (
                   items.map((item) => {
@@ -78,14 +71,10 @@ export default function CobranzaPage() {
                     return (
                       <tr
                         key={item.id}
-                        className={item.prioridad_cobro === 'alta' ? styles.rowAlta : ''}
+                        className={styles.rowClickable}
+                        onClick={() => navigate(`/cliente/${item.id}`)}
                       >
-                        <td
-                          className={`${styles.cellName} ${styles.cellLink}`}
-                          onClick={() => navigate(`/cliente/${item.id}`)}
-                        >
-                          {item.nombre}
-                        </td>
+                        <td className={styles.cellName}>{item.nombre}</td>
                         <td>
                           {tipo ? (
                             <span className={`${styles.tag} ${styles[TIPO_CLASS[tipo] || 'tagCuota']}`}>
@@ -96,20 +85,13 @@ export default function CobranzaPage() {
                           )}
                         </td>
                         <td><StatusBadge estado={item.estado_efectivo} /></td>
-                        <td className={styles.cellMuted}>{item.dias_restantes ?? '—'}</td>
-                        <td className={styles.cellMoney}>{formatUsd(item.total_adeudado_usd)}</td>
-                        <td>
-                          <InlineField
-                            type="select"
-                            variant="chip"
-                            value={item.prioridad_cobro || ''}
-                            displayValue={formatPrioridad(item.prioridad_cobro)}
-                            options={PRIORIDADES}
-                            onSave={(value) => updatePrioridad(item.id, value)}
-                          />
-                        </td>
                         <td className={styles.cellMoney}>
                           {item.proxima_cuota ? formatUsd(item.proxima_cuota.monto_usd) : '—'}
+                        </td>
+                        <td className={styles.cellMuted}>
+                          {item.proxima_cuota?.fecha_vence
+                            ? formatDate(item.proxima_cuota.fecha_vence)
+                            : '—'}
                         </td>
                       </tr>
                     )

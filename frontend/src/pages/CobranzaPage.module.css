@@ -69,23 +69,15 @@
 }
 
 .table tbody tr {
-  cursor: default;
-}
-
-.cellLink {
   cursor: pointer;
 }
 
-.cellLink:hover {
-  color: var(--red-accent);
-}
-
-.table tbody tr:hover {
+.rowClickable:hover {
   background: var(--surface2);
 }
 
-.rowAlta {
-  border-left: 3px solid var(--red-accent);
+.rowClickable:hover .cellName {
+  color: var(--red-accent);
 }
 
 .cellName {
