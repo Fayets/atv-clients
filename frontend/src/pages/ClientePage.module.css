@@ -258,6 +258,12 @@
   text-align: left;
 }
 
+.table th:last-child,
+.table td:last-child {
+  white-space: nowrap;
+  width: 1%;
+}
+
 .payBtn {
   padding: 6px 10px;
   border-radius: 8px;
@@ -265,6 +271,8 @@
   background: var(--red-dim);
   color: var(--text);
   font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .saveBtn {
@@ -678,8 +686,8 @@
 .cuotaActions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 .iconBtn {
