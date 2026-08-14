@@ -115,6 +115,8 @@ class Cuota(db.Entity):
     fecha_pago = Optional(date)
     estado = Required(str, 20, default="pendiente")
     notas = Optional(str, sql_type="TEXT")
+    comprobante_path = Optional(str, nullable=True, sql_type="TEXT")
+    comprobante_nombre = Optional(str, 255, nullable=True)
     created_at = Optional(datetime, default=lambda: datetime.utcnow())
 
 

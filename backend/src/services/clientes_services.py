@@ -76,6 +76,15 @@ MESES_ES = (
 ESTADOS_CUOTA_VALIDOS = frozenset({"pendiente", "pagado", "vencido"})
 UPLOAD_DIR = Path(config("UPLOAD_DIR", default="uploads"))
 MAX_DISCORD_TXT_BYTES = 5 * 1024 * 1024
+MAX_COMPROBANTE_BYTES = 8 * 1024 * 1024
+COMPROBANTE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+COMPROBANTE_MEDIA = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
 
 
 def _today() -> date:
@@ -213,6 +222,43 @@ def _discord_client_dir(cliente_id: int) -> Path:
     return UPLOAD_DIR / "discord" / str(cliente_id)
 
 
+def _comprobantes_dir(cliente_id: int) -> Path:
+    return UPLOAD_DIR / "comprobantes" / str(cliente_id)
+
+
+def _comprobante_ext(filename: str, content_type: str | None) -> str:
+    ext = Path(filename or "").suffix.lower()
+    if ext in COMPROBANTE_EXTS:
+        return ".jpg" if ext == ".jpeg" else ext
+    mime = (content_type or "").split(";")[0].strip().lower()
+    for candidate, media in COMPROBANTE_MEDIA.items():
+        if media == mime:
+            return ".jpg" if candidate == ".jpeg" else candidate
+    raise HTTPException(status_code=400, detail="El comprobante debe ser JPG, PNG, WEBP o GIF.")
+
+
+def _resolve_comprobante_path(stored: str | None) -> Path | None:
+    if not stored:
+        return None
+    path = Path(stored)
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    try:
+        resolved = path.resolve()
+        resolved.relative_to((UPLOAD_DIR / "comprobantes").resolve())
+    except (OSError, ValueError):
+        return None
+    if not resolved.is_file():
+        return None
+    return resolved
+
+
+def _unlink_comprobante(stored: str | None) -> None:
+    path = _resolve_comprobante_path(stored)
+    if path:
+        path.unlink(missing_ok=True)
+
+
 def _observacion_to_dict(observacion: Observacion) -> dict:
     return {
         "id": observacion.id,
@@ -313,6 +359,8 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
         "tipo": tipo,
         "notas": nota,
         "nota_label": etiqueta_cuota_auto(cuota, cuotas_ref),
+        "tiene_comprobante": bool(cuota.comprobante_path),
+        "comprobante_nombre": cuota.comprobante_nombre,
         "created_at": cuota.created_at,
     }
 
@@ -853,6 +901,10 @@ class ClientesServices:
         if upload_dir.exists():
             shutil.rmtree(upload_dir, ignore_errors=True)
 
+        comprobantes_dir = _comprobantes_dir(cliente_id)
+        if comprobantes_dir.exists():
+            shutil.rmtree(comprobantes_dir, ignore_errors=True)
+
         return True
 
     def crear_cuota(self, cliente_id: int, data: CuotaCreate) -> dict | None:
@@ -929,14 +981,18 @@ class ClientesServices:
             return _cuota_to_dict(cuota, cuotas)
 
     def eliminar_cuota(self, cliente_id: int, cuota_id: int) -> bool:
+        comprobante_path: str | None = None
         with db_session:
             cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)
             if not cliente or not cuota:
                 return False
 
+            comprobante_path = cuota.comprobante_path
             cuota.delete()
             _recalcular_totales_cliente(cliente)
-            return True
+
+        _unlink_comprobante(comprobante_path)
+        return True
 
     def marcar_cuota_pagada(self, cliente_id: int, cuota_id: int) -> dict | None:
         with db_session:
@@ -949,6 +1005,77 @@ class ClientesServices:
             _recalcular_totales_cliente(cliente)
             cuotas = list(cliente.cuotas)
             return _cuota_to_dict(cuota, cuotas)
+
+    async def subir_comprobante_cuota(
+        self,
+        cliente_id: int,
+        cuota_id: int,
+        file: UploadFile,
+    ) -> dict | None:
+        filename = (file.filename or "").strip()
+        ext = _comprobante_ext(filename, file.content_type)
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="El archivo está vacío.")
+        if len(content) > MAX_COMPROBANTE_BYTES:
+            raise HTTPException(status_code=400, detail="El comprobante supera el límite de 8 MB.")
+
+        old_path: str | None = None
+        with db_session:
+            cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)
+            if not cliente or not cuota:
+                return None
+
+            target_dir = _comprobantes_dir(cliente_id)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = (target_dir / f"{cuota_id}-{uuid.uuid4().hex}{ext}").resolve()
+            target_path.write_bytes(content)
+
+            old_path = cuota.comprobante_path
+            cuota.comprobante_path = str(target_path)
+            cuota.comprobante_nombre = Path(filename).name[:255] if filename else target_path.name
+            cliente.updated_at = datetime.utcnow()
+            cuotas = list(cliente.cuotas)
+            payload = _cuota_to_dict(cuota, cuotas)
+
+        if old_path and old_path != str(target_path):
+            _unlink_comprobante(old_path)
+        return payload
+
+    def obtener_comprobante_cuota(
+        self,
+        cliente_id: int,
+        cuota_id: int,
+    ) -> tuple[Path, str, str] | None:
+        with db_session:
+            cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)
+            if not cliente or not cuota:
+                return None
+
+            file_path = _resolve_comprobante_path(cuota.comprobante_path)
+            if not file_path:
+                return None
+
+            nombre = cuota.comprobante_nombre or file_path.name
+            media = COMPROBANTE_MEDIA.get(file_path.suffix.lower(), "application/octet-stream")
+            return file_path, nombre, media
+
+    def eliminar_comprobante_cuota(self, cliente_id: int, cuota_id: int) -> bool:
+        old_path: str | None = None
+        with db_session:
+            cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)
+            if not cliente or not cuota:
+                return False
+            if not cuota.comprobante_path:
+                return False
+
+            old_path = cuota.comprobante_path
+            cuota.comprobante_path = None
+            cuota.comprobante_nombre = None
+            cliente.updated_at = datetime.utcnow()
+
+        _unlink_comprobante(old_path)
+        return True
 
     def crear_observacion(self, cliente_id: int, data: ObservacionCreate) -> dict | None:
         with db_session:

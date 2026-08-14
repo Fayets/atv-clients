@@ -224,6 +224,8 @@ MIGRATIONS = [
     ADD COLUMN IF NOT EXISTS clientes_con_error INTEGER;
     """,
     "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS responsable VARCHAR(20);",
+    "ALTER TABLE clients.cuotas ADD COLUMN IF NOT EXISTS comprobante_path TEXT;",
+    "ALTER TABLE clients.cuotas ADD COLUMN IF NOT EXISTS comprobante_nombre VARCHAR(255);",
 ]
 
 

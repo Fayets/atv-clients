@@ -213,6 +213,20 @@ async function uploadRequest(path, formData) {
   return res.json()
 }
 
+export function uploadCuotaComprobante(clienteId, cuotaId, formData) {
+  return uploadRequest(`/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobante`, formData)
+}
+
+export function cuotaComprobanteUrl(clienteId, cuotaId) {
+  return `/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobante`
+}
+
+export function deleteCuotaComprobante(clienteId, cuotaId) {
+  return request(`/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobante`, {
+    method: 'DELETE',
+  })
+}
+
 export function uploadDiscordTranscript(clienteId, formData) {
   return uploadRequest(`/api/clientes/${clienteId}/discord-transcripts`, formData)
 }

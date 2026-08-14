@@ -40,12 +40,12 @@ def _count_rows(cur) -> dict[str, int]:
     return counts
 
 
-def clear_uploads() -> int:
-    discord_dir = UPLOAD_DIR / "discord"
-    if not discord_dir.exists():
+def _clear_upload_subdir(subdir: str) -> int:
+    target = UPLOAD_DIR / subdir
+    if not target.exists():
         return 0
     removed = 0
-    for path in discord_dir.iterdir():
+    for path in target.iterdir():
         if path.is_dir():
             shutil.rmtree(path)
             removed += 1
@@ -53,6 +53,10 @@ def clear_uploads() -> int:
             path.unlink()
             removed += 1
     return removed
+
+
+def clear_uploads() -> int:
+    return _clear_upload_subdir("discord") + _clear_upload_subdir("comprobantes")
 
 
 def clear_database() -> dict[str, int]:

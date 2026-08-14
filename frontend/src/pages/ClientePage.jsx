@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, triggerDiscordActualizacion, uploadDiscordTranscript } from '../api/clientes'
+import { useEffect, useRef, useState } from 'react'
+import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
 import { navigate } from '../utils/navigation'
 import { getSession } from '../api/auth'
 import InlineField from '../components/InlineField'
@@ -24,6 +24,7 @@ import {
 import styles from './ClientePage.module.css'
 
 const CUOTA_FECHA_INVALIDA = 'La fecha no es válida. Revisá día y mes (ej. septiembre tiene 30 días).'
+const COMPROBANTE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif'
 
 function validateCuotaFields(monto, fechaVence, dateInput) {
   if (!monto || Number.isNaN(Number(monto)) || Number(monto) <= 0) {
@@ -38,13 +39,11 @@ function validateCuotaFields(monto, fechaVence, dateInput) {
   return null
 }
 
-function handleCuotaFechaChange(setter, event, setError) {
+function handleCuotaFechaChange(setter, event, setError, field = 'fecha_vence') {
   const { value, validity } = event.target
-  setter((prev) => ({ ...prev, fecha_vence: value }))
+  setter((prev) => ({ ...prev, [field]: value }))
   if (validity.badInput || (value && !isValidDateISO(value))) {
     setError(CUOTA_FECHA_INVALIDA)
-  } else if (!value) {
-    setError('')
   } else {
     setError('')
   }
@@ -224,8 +223,13 @@ export default function ClientePage({ clienteId }) {
   const [addingCuota, setAddingCuota] = useState(false)
   const [newCuota, setNewCuota] = useState(() => emptyNewCuota())
   const [editingCuotaId, setEditingCuotaId] = useState(null)
-  const [editCuota, setEditCuota] = useState({ monto_usd: '', fecha_vence: '', notas: '' })
+  const [editCuota, setEditCuota] = useState({ monto_usd: '', fecha_vence: '', fecha_pago: '', notas: '' })
   const [cuotaError, setCuotaError] = useState('')
+  const [comprobanteView, setComprobanteView] = useState(null)
+  const [comprobanteNonce, setComprobanteNonce] = useState(0)
+  const [comprobanteSaving, setComprobanteSaving] = useState(false)
+  const comprobanteInputRef = useRef(null)
+  const comprobanteTargetIdRef = useRef(null)
   const [arregloCloserOpen, setArregloCloserOpen] = useState(false)
   const [arregloCloserDraft, setArregloCloserDraft] = useState('')
   const [arregloCloserSaving, setArregloCloserSaving] = useState(false)
@@ -458,7 +462,7 @@ export default function ClientePage({ clienteId }) {
 
   const resetEditCuota = () => {
     setEditingCuotaId(null)
-    setEditCuota({ monto_usd: '', fecha_vence: '', notas: '' })
+    setEditCuota({ monto_usd: '', fecha_vence: '', fecha_pago: '', notas: '' })
     setCuotaError('')
   }
 
@@ -469,6 +473,7 @@ export default function ClientePage({ clienteId }) {
     setEditCuota({
       monto_usd: String(cuota.monto_usd),
       fecha_vence: cuota.fecha_vence || '',
+      fecha_pago: (cuota.fecha_pago || '').slice(0, 10),
       notas: cuota.notas || '',
     })
   }
@@ -516,12 +521,25 @@ export default function ClientePage({ clienteId }) {
       setCuotaError(validationError)
       return
     }
+    if (editCuota.fecha_pago && !isValidDateISO(editCuota.fecha_pago)) {
+      setCuotaError(CUOTA_FECHA_INVALIDA)
+      return
+    }
+    const fechaPago = editCuota.fecha_pago || null
+    const cuotaActual = cliente?.cuotas?.find((c) => c.id === cuotaId)
+    const payload = {
+      monto_usd: Number(editCuota.monto_usd),
+      fecha_vence: editCuota.fecha_vence,
+      notas: editCuota.notas.trim() || null,
+      fecha_pago: fechaPago,
+    }
+    if (fechaPago) {
+      payload.estado = 'pagado'
+    } else if (cuotaActual?.estado === 'pagado') {
+      payload.estado = 'pendiente'
+    }
     try {
-      await patchCuota(clienteId, cuotaId, {
-        monto_usd: Number(editCuota.monto_usd),
-        fecha_vence: editCuota.fecha_vence,
-        notas: editCuota.notas.trim() || null,
-      })
+      await patchCuota(clienteId, cuotaId, payload)
       resetEditCuota()
       await refreshFinanciero()
     } catch (err) {
@@ -550,6 +568,81 @@ export default function ClientePage({ clienteId }) {
       setCuotaError(err.message || 'No se pudo eliminar la cuota.')
     }
   }
+
+  const abrirSelectorComprobante = (cuotaId) => {
+    comprobanteTargetIdRef.current = cuotaId
+    comprobanteInputRef.current?.click()
+  }
+
+  const onComprobanteSeleccionado = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    const cuotaId = comprobanteTargetIdRef.current
+    comprobanteTargetIdRef.current = null
+    if (!file || !cuotaId) return
+    setCuotaError('')
+    setComprobanteSaving(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      await uploadCuotaComprobante(clienteId, cuotaId, formData)
+      setComprobanteNonce((n) => n + 1)
+      await refreshFinanciero()
+      setComprobanteView((prev) => (
+        prev?.id === cuotaId
+          ? { ...prev, tiene_comprobante: true, comprobante_nombre: file.name }
+          : prev
+      ))
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo subir el comprobante.')
+    } finally {
+      setComprobanteSaving(false)
+    }
+  }
+
+  const eliminarComprobante = async (cuotaId) => {
+    if (!confirm('¿Eliminar el comprobante de esta cuota?')) return
+    setCuotaError('')
+    setComprobanteSaving(true)
+    try {
+      await deleteCuotaComprobante(clienteId, cuotaId)
+      setComprobanteView(null)
+      await refreshFinanciero()
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo eliminar el comprobante.')
+    } finally {
+      setComprobanteSaving(false)
+    }
+  }
+
+  const renderComprobanteCell = (cuota) => (
+    <td>
+      <div className={styles.cuotaActions}>
+        {cuota.tiene_comprobante ? (
+          <button
+            type="button"
+            className={`${styles.iconBtn} ${styles.iconBtnHasFile}`}
+            aria-label="Ver comprobante"
+            title="Ver comprobante"
+            onClick={() => setComprobanteView(cuota)}
+          >
+            <i className="ti ti-photo" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={styles.iconBtn}
+            aria-label="Subir comprobante"
+            title="Subir comprobante"
+            onClick={() => abrirSelectorComprobante(cuota.id)}
+            disabled={comprobanteSaving}
+          >
+            <i className="ti ti-paperclip" />
+          </button>
+        )}
+      </div>
+    </td>
+  )
 
   const openArregloCloser = () => {
     setArregloCloserDraft(cliente?.arreglo_closer || '')
@@ -1742,6 +1835,7 @@ export default function ClientePage({ clienteId }) {
                     <th>Pago</th>
                     <th>Estado</th>
                     <th>Tipo</th>
+                    <th>Comprobante</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -1765,7 +1859,14 @@ export default function ClientePage({ clienteId }) {
                             onChange={(e) => handleCuotaFechaChange(setEditCuota, e, setCuotaError)}
                           />
                         </td>
-                        <td>{formatDate(cuota.fecha_pago)}</td>
+                        <td>
+                          <input
+                            type="date"
+                            className={styles.tableInput}
+                            value={editCuota.fecha_pago}
+                            onChange={(e) => handleCuotaFechaChange(setEditCuota, e, setCuotaError, 'fecha_pago')}
+                          />
+                        </td>
                         <td>{cuota.estado}</td>
                         <td>
                           <select
@@ -1778,6 +1879,7 @@ export default function ClientePage({ clienteId }) {
                             ))}
                           </select>
                         </td>
+                        {renderComprobanteCell(cuota)}
                         <td>
                           <div className={styles.cuotaActions}>
                             <button type="button" className={styles.saveBtn} onClick={() => guardarEditCuota(cuota.id)}>
@@ -1796,6 +1898,7 @@ export default function ClientePage({ clienteId }) {
                         <td>{formatDate(cuota.fecha_pago)}</td>
                         <td>{cuota.estado}</td>
                         <td>{labelTipoCuotaNota(cuota.notas, cuota.nota_label)}</td>
+                        {renderComprobanteCell(cuota)}
                         <td>
                           <div className={styles.cuotaActions}>
                             {cuota.estado !== 'pagado' ? (
@@ -1825,7 +1928,7 @@ export default function ClientePage({ clienteId }) {
                     )
                   )) : !addingCuota ? (
                     <tr>
-                      <td colSpan={6} className={styles.muted}>Sin cuotas registradas</td>
+                      <td colSpan={7} className={styles.muted}>Sin cuotas registradas</td>
                     </tr>
                   ) : null}
                   {addingCuota ? (
@@ -1869,6 +1972,7 @@ export default function ClientePage({ clienteId }) {
                           ))}
                         </select>
                       </td>
+                      <td>—</td>
                       <td>
                         <div className={styles.cuotaActions}>
                           <button type="button" className={styles.saveBtn} onClick={guardarNuevaCuota}>
@@ -1882,7 +1986,7 @@ export default function ClientePage({ clienteId }) {
                     </tr>
                     {TIPOS_RENOVACION.has(newCuota.notas) ? (
                       <tr>
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           <div className={styles.renovarBox}>
                             <p className={styles.renovarTitle}>
                               Renovar programa — {newCuota.notas === 'recompra' ? 'recompra' : 'upsell'}
@@ -2263,6 +2367,62 @@ export default function ClientePage({ clienteId }) {
           ) : null}
         </section>
       </main>
+      <input
+        ref={comprobanteInputRef}
+        type="file"
+        accept={COMPROBANTE_ACCEPT}
+        className={styles.hiddenFileInput}
+        onChange={onComprobanteSeleccionado}
+      />
+      {comprobanteView ? (
+        <div
+          className={styles.comprobanteOverlay}
+          onClick={() => setComprobanteView(null)}
+        >
+          <div
+            className={styles.comprobantePanel}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.comprobantePanelHeader}>
+              <h3 className={styles.comprobanteTitle}>Comprobante de pago</h3>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                aria-label="Cerrar comprobante"
+                onClick={() => setComprobanteView(null)}
+              >
+                <i className="ti ti-x" />
+              </button>
+            </div>
+            {comprobanteView.comprobante_nombre ? (
+              <p className={styles.comprobanteNombre}>{comprobanteView.comprobante_nombre}</p>
+            ) : null}
+            <img
+              src={`${cuotaComprobanteUrl(clienteId, comprobanteView.id)}?v=${comprobanteNonce}`}
+              alt="Comprobante de pago"
+              className={styles.comprobanteImg}
+            />
+            <div className={styles.cuotaActions}>
+              <button
+                type="button"
+                className={styles.saveBtn}
+                onClick={() => abrirSelectorComprobante(comprobanteView.id)}
+                disabled={comprobanteSaving}
+              >
+                Reemplazar
+              </button>
+              <button
+                type="button"
+                className={styles.cancelBtn}
+                onClick={() => eliminarComprobante(comprobanteView.id)}
+                disabled={comprobanteSaving}
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

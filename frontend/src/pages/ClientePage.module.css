@@ -947,3 +947,69 @@
   font-size: 0.72rem;
   color: var(--text-secondary);
 }
+
+.hiddenFileInput {
+  display: none;
+}
+
+.iconBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.iconBtnHasFile {
+  color: var(--badge-advantage-text);
+}
+
+.comprobanteOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.comprobantePanel {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.comprobantePanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.comprobanteTitle {
+  margin: 0;
+  font-family: var(--font-metric);
+  font-size: 18px;
+  letter-spacing: 0.03em;
+}
+
+.comprobanteNombre {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.comprobanteImg {
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--surface2);
+}

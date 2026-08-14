@@ -47,6 +47,8 @@ class CuotaResponse(BaseModel):
     tipo: CuotaNotaTipo
     notas: str | None = None
     nota_label: str | None = None
+    tiene_comprobante: bool = False
+    comprobante_nombre: str | None = None
     created_at: datetime | None = None
 
 
