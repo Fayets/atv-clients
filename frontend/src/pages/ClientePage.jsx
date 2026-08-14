@@ -88,6 +88,7 @@ function emptyNewCuota(cliente) {
     notas: 'cuota_venta',
     fecha_inicio: todayInputDate(),
     duracion_meses: defaultDuracionMeses(cliente),
+    renovarPrograma: null,
   }
 }
 
@@ -500,7 +501,11 @@ export default function ClientePage({ clienteId }) {
       return
     }
     const esRenovacion = TIPOS_RENOVACION.has(newCuota.notas)
-    if (esRenovacion) {
+    if (esRenovacion && newCuota.renovarPrograma == null) {
+      setCuotaError('Indicá si querés establecer un nuevo período de vencimiento.')
+      return
+    }
+    if (esRenovacion && newCuota.renovarPrograma) {
       if (!newCuota.fecha_inicio || !isValidDateISO(newCuota.fecha_inicio)) {
         setCuotaError('Indicá la nueva fecha de inicio del programa.')
         return
@@ -516,7 +521,7 @@ export default function ClientePage({ clienteId }) {
         fecha_vence: newCuota.fecha_vence,
         notas: newCuota.notas.trim() || 'cuota_venta',
       }
-      if (esRenovacion) {
+      if (esRenovacion && newCuota.renovarPrograma) {
         payload.fecha_inicio = newCuota.fecha_inicio
         payload.duracion_meses = Number(newCuota.duracion_meses)
       }
@@ -2008,6 +2013,7 @@ export default function ClientePage({ clienteId }) {
                               notas,
                               fecha_inicio: prev.fecha_inicio || todayInputDate(),
                               duracion_meses: prev.duracion_meses || defaultDuracionMeses(cliente),
+                              renovarPrograma: TIPOS_RENOVACION.has(notas) ? null : prev.renovarPrograma,
                             }))
                           }}
                         >
@@ -2033,8 +2039,40 @@ export default function ClientePage({ clienteId }) {
                         <td colSpan={7}>
                           <div className={styles.renovarBox}>
                             <p className={styles.renovarTitle}>
-                              Renovar programa — {newCuota.notas === 'cuota_recompra' ? 'recompra' : 'upsell'}
+                              ¿Establecer un nuevo período de vencimiento?
                             </p>
+                            <p className={styles.renovarHint}>
+                              {newCuota.notas === 'cuota_recompra' ? 'Recompra' : 'Upsell'}
+                              : podés renovar el programa o solo cargar la cuota.
+                            </p>
+                            <div className={styles.renovarChoice}>
+                              <button
+                                type="button"
+                                className={[
+                                  styles.renovarChoiceBtn,
+                                  newCuota.renovarPrograma === true ? styles.renovarChoiceBtnOn : '',
+                                ].filter(Boolean).join(' ')}
+                                onClick={() => setNewCuota((prev) => ({ ...prev, renovarPrograma: true }))}
+                              >
+                                Sí, renovar vencimiento
+                              </button>
+                              <button
+                                type="button"
+                                className={[
+                                  styles.renovarChoiceBtn,
+                                  newCuota.renovarPrograma === false ? styles.renovarChoiceBtnOn : '',
+                                ].filter(Boolean).join(' ')}
+                                onClick={() => setNewCuota((prev) => ({ ...prev, renovarPrograma: false }))}
+                              >
+                                No, solo la cuota
+                              </button>
+                            </div>
+                            {newCuota.renovarPrograma === false ? (
+                              <p className={styles.renovarHint}>
+                                Se guarda la cuota sin cambiar inicio ni vencimiento del programa.
+                              </p>
+                            ) : null}
+                            {newCuota.renovarPrograma === true ? (
                             <div className={styles.renovarGrid}>
                               <label>
                                 <span className={styles.label}>Nueva fecha de inicio</span>
@@ -2068,6 +2106,7 @@ export default function ClientePage({ clienteId }) {
                                 </p>
                               </div>
                             </div>
+                            ) : null}
                           </div>
                         </td>
                       </tr>

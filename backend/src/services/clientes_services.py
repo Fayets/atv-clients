@@ -1030,12 +1030,7 @@ class ClientesServices:
                 raise HTTPException(status_code=400, detail="Tipo de cuota inválido.")
             cuota_kwargs["notas"] = nota
 
-            if nota in NOTAS_PROYECCION:
-                if not data.fecha_inicio or not data.duracion_meses:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Para cuota upsell o cuota recompra indicá la nueva fecha de inicio y la duración en meses.",
-                    )
+            if nota in NOTAS_PROYECCION and data.fecha_inicio and data.duracion_meses:
                 cliente.fecha_inicio = data.fecha_inicio
                 cliente.duracion_dias = data.duracion_meses * 30
                 cliente.fecha_vencimiento = _add_months(data.fecha_inicio, data.duracion_meses)
