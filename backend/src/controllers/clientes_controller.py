@@ -529,7 +529,7 @@ def pagar_cuota(
         raise HTTPException(status_code=500, detail="Error al marcar la cuota como pagada.")
 
 
-@router.post("/{cliente_id}/cuotas/{cuota_id}/comprobante", response_model=CuotaResponse, status_code=201)
+@router.post("/{cliente_id}/cuotas/{cuota_id}/comprobantes", response_model=CuotaResponse, status_code=201)
 async def subir_comprobante_cuota(
     cliente_id: int,
     cuota_id: int,
@@ -547,14 +547,15 @@ async def subir_comprobante_cuota(
         raise HTTPException(status_code=500, detail="Error al subir el comprobante de pago.")
 
 
-@router.get("/{cliente_id}/cuotas/{cuota_id}/comprobante")
+@router.get("/{cliente_id}/cuotas/{cuota_id}/comprobantes/{comprobante_id}")
 def ver_comprobante_cuota(
     cliente_id: int,
     cuota_id: int,
+    comprobante_id: int,
     _: str = Depends(get_current_user),
 ):
     try:
-        result = service.obtener_comprobante_cuota(cliente_id, cuota_id)
+        result = service.obtener_comprobante_cuota(cliente_id, cuota_id, comprobante_id)
         if not result:
             raise HTTPException(status_code=404, detail="Cliente, cuota o comprobante no encontrados.")
         file_path, nombre_archivo, media_type = result
@@ -570,14 +571,15 @@ def ver_comprobante_cuota(
         raise HTTPException(status_code=500, detail="Error al obtener el comprobante de pago.")
 
 
-@router.delete("/{cliente_id}/cuotas/{cuota_id}/comprobante", status_code=204)
+@router.delete("/{cliente_id}/cuotas/{cuota_id}/comprobantes/{comprobante_id}", status_code=204)
 def eliminar_comprobante_cuota(
     cliente_id: int,
     cuota_id: int,
+    comprobante_id: int,
     _: str = Depends(get_current_user),
 ):
     try:
-        deleted = service.eliminar_comprobante_cuota(cliente_id, cuota_id)
+        deleted = service.eliminar_comprobante_cuota(cliente_id, cuota_id, comprobante_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Cliente, cuota o comprobante no encontrados.")
         return None

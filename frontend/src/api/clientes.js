@@ -214,15 +214,15 @@ async function uploadRequest(path, formData) {
 }
 
 export function uploadCuotaComprobante(clienteId, cuotaId, formData) {
-  return uploadRequest(`/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobante`, formData)
+  return uploadRequest(`/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobantes`, formData)
 }
 
-export function cuotaComprobanteUrl(clienteId, cuotaId) {
-  return `/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobante`
+export function cuotaComprobanteUrl(clienteId, cuotaId, comprobanteId) {
+  return `/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobantes/${comprobanteId}`
 }
 
-export function deleteCuotaComprobante(clienteId, cuotaId) {
-  return request(`/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobante`, {
+export function deleteCuotaComprobante(clienteId, cuotaId, comprobanteId) {
+  return request(`/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobantes/${comprobanteId}`, {
     method: 'DELETE',
   })
 }

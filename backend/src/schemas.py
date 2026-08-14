@@ -35,6 +35,14 @@ CuotaNotaTipo = Literal["cuota", "recompra", "upsell"]
 OrdenListado = Literal["venc_asc", "venc_desc"]
 
 
+class CuotaComprobanteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+    created_at: datetime | None = None
+
+
 class CuotaResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,8 +55,7 @@ class CuotaResponse(BaseModel):
     tipo: CuotaNotaTipo
     notas: str | None = None
     nota_label: str | None = None
-    tiene_comprobante: bool = False
-    comprobante_nombre: str | None = None
+    comprobantes: list[CuotaComprobanteResponse] = Field(default_factory=list)
     created_at: datetime | None = None
 
 

@@ -969,6 +969,31 @@
   color: var(--badge-advantage-text);
 }
 
+.comprobanteBadgeBtn {
+  position: relative;
+}
+
+.comprobanteCount {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--badge-advantage-text);
+  color: var(--surface);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.comprobanteViewer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .comprobanteOverlay {
   position: fixed;
   inset: 0;
@@ -1020,4 +1045,6 @@
   object-fit: contain;
   border-radius: 10px;
   background: var(--surface2);
+  flex: 1;
+  min-width: 0;
 }

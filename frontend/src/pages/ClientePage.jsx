@@ -465,6 +465,7 @@ export default function ClientePage({ clienteId }) {
       total_pagado_usd: data.total_pagado_usd,
       total_adeudado_usd: data.total_adeudado_usd,
     }))
+    return data
   }
 
   const resetNewCuota = () => {
@@ -587,25 +588,31 @@ export default function ClientePage({ clienteId }) {
     comprobanteInputRef.current?.click()
   }
 
+  const abrirComprobantes = (cuota) => {
+    setComprobanteView({ cuotaId: cuota.id, index: 0 })
+  }
+
   const onComprobanteSeleccionado = async (event) => {
-    const file = event.target.files?.[0]
+    const files = Array.from(event.target.files || [])
     event.target.value = ''
     const cuotaId = comprobanteTargetIdRef.current
     comprobanteTargetIdRef.current = null
-    if (!file || !cuotaId) return
+    if (!files.length || !cuotaId) return
     setCuotaError('')
     setComprobanteSaving(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      await uploadCuotaComprobante(clienteId, cuotaId, formData)
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('file', file)
+        await uploadCuotaComprobante(clienteId, cuotaId, formData)
+      }
       setComprobanteNonce((n) => n + 1)
-      await refreshFinanciero()
-      setComprobanteView((prev) => (
-        prev?.id === cuotaId
-          ? { ...prev, tiene_comprobante: true, comprobante_nombre: file.name }
-          : prev
-      ))
+      const data = await refreshFinanciero()
+      const actualizada = data.cuotas?.find((c) => c.id === cuotaId)
+      const total = actualizada?.comprobantes?.length || 0
+      if (total) {
+        setComprobanteView({ cuotaId, index: total - 1 })
+      }
     } catch (err) {
       setCuotaError(err.message || 'No se pudo subir el comprobante.')
     } finally {
@@ -613,14 +620,23 @@ export default function ClientePage({ clienteId }) {
     }
   }
 
-  const eliminarComprobante = async (cuotaId) => {
-    if (!confirm('¿Eliminar el comprobante de esta cuota?')) return
+  const eliminarComprobante = async (cuotaId, comprobanteId) => {
+    if (!confirm('¿Eliminar este comprobante?')) return
     setCuotaError('')
     setComprobanteSaving(true)
     try {
-      await deleteCuotaComprobante(clienteId, cuotaId)
-      setComprobanteView(null)
-      await refreshFinanciero()
+      await deleteCuotaComprobante(clienteId, cuotaId, comprobanteId)
+      const data = await refreshFinanciero()
+      const actualizada = data.cuotas?.find((c) => c.id === cuotaId)
+      const restantes = actualizada?.comprobantes || []
+      if (!restantes.length) {
+        setComprobanteView(null)
+      } else {
+        setComprobanteView((prev) => ({
+          cuotaId,
+          index: Math.min(prev?.index || 0, restantes.length - 1),
+        }))
+      }
     } catch (err) {
       setCuotaError(err.message || 'No se pudo eliminar el comprobante.')
     } finally {
@@ -628,34 +644,37 @@ export default function ClientePage({ clienteId }) {
     }
   }
 
-  const renderComprobanteCell = (cuota) => (
-    <td>
-      <div className={styles.cuotaActions}>
-        {cuota.tiene_comprobante ? (
-          <button
-            type="button"
-            className={`${styles.iconBtn} ${styles.iconBtnHasFile}`}
-            aria-label="Ver comprobante"
-            title="Ver comprobante"
-            onClick={() => setComprobanteView(cuota)}
-          >
-            <i className="ti ti-photo" />
-          </button>
-        ) : (
+  const renderComprobanteCell = (cuota) => {
+    const cantidad = cuota.comprobantes?.length || 0
+    return (
+      <td>
+        <div className={styles.cuotaActions}>
+          {cantidad ? (
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${styles.iconBtnHasFile} ${styles.comprobanteBadgeBtn}`}
+              aria-label={`Ver comprobantes (${cantidad})`}
+              title={cantidad === 1 ? 'Ver comprobante' : `Ver ${cantidad} comprobantes`}
+              onClick={() => abrirComprobantes(cuota)}
+            >
+              <i className="ti ti-photo" />
+              {cantidad > 1 ? <span className={styles.comprobanteCount}>{cantidad}</span> : null}
+            </button>
+          ) : null}
           <button
             type="button"
             className={styles.iconBtn}
-            aria-label="Subir comprobante"
-            title="Subir comprobante"
+            aria-label="Agregar comprobante"
+            title="Agregar comprobante"
             onClick={() => abrirSelectorComprobante(cuota.id)}
             disabled={comprobanteSaving}
           >
             <i className="ti ti-paperclip" />
           </button>
-        )}
-      </div>
-    </td>
-  )
+        </div>
+      </td>
+    )
+  }
 
   const openArregloCloser = () => {
     setArregloCloserDraft(cliente?.arreglo_closer || '')
@@ -1227,6 +1246,15 @@ export default function ClientePage({ clienteId }) {
       </div>
     )
   }
+
+  const comprobanteCuota = comprobanteView
+    ? cliente.cuotas?.find((c) => c.id === comprobanteView.cuotaId)
+    : null
+  const comprobantesVisibles = comprobanteCuota?.comprobantes || []
+  const comprobanteIndex = comprobantesVisibles.length
+    ? Math.min(Math.max(comprobanteView?.index || 0, 0), comprobantesVisibles.length - 1)
+    : 0
+  const comprobanteActual = comprobantesVisibles[comprobanteIndex] || null
 
   return (
     <div className={styles.page}>
@@ -2387,10 +2415,11 @@ export default function ClientePage({ clienteId }) {
         ref={comprobanteInputRef}
         type="file"
         accept={COMPROBANTE_ACCEPT}
+        multiple
         className={styles.hiddenFileInput}
         onChange={onComprobanteSeleccionado}
       />
-      {comprobanteView ? (
+      {comprobanteView && comprobanteActual ? (
         <div
           className={styles.comprobanteOverlay}
           onClick={() => setComprobanteView(null)}
@@ -2400,37 +2429,66 @@ export default function ClientePage({ clienteId }) {
             onClick={(event) => event.stopPropagation()}
           >
             <div className={styles.comprobantePanelHeader}>
-              <h3 className={styles.comprobanteTitle}>Comprobante de pago</h3>
+              <h3 className={styles.comprobanteTitle}>
+                Comprobantes
+                {comprobantesVisibles.length > 1
+                  ? ` · ${comprobanteIndex + 1} / ${comprobantesVisibles.length}`
+                  : ''}
+              </h3>
               <button
                 type="button"
                 className={styles.iconBtn}
-                aria-label="Cerrar comprobante"
+                aria-label="Cerrar comprobantes"
                 onClick={() => setComprobanteView(null)}
               >
                 <i className="ti ti-x" />
               </button>
             </div>
-            {comprobanteView.comprobante_nombre ? (
-              <p className={styles.comprobanteNombre}>{comprobanteView.comprobante_nombre}</p>
+            {comprobanteActual.nombre ? (
+              <p className={styles.comprobanteNombre}>{comprobanteActual.nombre}</p>
             ) : null}
-            <img
-              src={`${cuotaComprobanteUrl(clienteId, comprobanteView.id)}?v=${comprobanteNonce}`}
-              alt="Comprobante de pago"
-              className={styles.comprobanteImg}
-            />
+            <div className={styles.comprobanteViewer}>
+              {comprobantesVisibles.length > 1 ? (
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  aria-label="Comprobante anterior"
+                  disabled={comprobanteIndex === 0}
+                  onClick={() => setComprobanteView((prev) => ({ ...prev, index: prev.index - 1 }))}
+                >
+                  <i className="ti ti-chevron-left" />
+                </button>
+              ) : null}
+              <img
+                src={`${cuotaComprobanteUrl(clienteId, comprobanteView.cuotaId, comprobanteActual.id)}?v=${comprobanteNonce}`}
+                alt={`Comprobante ${comprobanteIndex + 1}`}
+                className={styles.comprobanteImg}
+              />
+              {comprobantesVisibles.length > 1 ? (
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  aria-label="Comprobante siguiente"
+                  disabled={comprobanteIndex >= comprobantesVisibles.length - 1}
+                  onClick={() => setComprobanteView((prev) => ({ ...prev, index: prev.index + 1 }))}
+                >
+                  <i className="ti ti-chevron-right" />
+                </button>
+              ) : null}
+            </div>
             <div className={styles.cuotaActions}>
               <button
                 type="button"
                 className={styles.saveBtn}
-                onClick={() => abrirSelectorComprobante(comprobanteView.id)}
+                onClick={() => abrirSelectorComprobante(comprobanteView.cuotaId)}
                 disabled={comprobanteSaving}
               >
-                Reemplazar
+                Agregar otro
               </button>
               <button
                 type="button"
                 className={styles.cancelBtn}
-                onClick={() => eliminarComprobante(comprobanteView.id)}
+                onClick={() => eliminarComprobante(comprobanteView.cuotaId, comprobanteActual.id)}
                 disabled={comprobanteSaving}
               >
                 Eliminar

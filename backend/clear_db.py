@@ -27,6 +27,7 @@ CLIENTS_TABLES = [
     "discord_transcripts",
     "fathom_boards",
     "miro_boards",
+    "cuota_comprobantes",
     "cuotas",
     "clientes",
 ]

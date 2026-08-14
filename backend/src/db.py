@@ -226,6 +226,35 @@ MIGRATIONS = [
     "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS responsable VARCHAR(20);",
     "ALTER TABLE clients.cuotas ADD COLUMN IF NOT EXISTS comprobante_path TEXT;",
     "ALTER TABLE clients.cuotas ADD COLUMN IF NOT EXISTS comprobante_nombre VARCHAR(255);",
+    """
+    CREATE TABLE IF NOT EXISTS clients.cuota_comprobantes (
+        id SERIAL PRIMARY KEY,
+        cuota_id INTEGER NOT NULL REFERENCES clients.cuotas(id) ON DELETE CASCADE,
+        filepath TEXT NOT NULL,
+        nombre VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'utc')
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_cuota_comprobantes_cuota_id ON clients.cuota_comprobantes(cuota_id);",
+    """
+    INSERT INTO clients.cuota_comprobantes (cuota_id, filepath, nombre, created_at)
+    SELECT
+        c.id,
+        c.comprobante_path,
+        COALESCE(NULLIF(TRIM(c.comprobante_nombre), ''), 'comprobante'),
+        COALESCE(c.created_at, NOW() AT TIME ZONE 'utc')
+    FROM clients.cuotas c
+    WHERE c.comprobante_path IS NOT NULL
+      AND TRIM(c.comprobante_path) <> ''
+      AND NOT EXISTS (
+        SELECT 1
+        FROM clients.cuota_comprobantes cc
+        WHERE cc.cuota_id = c.id
+          AND cc.filepath = c.comprobante_path
+      );
+    """,
+    "ALTER TABLE clients.cuotas DROP COLUMN IF EXISTS comprobante_path;",
+    "ALTER TABLE clients.cuotas DROP COLUMN IF EXISTS comprobante_nombre;",
 ]
 
 

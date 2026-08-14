@@ -25,7 +25,7 @@ from src.cuota_notas import (
 )
 from src.format_fechas import format_fecha_ar
 from src.discord_transcript_paths import resolve_transcript_filepath
-from src.models import Cliente, Cuota, DiscordTranscript, DocumentoLink, FathomBoard, MiroBoard, Observacion, ProximosPasos
+from src.models import Cliente, Cuota, CuotaComprobante, DiscordTranscript, DocumentoLink, FathomBoard, MiroBoard, Observacion, ProximosPasos
 from src.schemas import (
     ClienteCreate,
     ClientePatch,
@@ -345,6 +345,18 @@ def _fathom_fields(
     return sorted_asc[0].url, last_call, latest.url
 
 
+def _comprobante_to_dict(item: CuotaComprobante) -> dict:
+    return {
+        "id": item.id,
+        "nombre": item.nombre,
+        "created_at": item.created_at,
+    }
+
+
+def _sorted_comprobantes(cuota: Cuota) -> list[CuotaComprobante]:
+    return sorted(cuota.comprobantes, key=lambda c: (c.created_at or datetime.min, c.id))
+
+
 def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> dict:
     nota = normalizar_nota_cuota(cuota.notas)
     tipo = nota or "cuota"
@@ -359,8 +371,7 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
         "tipo": tipo,
         "notas": nota,
         "nota_label": etiqueta_cuota_auto(cuota, cuotas_ref),
-        "tiene_comprobante": bool(cuota.comprobante_path),
-        "comprobante_nombre": cuota.comprobante_nombre,
+        "comprobantes": [_comprobante_to_dict(c) for c in _sorted_comprobantes(cuota)],
         "created_at": cuota.created_at,
     }
 
@@ -981,17 +992,18 @@ class ClientesServices:
             return _cuota_to_dict(cuota, cuotas)
 
     def eliminar_cuota(self, cliente_id: int, cuota_id: int) -> bool:
-        comprobante_path: str | None = None
+        comprobante_paths: list[str] = []
         with db_session:
             cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)
             if not cliente or not cuota:
                 return False
 
-            comprobante_path = cuota.comprobante_path
+            comprobante_paths = [item.filepath for item in cuota.comprobantes]
             cuota.delete()
             _recalcular_totales_cliente(cliente)
 
-        _unlink_comprobante(comprobante_path)
+        for path in comprobante_paths:
+            _unlink_comprobante(path)
         return True
 
     def marcar_cuota_pagada(self, cliente_id: int, cuota_id: int) -> dict | None:
@@ -1020,7 +1032,6 @@ class ClientesServices:
         if len(content) > MAX_COMPROBANTE_BYTES:
             raise HTTPException(status_code=400, detail="El comprobante supera el límite de 8 MB.")
 
-        old_path: str | None = None
         with db_session:
             cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)
             if not cliente or not cuota:
@@ -1031,47 +1042,57 @@ class ClientesServices:
             target_path = (target_dir / f"{cuota_id}-{uuid.uuid4().hex}{ext}").resolve()
             target_path.write_bytes(content)
 
-            old_path = cuota.comprobante_path
-            cuota.comprobante_path = str(target_path)
-            cuota.comprobante_nombre = Path(filename).name[:255] if filename else target_path.name
+            CuotaComprobante(
+                cuota=cuota,
+                filepath=str(target_path),
+                nombre=Path(filename).name[:255] if filename else target_path.name,
+            )
             cliente.updated_at = datetime.utcnow()
+            flush()
             cuotas = list(cliente.cuotas)
-            payload = _cuota_to_dict(cuota, cuotas)
-
-        if old_path and old_path != str(target_path):
-            _unlink_comprobante(old_path)
-        return payload
+            return _cuota_to_dict(cuota, cuotas)
 
     def obtener_comprobante_cuota(
         self,
         cliente_id: int,
         cuota_id: int,
+        comprobante_id: int,
     ) -> tuple[Path, str, str] | None:
         with db_session:
             cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)
             if not cliente or not cuota:
                 return None
 
-            file_path = _resolve_comprobante_path(cuota.comprobante_path)
+            item = CuotaComprobante.get(id=comprobante_id, cuota=cuota)
+            if not item:
+                return None
+
+            file_path = _resolve_comprobante_path(item.filepath)
             if not file_path:
                 return None
 
-            nombre = cuota.comprobante_nombre or file_path.name
+            nombre = item.nombre or file_path.name
             media = COMPROBANTE_MEDIA.get(file_path.suffix.lower(), "application/octet-stream")
             return file_path, nombre, media
 
-    def eliminar_comprobante_cuota(self, cliente_id: int, cuota_id: int) -> bool:
+    def eliminar_comprobante_cuota(
+        self,
+        cliente_id: int,
+        cuota_id: int,
+        comprobante_id: int,
+    ) -> bool:
         old_path: str | None = None
         with db_session:
             cliente, cuota = _get_cuota_cliente(cliente_id, cuota_id)
             if not cliente or not cuota:
                 return False
-            if not cuota.comprobante_path:
+
+            item = CuotaComprobante.get(id=comprobante_id, cuota=cuota)
+            if not item:
                 return False
 
-            old_path = cuota.comprobante_path
-            cuota.comprobante_path = None
-            cuota.comprobante_nombre = None
+            old_path = item.filepath
+            item.delete()
             cliente.updated_at = datetime.utcnow()
 
         _unlink_comprobante(old_path)

@@ -115,8 +115,17 @@ class Cuota(db.Entity):
     fecha_pago = Optional(date)
     estado = Required(str, 20, default="pendiente")
     notas = Optional(str, sql_type="TEXT")
-    comprobante_path = Optional(str, nullable=True, sql_type="TEXT")
-    comprobante_nombre = Optional(str, 255, nullable=True)
+    comprobantes = Set("CuotaComprobante", cascade_delete=True)
+    created_at = Optional(datetime, default=lambda: datetime.utcnow())
+
+
+class CuotaComprobante(db.Entity):
+    _table_ = ("clients", "cuota_comprobantes")
+
+    id = PrimaryKey(int, auto=True)
+    cuota = Required("Cuota", column="cuota_id")
+    filepath = Required(str, sql_type="TEXT")
+    nombre = Required(str, 255)
     created_at = Optional(datetime, default=lambda: datetime.utcnow())
 
 
