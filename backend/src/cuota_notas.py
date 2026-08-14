@@ -3,19 +3,24 @@
 from datetime import date
 from typing import Literal
 
-CuotaNotaTipo = Literal["cuota", "recompra", "upsell"]
+CuotaNotaTipo = Literal["sena", "cuota", "upsell", "recompra"]
 
 CUOTA_NOTA_LABELS: dict[str, str] = {
+    "sena": "Seña",
     "cuota": "Cuota",
-    "recompra": "Recompra",
     "upsell": "Upsell",
+    "recompra": "Recompra",
 }
 
 CUOTA_NOTAS_VALIDAS = frozenset(CUOTA_NOTA_LABELS)
 
 NOTAS_PROYECCION = frozenset({"recompra", "upsell"})
+NOTAS_SIN_NUMERO = frozenset({"sena", "recompra", "upsell"})
 
 _ALIASES: dict[str, str] = {
+    "seña": "sena",
+    "senia": "sena",
+    "deposito": "sena",
     "ingreso": "cuota",
     "ultima": "cuota",
     "renovacion": "recompra",
@@ -47,6 +52,8 @@ _LEGACY_NOTA_MAP: dict[str, str] = {
     "PAGA EN EVENTO": "cuota",
     "CUOTA HASTA COMPLETAR 20K": "cuota",
     "CUOTA HASTA COMPLETATAR 20K": "cuota",
+    "SEÑA": "sena",
+    "SENA": "sena",
 }
 
 
@@ -85,15 +92,19 @@ def etiqueta_nota_cuota(raw: str | None) -> str | None:
 
 def _cuotas_cobranza_ordenadas(cuotas_cliente: list) -> list:
     return sorted(
-        [c for c in cuotas_cliente if not es_nota_proyeccion(c.notas)],
+        [
+            c
+            for c in cuotas_cliente
+            if (normalizar_nota_cuota(c.notas) or "cuota") not in NOTAS_SIN_NUMERO
+        ],
         key=lambda c: (c.fecha_vence or date.max, c.id),
     )
 
 
 def etiqueta_cuota_auto(cuota, cuotas_cliente: list) -> str:
-    """Cuota 1, Cuota 2… según orden de vencimiento."""
+    """Cuota 1, Cuota 2… según orden de vencimiento. Seña, upsell y recompra usan su label."""
     nota = normalizar_nota_cuota(cuota.notas)
-    if nota in NOTAS_PROYECCION:
+    if nota in NOTAS_SIN_NUMERO:
         return CUOTA_NOTA_LABELS[nota]
     cobranza = _cuotas_cobranza_ordenadas(cuotas_cliente)
     for idx, c in enumerate(cobranza, start=1):

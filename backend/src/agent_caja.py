@@ -118,7 +118,7 @@ def _respuesta_cobros_arrastre(
     mes_label: str,
     filas: list[dict],
 ) -> dict:
-    cuotas_filas = [fila for fila in filas if fila["tipo"] == "cuota"]
+    cuotas_filas = [fila for fila in filas if fila["tipo"] in {"cuota", "sena"}]
     proyeccion_filas = [fila for fila in filas if fila["tipo"] in {"recompra", "upsell"}]
     grupo_cuotas = _grupo_cobros_detalle(cuotas_filas)
     grupo_proyeccion = _grupo_cobros_detalle(proyeccion_filas)

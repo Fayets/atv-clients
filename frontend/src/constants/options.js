@@ -40,9 +40,10 @@ export const OPORTUNIDADES = [
 
 export const TIPOS_CUOTA_NOTA = [
   { value: '', label: 'Sin tipo' },
+  { value: 'sena', label: 'Seña' },
   { value: 'cuota', label: 'Cuota' },
-  { value: 'recompra', label: 'Recompra' },
   { value: 'upsell', label: 'Upsell' },
+  { value: 'recompra', label: 'Recompra' },
 ]
 
 export function labelTipoCuotaNota(value, fallbackLabel) {

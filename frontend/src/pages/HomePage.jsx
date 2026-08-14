@@ -27,6 +27,7 @@ function monthOptions() {
 
 const TAG_CLASS = {
   cuota: 'detailTagCuota',
+  sena: 'detailTagSena',
   recompra: 'detailTagRecompra',
   upsell: 'detailTagUpsell',
   vencido: 'detailTagVencido',
@@ -46,6 +47,7 @@ function tagVariant(tag) {
   const t = tag.toLowerCase()
   if (t.includes('upsell')) return 'upsell'
   if (t.includes('recompra')) return 'recompra'
+  if (t.includes('seña') || t.includes('sena')) return 'sena'
   if (t.startsWith('cuota')) return 'cuota'
   if (t.includes('vencido') || t.includes('vence')) return 'vencido'
   return 'default'
