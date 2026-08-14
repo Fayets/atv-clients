@@ -379,6 +379,16 @@
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  cursor: pointer;
+}
+
+.cajaCard:hover {
+  border-color: var(--red-accent);
+}
+
+.cajaCardActive {
+  border-color: var(--red-accent);
+  box-shadow: 0 0 0 1px var(--red-accent);
 }
 
 .cajaVenta {
@@ -406,54 +416,6 @@
   font-size: 34px;
   line-height: 1;
   margin: 6px 0 4px;
-}
-
-.cajaTrack {
-  display: flex;
-  height: 8px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--border);
-  margin-top: 4px;
-}
-
-.cajaFillCobrado {
-  display: block;
-  height: 100%;
-  background: #12b76a;
-}
-
-.cajaFillPendiente {
-  display: block;
-  height: 100%;
-  background: #f79009;
-}
-
-.cajaMeta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--label);
-  align-items: center;
-}
-
-.cajaCobradoBtn {
-  appearance: none;
-  border: 0;
-  background: rgba(18, 183, 106, 0.14);
-  color: #087443;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 9px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.cajaCobradoBtn:hover,
-.cajaCobradoBtnActive {
-  background: rgba(18, 183, 106, 0.28);
 }
 
 .cajaExtra {

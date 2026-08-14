@@ -84,46 +84,32 @@ function shortMonthLabel(item) {
   return `${name.slice(0, 3)} ${item.anio}`
 }
 
-function CajaMesCard({ kicker, title, parte, extra, accent, cobradoActive, onCobradoClick }) {
-  const cobrado = num(parte?.cobrado_usd)
-  const pendiente = num(parte?.pendiente_usd)
-  const total = num(parte?.total_usd) || cobrado + pendiente
+function CajaMesCard({ kicker, title, cobrado, extra, accent, active, onClick }) {
   return (
-    <div className={[styles.cajaCard, accent].filter(Boolean).join(' ')}>
+    <button
+      type="button"
+      className={[
+        styles.cajaCard,
+        accent,
+        active ? styles.cajaCardActive : '',
+      ].filter(Boolean).join(' ')}
+      onClick={onClick}
+    >
       <span className={styles.cajaKicker}>{kicker}</span>
       <span className={styles.cajaTitle}>{title}</span>
-      <span className={styles.cajaValue}>{formatUsd(total)}</span>
-      <div className={styles.cajaTrack} aria-hidden="true">
-        <span className={styles.cajaFillCobrado} style={{ width: `${pct(cobrado, total)}%` }} />
-        <span className={styles.cajaFillPendiente} style={{ width: `${pct(pendiente, total)}%` }} />
-      </div>
-      <div className={styles.cajaMeta}>
-        <button
-          type="button"
-          className={[
-            styles.cajaCobradoBtn,
-            cobradoActive ? styles.cajaCobradoBtnActive : '',
-          ].filter(Boolean).join(' ')}
-          onClick={onCobradoClick}
-        >
-          Cobrado {formatUsd(cobrado)}
-        </button>
-        <span>Pendiente {formatUsd(pendiente)}</span>
-      </div>
+      <span className={styles.cajaValue}>{formatUsd(cobrado)}</span>
       {extra ? <p className={styles.cajaExtra}>{extra}</p> : null}
-    </div>
+      <span className={styles.cardHint}>{active ? 'Ocultar pagos' : 'Ver pagos'}</span>
+    </button>
   )
 }
 
 function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
-  const venta = mesCajas?.venta
-  const upsell = mesCajas?.upsell
-  const recompra = mesCajas?.recompra
-  const caja1 = num(mesCajas?.caja_1_usd) || num(venta?.total_usd)
-  const caja2 = num(mesCajas?.caja_2_usd) || num(upsell?.total_usd) + num(recompra?.total_usd)
-  const total = caja1 + caja2
-  const upsellTotal = num(upsell?.total_usd)
-  const recompraTotal = num(recompra?.total_usd)
+  const venta = num(mesCajas?.venta?.cobrado_usd)
+  const upsell = num(mesCajas?.upsell?.cobrado_usd)
+  const recompra = num(mesCajas?.recompra?.cobrado_usd)
+  const caja2 = upsell + recompra
+  const total = venta + caja2
 
   return (
     <section className={styles.splitCard}>
@@ -131,7 +117,7 @@ function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
         <div>
           <h2 className={styles.chartTitle}>Plata del mes</h2>
           <p className={styles.chartMeta}>
-            {mesLabel || 'Mes'} · cobrado + pendiente por vencer
+            {mesLabel || 'Mes'} · solo cobrado
           </p>
         </div>
         <span className={styles.splitTotal}>
@@ -143,44 +129,40 @@ function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
         <CajaMesCard
           kicker="Caja 1"
           title="Cuota venta"
-          parte={venta}
+          cobrado={venta}
           accent={styles.cajaVenta}
-          cobradoActive={popupId === 'caja1'}
-          onCobradoClick={() => onCobrado('caja1')}
+          active={popupId === 'caja1'}
+          onClick={() => onCobrado('caja1')}
         />
         <CajaMesCard
           kicker="Caja 2"
           title="Upsell y recompra"
-          parte={{
-            cobrado_usd: num(upsell?.cobrado_usd) + num(recompra?.cobrado_usd),
-            pendiente_usd: num(upsell?.pendiente_usd) + num(recompra?.pendiente_usd),
-            total_usd: caja2,
-          }}
-          extra={`Upsell ${formatUsd(upsellTotal)} · Recompra ${formatUsd(recompraTotal)}`}
+          cobrado={caja2}
+          extra={`Upsell ${formatUsd(upsell)} · Recompra ${formatUsd(recompra)}`}
           accent={styles.cajaProyeccion}
-          cobradoActive={popupId === 'caja2'}
-          onCobradoClick={() => onCobrado('caja2')}
+          active={popupId === 'caja2'}
+          onClick={() => onCobrado('caja2')}
         />
       </div>
 
       <div className={styles.splitBarWrap}>
         <div className={styles.splitBar} aria-hidden="true">
-          <span className={styles.barCuotas} style={{ width: `${pct(caja1, total)}%` }} />
-          <span className={styles.barUpsell} style={{ width: `${pct(upsellTotal, total)}%` }} />
-          <span className={styles.barRecompra} style={{ width: `${pct(recompraTotal, total)}%` }} />
+          <span className={styles.barCuotas} style={{ width: `${pct(venta, total)}%` }} />
+          <span className={styles.barUpsell} style={{ width: `${pct(upsell, total)}%` }} />
+          <span className={styles.barRecompra} style={{ width: `${pct(recompra, total)}%` }} />
         </div>
         <ul className={styles.splitLegend}>
           <li>
             <span className={`${styles.legendSwatch} ${styles.barCuotas}`} />
-            Caja 1 · venta {loading ? '…' : formatUsd(caja1)}
+            Caja 1 · venta {loading ? '…' : formatUsd(venta)}
           </li>
           <li>
             <span className={`${styles.legendSwatch} ${styles.barUpsell}`} />
-            Upsell {loading ? '…' : formatUsd(upsellTotal)}
+            Upsell {loading ? '…' : formatUsd(upsell)}
           </li>
           <li>
             <span className={`${styles.legendSwatch} ${styles.barRecompra}`} />
-            Recompra {loading ? '…' : formatUsd(recompraTotal)}
+            Recompra {loading ? '…' : formatUsd(recompra)}
           </li>
         </ul>
       </div>
