@@ -49,6 +49,19 @@ function handleCuotaFechaChange(setter, event, setError, field = 'fecha_vence') 
   }
 }
 
+function handleCuotaRowKeyDown(event, onSave, onCancel) {
+  if (event.nativeEvent.isComposing) return
+  if (event.target.closest('button')) return
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    onSave()
+  }
+  if (event.key === 'Escape' && onCancel) {
+    event.preventDefault()
+    onCancel()
+  }
+}
+
 const MENTORES = ['Juampi', 'Juan Cruz', 'Lucas', 'Nick', 'Maite', 'Emi', 'Lucho', 'Franco', 'Alejandro', 'Otro']
 
 function todayInputDate() {
@@ -1842,7 +1855,10 @@ export default function ClientePage({ clienteId }) {
                 <tbody>
                   {cliente.cuotas?.length ? cliente.cuotas.map((cuota) => (
                     editingCuotaId === cuota.id ? (
-                      <tr key={cuota.id}>
+                      <tr
+                        key={cuota.id}
+                        onKeyDown={(event) => handleCuotaRowKeyDown(event, () => guardarEditCuota(cuota.id), resetEditCuota)}
+                      >
                         <td>
                           <input
                             type="number"
@@ -1933,7 +1949,7 @@ export default function ClientePage({ clienteId }) {
                   ) : null}
                   {addingCuota ? (
                     <>
-                    <tr>
+                    <tr onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}>
                       <td>
                         <input
                           type="number"
@@ -1985,7 +2001,7 @@ export default function ClientePage({ clienteId }) {
                       </td>
                     </tr>
                     {TIPOS_RENOVACION.has(newCuota.notas) ? (
-                      <tr>
+                      <tr onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}>
                         <td colSpan={7}>
                           <div className={styles.renovarBox}>
                             <p className={styles.renovarTitle}>
