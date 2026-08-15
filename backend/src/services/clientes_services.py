@@ -468,6 +468,7 @@ def _detalle_item(
     subtitulo: str | None = None,
     estado: str | None = None,
     tipo: str | None = None,
+    fecha: date | None = None,
 ) -> dict:
     return {
         "cliente_id": cliente_id,
@@ -477,6 +478,7 @@ def _detalle_item(
         "subtitulo": subtitulo,
         "estado_efectivo": estado,
         "tipo": tipo,
+        "fecha": fecha,
     }
 
 
@@ -805,6 +807,7 @@ class ClientesServices:
                                     subtitulo=f"{nota_label} · pagó {format_fecha_ar(fp)}",
                                     estado=base["estado_efectivo"],
                                     tipo=tipo,
+                                    fecha=fp,
                                 ))
                         continue
 
@@ -861,7 +864,12 @@ class ClientesServices:
 
         _sort_detalle_por_plan(detalles_cuotas)
         _sort_detalle_por_plan(detalles_proyeccion)
-        _sort_detalle_por_plan(detalles_cobrado)
+        detalles_cobrado.sort(
+            key=lambda x: (
+                -((x.get("fecha") or date.min).toordinal()),
+                x["nombre"].lower(),
+            ),
+        )
 
         caja_1_usd: Decimal | None = None
         caja_2_usd = cuotas_a_cobrar + proyeccion_total
