@@ -132,8 +132,6 @@ function CajaMesCard({ kicker, title, cobrado, extra, accent, active, onClick })
 
 function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
   const venta = num(mesCajas?.venta?.cobrado_usd)
-  const ventaNueva = num(mesCajas?.venta_nueva_usd)
-  const cuotaVenta = num(mesCajas?.cuota_venta_usd)
   const upsell = num(mesCajas?.upsell?.cobrado_usd)
   const recompra = num(mesCajas?.recompra?.cobrado_usd)
   const caja2 = upsell + recompra
@@ -158,7 +156,6 @@ function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
           kicker="Caja 1"
           title="Nuevas ventas / cuotas ventas"
           cobrado={venta}
-          extra={`Nuevas ventas ${formatUsd(ventaNueva)} · Cuotas ${formatUsd(cuotaVenta)}`}
           accent={styles.cajaVenta}
           active={popupId === 'caja1'}
           onClick={() => onCobrado('caja1')}
@@ -172,23 +169,6 @@ function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
           active={popupId === 'caja2'}
           onClick={() => onCobrado('caja2')}
         />
-      </div>
-
-      <div className={styles.splitBarWrap}>
-        <div className={styles.splitBar} aria-hidden="true">
-          <span className={styles.barCuotas} style={{ width: `${pct(venta, total)}%` }} />
-          <span className={styles.barRecompra} style={{ width: `${pct(caja2, total)}%` }} />
-        </div>
-        <ul className={styles.splitLegend}>
-          <li>
-            <span className={`${styles.legendSwatch} ${styles.barCuotas}`} />
-            Caja 1 {loading ? '…' : formatUsd(venta)}
-          </li>
-          <li>
-            <span className={`${styles.legendSwatch} ${styles.barRecompra}`} />
-            Caja 2 {loading ? '…' : formatUsd(caja2)}
-          </li>
-        </ul>
       </div>
     </section>
   )
