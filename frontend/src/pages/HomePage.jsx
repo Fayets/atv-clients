@@ -61,6 +61,8 @@ function tagVariant(tag) {
 
 const CAJA2_TIPOS = new Set(['cuota_upsell', 'cuota_recompra'])
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const PULL_THRESHOLD = 68
+const PULL_MAX = 112
 
 function num(value) {
   return Number(value) || 0
@@ -451,24 +453,127 @@ export default function HomePage() {
   const [popupId, setPopupId] = useState(null)
   const [semanaInicio, setSemanaInicio] = useState(() => startOfWeekMonday())
   const [diaSeleccionado, setDiaSeleccionado] = useState(() => todayLocalISO())
+  const [refreshing, setRefreshing] = useState(false)
+  const [pullPx, setPullPx] = useState(0)
+  const pullPxRef = useRef(0)
+  const pullRef = useRef({ active: false, armed: false, startX: 0, startY: 0 })
+  const refreshingRef = useRef(false)
+  const popupOpenRef = useRef(false)
+  const refreshFnRef = useRef(async () => {})
+  const pageRef = useRef(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const setPull = (value) => {
+    pullPxRef.current = value
+    setPullPx(value)
+  }
+
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
       const result = await fetchDashboard({ mes, anio, semana: semanaInicio })
       setData(result)
     } catch (err) {
-      setData(null)
+      if (!silent) setData(null)
       setError(err.message || 'Error al cargar el dashboard')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [mes, anio, semanaInicio])
+
+  const refresh = useCallback(async () => {
+    if (refreshingRef.current) return
+    refreshingRef.current = true
+    setRefreshing(true)
+    setPull(PULL_THRESHOLD)
+    try {
+      await load({ silent: true })
+    } finally {
+      refreshingRef.current = false
+      setRefreshing(false)
+      setPull(0)
+    }
+  }, [load])
 
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    popupOpenRef.current = Boolean(popupId)
+  }, [popupId])
+
+  useEffect(() => {
+    refreshFnRef.current = refresh
+  }, [refresh])
+
+  useEffect(() => {
+    const el = pageRef.current
+    if (!el) return
+
+    const scrollTop = () => el.scrollTop
+
+    const onStart = (event) => {
+      if (popupOpenRef.current || refreshingRef.current) return
+      if (scrollTop() > 2) return
+      const touch = event.changedTouches[0]
+      pullRef.current = {
+        active: true,
+        armed: false,
+        startX: touch.clientX,
+        startY: touch.clientY,
+      }
+    }
+
+    const onMove = (event) => {
+      const state = pullRef.current
+      if (!state.active || refreshingRef.current || popupOpenRef.current) return
+      const touch = event.changedTouches[0]
+      const dy = touch.clientY - state.startY
+      const dx = touch.clientX - state.startX
+      if (!state.armed) {
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 12) {
+          state.active = false
+          return
+        }
+        if (dy < 10) return
+        if (scrollTop() > 2) {
+          state.active = false
+          return
+        }
+        state.armed = true
+      }
+      if (dy <= 0) {
+        setPull(0)
+        return
+      }
+      if (event.cancelable) event.preventDefault()
+      setPull(Math.min(PULL_MAX, dy * 0.42))
+    }
+
+    const onEnd = () => {
+      const state = pullRef.current
+      if (!state.active) return
+      state.active = false
+      if (state.armed && pullPxRef.current >= PULL_THRESHOLD) {
+        refreshFnRef.current()
+      } else {
+        setPull(0)
+      }
+      state.armed = false
+    }
+
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd)
+    el.addEventListener('touchcancel', onEnd)
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onEnd)
+    }
+  }, [])
 
   const resumen = data?.resumen
   const detalles = data?.detalles || {}
@@ -576,8 +681,29 @@ export default function HomePage() {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={pageRef}>
       <Navbar currentPath="/" />
+
+      <div
+        className={[
+          styles.pullSlot,
+          pullPx > 0 && !refreshing ? styles.pullSlotLive : '',
+        ].filter(Boolean).join(' ')}
+        style={{ height: pullPx }}
+        aria-hidden
+      >
+        <span
+          className={[
+            styles.pullSpinner,
+            refreshing || pullPx >= PULL_THRESHOLD ? styles.pullSpinnerSpin : '',
+          ].filter(Boolean).join(' ')}
+          style={
+            refreshing || pullPx >= PULL_THRESHOLD
+              ? undefined
+              : { transform: `rotate(${pullPx * 2.6}deg)` }
+          }
+        />
+      </div>
 
       <main className={styles.content}>
         <header className={styles.hero}>

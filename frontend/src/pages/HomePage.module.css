@@ -1,9 +1,44 @@
 .page {
   min-height: 100vh;
+  height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
   overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.pullSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  transition: height 0.18s ease;
+}
+
+.pullSlotLive {
+  transition: none;
+}
+
+.pullSpinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--text);
+  flex-shrink: 0;
+}
+
+.pullSpinnerSpin {
+  animation: homePullSpin 0.7s linear infinite;
+}
+
+@keyframes homePullSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .content {

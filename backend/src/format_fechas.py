@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 import pytz
 
@@ -29,10 +29,4 @@ def label_actualizacion_caja(value: datetime | None) -> str | None:
     if not value:
         return None
     local = _a_hora_ar(value)
-    hoy = datetime.now(AR).date()
-    hora = f"{local.hour}:{local.minute:02d}"
-    if local.date() == hoy:
-        return f"Actualizado hoy {hora}"
-    if local.date() == hoy - timedelta(days=1):
-        return f"Actualizado ayer {hora}"
-    return f"Actualizado el {local.strftime('%d/%m')} {hora}"
+    return f"Actualizado {local.strftime('%d/%m/%Y %H:%M')}"
