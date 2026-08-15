@@ -255,6 +255,20 @@ MIGRATIONS = [
     """,
     "ALTER TABLE clients.cuotas DROP COLUMN IF EXISTS comprobante_path;",
     "ALTER TABLE clients.cuotas DROP COLUMN IF EXISTS comprobante_nombre;",
+    """
+    CREATE TABLE IF NOT EXISTS clients.caja_meta (
+        id INTEGER PRIMARY KEY,
+        cuotas_updated_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+    );
+    """,
+    """
+    INSERT INTO clients.caja_meta (id, cuotas_updated_at)
+    SELECT 1, GREATEST(
+        COALESCE((SELECT MAX(created_at) FROM clients.cuotas), NOW() AT TIME ZONE 'utc'),
+        COALESCE((SELECT MAX(created_at) FROM clients.cuota_comprobantes), '-infinity'::timestamp)
+    )
+    WHERE NOT EXISTS (SELECT 1 FROM clients.caja_meta WHERE id = 1);
+    """,
 ]
 
 

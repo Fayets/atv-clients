@@ -140,3 +140,18 @@ def etiqueta_cuota_auto(cuota, cuotas_cliente: list) -> str:
         if c.id == cuota.id:
             return f"Cuota {idx}"
     return "Cuota venta"
+
+
+def es_primera_cuota(cuota, cuotas_cliente: list) -> bool:
+    cobranza = _cuotas_cobranza_ordenadas(cuotas_cliente)
+    return bool(cobranza) and cobranza[0].id == cuota.id
+
+
+def es_venta_nueva(cuota, cuotas_cliente: list) -> bool:
+    """Seña o cuota 1: ingreso de venta nueva. El resto de cuota venta son cuotas."""
+    nota = normalizar_nota_cuota(cuota.notas)
+    if nota == "sena":
+        return True
+    if nota in NOTAS_SIN_NUMERO:
+        return False
+    return es_primera_cuota(cuota, cuotas_cliente)

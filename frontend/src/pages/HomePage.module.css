@@ -3,28 +3,35 @@
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
+  overflow-x: clip;
 }
 
 .content {
-  padding: 32px 28px;
+  padding: clamp(16px, 3vw, 32px) clamp(12px, 2.4vw, 28px);
+  width: 100%;
   max-width: 1180px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: clamp(16px, 2.4vw, 28px);
+  box-sizing: border-box;
 }
 
 .hero {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.heroCopy {
+  min-width: 0;
 }
 
 .heroTitle {
   font-family: var(--font-metric);
-  font-size: 32px;
+  font-size: clamp(24px, 4vw, 32px);
   margin: 0;
 }
 
@@ -34,15 +41,7 @@
   font-size: 15px;
 }
 
-.monthPicker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--label);
-}
-
-.monthPicker select {
+.monthSelect {
   height: 40px;
   padding: 0 12px;
   border-radius: 8px;
@@ -50,24 +49,27 @@
   background: var(--surface);
   color: var(--text);
   font-size: 15px;
-  min-width: 180px;
+  min-width: 0;
+  max-width: 180px;
+  flex-shrink: 0;
 }
 
 .cardsGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(8px, 1.2vw, 16px);
 }
 
 .card {
   background: var(--surface);
   border: 0.5px solid var(--border);
   border-radius: 14px;
-  padding: 24px;
+  padding: clamp(12px, 1.8vw, 24px);
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: clamp(4px, 0.8vw, 8px);
+  min-width: 0;
 }
 
 .clickable {
@@ -104,7 +106,7 @@
 }
 
 .cardLabel {
-  font-size: 14px;
+  font-size: clamp(10px, 1.05vw, 14px);
   color: var(--label);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -112,19 +114,25 @@
 
 .cardValue {
   font-family: var(--font-metric);
-  font-size: 44px;
-  line-height: 1;
+  font-size: clamp(16px, 3.2vw, 44px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
-.cardSub {
-  font-size: 13px;
+.cardSub,
+.cardSubShort {
+  font-size: clamp(11px, 1.1vw, 13px);
   color: var(--label);
   line-height: 1.4;
 }
 
+.cardSubShort {
+  display: none;
+}
+
 .cardHint {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: clamp(10px, 1vw, 12px);
   color: var(--label);
 }
 
@@ -140,7 +148,7 @@
 }
 
 .popup {
-  width: min(520px, 100%);
+  width: min(720px, 100%);
   max-height: min(72vh, 640px);
   background: var(--surface);
   border: 0.5px solid var(--border);
@@ -233,10 +241,16 @@
 
 .detailRow {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
+  grid-template-columns:
+    minmax(0, 1.4fr)
+    7.2rem
+    minmax(0, 1fr)
+    5.6rem
+    4.8rem;
   align-items: center;
-  padding: 12px 18px;
+  column-gap: 10px;
+  min-width: 0;
+  padding: 10px 16px;
   border-bottom: 0.5px solid var(--border);
   cursor: pointer;
 }
@@ -245,34 +259,34 @@
   background: var(--surface2);
 }
 
-.detailRowMain {
-  min-width: 0;
-}
-
 .detailName {
+  min-width: 0;
   font-weight: 600;
   font-size: 14px;
-  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.detailTags {
+.detailTagCell {
+  min-width: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
 }
 
 .detailTag {
   display: inline-flex;
   align-items: center;
-  padding: 3px 9px;
+  max-width: 100%;
+  padding: 3px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .detailTagCuota {
@@ -308,6 +322,10 @@
 .detailTagExtra {
   font-size: 12px;
   color: var(--label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .detailSub {
@@ -321,6 +339,21 @@
   font-family: var(--font-metric);
   font-size: 16px;
   white-space: nowrap;
+  text-align: right;
+}
+
+.detailPlan {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.detailPlan span {
+  font-size: 11px;
+  padding: 3px 8px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .detailEmpty {
@@ -342,7 +375,7 @@
   background: var(--surface);
   border: 0.5px solid var(--border);
   border-radius: 14px;
-  padding: 22px 24px 18px;
+  padding: clamp(14px, 2vw, 22px) clamp(14px, 2vw, 24px) clamp(14px, 1.8vw, 18px);
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -357,14 +390,14 @@
 
 .splitTotal {
   font-family: var(--font-metric);
-  font-size: 28px;
+  font-size: clamp(20px, 2.4vw, 28px);
   line-height: 1;
 }
 
 .splitGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(8px, 1.2vw, 14px);
 }
 
 .cajaCard {
@@ -374,11 +407,12 @@
   background: var(--surface2);
   border: 0.5px solid var(--border);
   border-radius: 12px;
-  padding: 18px;
+  padding: clamp(12px, 1.6vw, 18px);
   display: flex;
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  min-width: 0;
   cursor: pointer;
 }
 
@@ -407,15 +441,20 @@
 }
 
 .cajaTitle {
-  font-size: 15px;
+  font-size: clamp(11px, 1.25vw, 14px);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .cajaValue {
   font-family: var(--font-metric);
-  font-size: 34px;
-  line-height: 1;
+  font-size: clamp(20px, 2.8vw, 34px);
+  line-height: 1.05;
   margin: 6px 0 4px;
+  overflow-wrap: anywhere;
 }
 
 .cajaExtra {
@@ -465,7 +504,7 @@
   background: var(--surface);
   border: 0.5px solid var(--border);
   border-radius: 14px;
-  padding: 22px 24px 18px;
+  padding: clamp(14px, 2vw, 22px) clamp(14px, 2vw, 24px) clamp(14px, 1.8vw, 18px);
 }
 
 .chartHead {
@@ -489,22 +528,6 @@
   color: var(--label);
 }
 
-.chartLegend {
-  display: flex;
-  gap: 16px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: 13px;
-  color: var(--label);
-}
-
-.chartLegend li {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .legendSwatch {
   width: 10px;
   height: 10px;
@@ -518,83 +541,197 @@
   color: var(--label);
 }
 
-.chartBody {
-  display: grid;
-  grid-template-columns: 88px 1fr;
-  gap: 10px;
-  min-height: 240px;
-}
-
-.chartYAxis {
+.weekToolbar {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 0 0 28px;
-  font-size: 11px;
-  color: var(--label);
-  white-space: nowrap;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
-.chartPlot {
-  position: relative;
-  height: 240px;
+.weekTotal {
+  font-family: var(--font-metric);
+  font-size: 22px;
 }
 
-.chartGrid {
-  position: absolute;
-  inset: 0 0 28px;
+.weekNav {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  pointer-events: none;
+  align-items: center;
+  gap: 6px;
 }
 
-.chartGridLine {
-  display: block;
-  height: 0;
-  border-top: 0.5px dashed var(--border);
-}
-
-.chartGroups {
-  position: relative;
-  z-index: 1;
-  height: 240px;
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 12px;
-  align-items: stretch;
-  padding-bottom: 28px;
-  box-sizing: border-box;
-}
-
-.chartGroup {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.chartBars {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
+.weekNav button {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-height: 0;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 0.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
 }
 
-.chartBarWrap {
-  flex: 1;
-  max-width: 22px;
-  height: 100%;
+.weekNav button:hover {
+  border-color: var(--red-accent);
+}
+
+.weekTodayBtn {
+  font-size: 13px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 0.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.weekGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: clamp(4px, 0.8vw, 8px);
+}
+
+.weekDay {
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(6px, 0.9vw, 10px);
+  border-radius: 12px;
+  border: 0.5px solid var(--border);
+  background: var(--surface2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
 }
 
-.chartBar {
+.weekDay:hover {
+  border-color: var(--red-accent);
+}
+
+.weekDayToday {
+  border-color: var(--red-accent);
+  box-shadow: 0 0 0 1px var(--red-accent);
+}
+
+.weekDayActive {
+  border-color: var(--red-accent);
+  box-shadow: 0 0 0 1px var(--red-accent);
+}
+
+.weekDayMoney {
+  background: var(--surface);
+}
+
+.weekDayFuture {
+  opacity: 0.55;
+}
+
+.weekDayName {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--label);
+}
+
+.weekDayNum {
+  font-size: 13px;
+  color: var(--label);
+}
+
+.weekDayAmount {
+  margin-top: auto;
+  font-family: var(--font-metric);
+  font-size: clamp(10px, 1.55vw, 18px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.dayCircleWrap {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0 2px;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.dayCircleHead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.dayRing {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  padding: 14px;
+  border: 0;
+  background: var(--border);
+  color: inherit;
+  cursor: pointer;
+}
+
+.dayRingEmpty {
+  background: var(--border);
+}
+
+.dayRingInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  min-height: 0;
-  border-radius: 4px 4px 0 0;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--surface);
+  gap: 6px;
+}
+
+.dayRingKicker {
+  font-size: 13px;
+  color: var(--label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dayRingValue {
+  font-family: var(--font-metric);
+  font-size: 36px;
+  line-height: 1;
+}
+
+.dayRingLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--label);
+}
+
+.dayRingLegend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dayRingHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--label);
 }
 
 .barCuotas {
@@ -609,40 +746,64 @@
   background: #6172f3;
 }
 
-.chartMonth {
-  margin-top: 8px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--label);
-  white-space: nowrap;
-}
-
 @media (max-width: 900px) {
-  .cardsGrid {
-    grid-template-columns: 1fr;
+  .heroSubtitle {
+    display: none;
   }
 
-  .splitGrid {
-    grid-template-columns: 1fr;
+  .cardSub {
+    display: none;
   }
 
-  .cajaValue {
-    font-size: 28px;
+  .cardSubShort {
+    display: block;
+  }
+
+  .cardHint {
+    display: none;
+  }
+
+  .detailTagExtra {
+    display: none;
+  }
+
+  .detailPlan {
+    display: none;
   }
 
   .detailRow {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      minmax(0, 1.4fr)
+      6.4rem
+      4.6rem;
   }
 
-  .chartBody {
-    grid-template-columns: 72px 1fr;
+  .weekHead,
+  .weekGrid {
+    display: none;
   }
 
-  .chartGroups {
-    gap: 6px;
+  .dayCircleWrap {
+    display: flex;
   }
 
-  .chartMonth {
+  .weekDay {
+    aspect-ratio: auto;
+    min-height: 84px;
+    border-radius: 10px;
+  }
+}
+
+@media (max-width: 560px) {
+  .weekDayName {
+    font-size: 9px;
+  }
+
+  .weekDayNum {
+    font-size: 11px;
+  }
+
+  .cajaExtra {
     font-size: 11px;
   }
 }

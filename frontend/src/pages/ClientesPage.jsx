@@ -17,12 +17,12 @@ const DEFAULT_FILTERS = {
   search: '',
   estadoFilter: '',
   planFilter: '',
-  orden: 'venc_asc',
+  orden: 'alta_desc',
   page: 1,
 }
 
 function normalizeOrden(value) {
-  return value === 'venc_desc' ? 'venc_desc' : 'venc_asc'
+  return value === 'alta_asc' ? 'alta_asc' : 'alta_desc'
 }
 
 function readFiltersFromUrl() {
@@ -257,10 +257,6 @@ export default function ClientesPage() {
     setAllClientes((prev) => prev.map((item) => (item.id === id ? { ...item, ...updated } : item)))
   }
 
-  const toggleOrden = () => {
-    setOrden((prev) => (prev === 'venc_asc' ? 'venc_desc' : 'venc_asc'))
-  }
-
   const getMiroBoards = (cliente) => {
     if (cliente.miros?.length) return cliente.miros
     if (cliente.miro_url) {
@@ -329,7 +325,10 @@ export default function ClientesPage() {
           </div>
           <div className={`${styles.metricCard} ${styles.metricHighlight}`}>
             <div className={styles.metricHead}>
-              <span className={styles.metricLabel}>Próximos a vencer</span>
+              <span className={styles.metricLabel}>
+                <span className={styles.metricLabelFull}>Próximos a vencer</span>
+                <span className={styles.metricLabelShort}>Próximos</span>
+              </span>
               <i className="ti ti-clock" />
             </div>
             <div className={`${styles.metricNum} ${styles.metricNumRed}`}>{metrics.proximos}</div>
@@ -343,7 +342,10 @@ export default function ClientesPage() {
           </div>
           <div className={styles.metricCard}>
             <div className={styles.metricHead}>
-              <span className={styles.metricLabel}>Total adeudado USD</span>
+              <span className={styles.metricLabel}>
+                <span className={styles.metricLabelFull}>Total adeudado USD</span>
+                <span className={styles.metricLabelShort}>Adeudado</span>
+              </span>
               <i className="ti ti-currency-dollar" />
             </div>
             <div className={styles.metricNum}>{formatUsd(metrics.totalAdeudado)}</div>
@@ -358,17 +360,17 @@ export default function ClientesPage() {
         ) : null}
 
         <section className={styles.toolbar}>
-          <div className={styles.toolbarLeft}>
-            <label className={styles.searchWrap}>
-              <i className="ti ti-search" />
-              <input
-                type="search"
-                className={styles.searchInput}
-                placeholder="Buscar por nombre o email..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
+          <label className={styles.searchWrap}>
+            <i className="ti ti-search" />
+            <input
+              type="search"
+              className={styles.searchInput}
+              placeholder="Buscar por nombre o email..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <div className={styles.toolbarRow}>
             <select className={styles.select} value={estadoFilter} onChange={(event) => setEstadoFilter(event.target.value)}>
               {ESTADOS_FILTRO.map((option) => (
                 <option key={option.value || 'all'} value={option.value}>{option.label}</option>
@@ -379,10 +381,6 @@ export default function ClientesPage() {
                 <option key={option.value || 'all'} value={option.value}>{option.label}</option>
               ))}
             </select>
-            <button type="button" className={styles.sortBtn} onClick={toggleOrden}>
-              <i className={`ti ${orden === 'venc_asc' ? 'ti-sort-ascending' : 'ti-sort-descending'}`} />
-              Vencimiento {orden === 'venc_asc' ? '↑' : '↓'}
-            </button>
             <button
               type="button"
               className={`${styles.resetFiltersBtn} ${hasActiveFilters ? styles.resetFiltersBtnActive : ''}`}
@@ -391,10 +389,8 @@ export default function ClientesPage() {
               title="Reiniciar filtros"
             >
               <i className="ti ti-filter-off" />
-              <span>Reiniciar</span>
+              <span className={styles.btnLabel}>Reiniciar</span>
             </button>
-          </div>
-          <div className={styles.toolbarRight}>
             <button
               type="button"
               className={styles.discordSyncBtn}
@@ -402,11 +398,13 @@ export default function ClientesPage() {
               disabled={discordSyncing}
             >
               <i className={`ti ${discordSyncing ? 'ti-loader-2' : 'ti-brand-discord'}`} />
-              {discordSyncing
-                ? (discordProgress > 0
-                  ? `Actualizando... ${discordProgress} canales`
-                  : 'Actualizando...')
-                : 'Actualizar Discord'}
+              <span className={styles.btnLabel}>
+                {discordSyncing
+                  ? (discordProgress > 0
+                    ? `Actualizando... ${discordProgress} canales`
+                    : 'Actualizando...')
+                  : 'Actualizar Discord'}
+              </span>
             </button>
             <button
               type="button"
@@ -414,7 +412,7 @@ export default function ClientesPage() {
               onClick={() => setShowCreate((prev) => !prev)}
             >
               <i className="ti ti-plus" />
-              Nuevo cliente
+              <span className={styles.btnLabel}>Nuevo cliente</span>
             </button>
             <span className={styles.count}>
               {clientes.length
@@ -547,11 +545,11 @@ export default function ClientesPage() {
                   <th>Nombre</th>
                   <th>Plan</th>
                   <th>Estado</th>
-                  <th>Oportunidad</th>
-                  <th>Responsable</th>
-                  <th>Próximos pasos</th>
-                  <th>Miro</th>
-                  <th>Última call</th>
+                  <th className={styles.colOptional}>Oportunidad</th>
+                  <th className={styles.colOptional}>Responsable</th>
+                  <th className={styles.colOptional}>Próximos pasos</th>
+                  <th className={styles.colOptional}>Miro</th>
+                  <th className={styles.colOptional}>Última call</th>
                 </tr>
               </thead>
               <tbody>
@@ -604,7 +602,7 @@ export default function ClientesPage() {
                           />
                         </span>
                       </td>
-                      <td className={styles.cellEditable}>
+                      <td className={`${styles.cellEditable} ${styles.colOptional}`}>
                         <span className={styles.cellInteractive} data-row-action onClick={stopRowNav}>
                           <InlineField
                             type="select"
@@ -616,7 +614,7 @@ export default function ClientesPage() {
                           />
                         </span>
                       </td>
-                      <td className={styles.cellEditable}>
+                      <td className={`${styles.cellEditable} ${styles.colOptional}`}>
                         <span className={styles.cellInteractive} data-row-action onClick={stopRowNav}>
                           <InlineField
                             type="select"
@@ -628,7 +626,7 @@ export default function ClientesPage() {
                           />
                         </span>
                       </td>
-                      <td className={styles.cellMuted}>
+                      <td className={`${styles.cellMuted} ${styles.colOptional}`}>
                         {cliente.ultimo_proximos_pasos ? (
                           <span
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
@@ -667,7 +665,7 @@ export default function ClientesPage() {
                           '—'
                         )}
                       </td>
-                      <td className={styles.cellBrand}>
+                      <td className={`${styles.cellBrand} ${styles.colOptional}`}>
                         {getMiroBoards(cliente).length ? (
                           <button
                             type="button"
@@ -685,7 +683,7 @@ export default function ClientesPage() {
                           '—'
                         )}
                       </td>
-                      <td className={styles.cellBrand}>
+                      <td className={`${styles.cellBrand} ${styles.colOptional}`}>
                         {cliente.fathom_last_call_url ? (
                           <a
                             href={cliente.fathom_last_call_url}
@@ -717,7 +715,7 @@ export default function ClientesPage() {
                 disabled={page <= 1}
               >
                 <i className="ti ti-chevron-left" />
-                Anterior
+                <span className={styles.btnLabel}>Anterior</span>
               </button>
               <span className={styles.paginationInfo}>
                 Página {page} de {totalPages}
@@ -728,7 +726,7 @@ export default function ClientesPage() {
                 onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                 disabled={page >= totalPages}
               >
-                Siguiente
+                <span className={styles.btnLabel}>Siguiente</span>
                 <i className="ti ti-chevron-right" />
               </button>
             </div>

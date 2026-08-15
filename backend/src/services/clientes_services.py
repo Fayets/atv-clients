@@ -20,13 +20,25 @@ from src.cuota_notas import (
     NOTAS_PROYECCION,
     TIPO_DEFAULT,
     es_nota_proyeccion,
+    es_venta_nueva,
     etiqueta_cuota_auto,
     etiqueta_nota_cuota,
     normalizar_nota_cuota,
 )
-from src.format_fechas import format_fecha_ar
+from src.format_fechas import format_fecha_ar, label_actualizacion_caja
 from src.discord_transcript_paths import resolve_transcript_filepath
-from src.models import Cliente, Cuota, CuotaComprobante, DiscordTranscript, DocumentoLink, FathomBoard, MiroBoard, Observacion, ProximosPasos
+from src.models import (
+    CajaMeta,
+    Cliente,
+    Cuota,
+    CuotaComprobante,
+    DiscordTranscript,
+    DocumentoLink,
+    FathomBoard,
+    MiroBoard,
+    Observacion,
+    ProximosPasos,
+)
 from src.schemas import (
     ClienteCreate,
     ClientePatch,
@@ -125,6 +137,24 @@ def _decimal(value: Decimal | None) -> Decimal:
     return value if value is not None else Decimal("0")
 
 
+def _marcar_cambio_caja() -> None:
+    ahora = datetime.utcnow()
+    row = CajaMeta.get(id=1)
+    if row:
+        row.cuotas_updated_at = ahora
+        return
+    CajaMeta(id=1, cuotas_updated_at=ahora)
+
+
+def _ultima_actualizacion_caja() -> datetime | None:
+    row = CajaMeta.get(id=1)
+    if row and row.cuotas_updated_at:
+        return row.cuotas_updated_at
+    fechas = [c.created_at for c in Cuota.select() if c.created_at]
+    fechas.extend(c.created_at for c in CuotaComprobante.select() if c.created_at)
+    return max(fechas) if fechas else None
+
+
 def _recalcular_totales_cliente(cliente: Cliente) -> None:
     pagado = Decimal("0")
     adeudado = Decimal("0")
@@ -137,6 +167,7 @@ def _recalcular_totales_cliente(cliente: Cliente) -> None:
     cliente.total_pagado_usd = pagado
     cliente.total_adeudado_usd = adeudado
     cliente.updated_at = datetime.utcnow()
+    _marcar_cambio_caja()
 
 
 def _get_cuota_cliente(cliente_id: int, cuota_id: int) -> tuple[Cliente, Cuota] | tuple[None, None]:
@@ -408,6 +439,7 @@ def _cliente_base_dict(
         "fathom_last_call_url": fathom_last_call_url,
         "miros": [_miro_board_to_dict(m) for m in miros],
         "ultimo_proximos_pasos": _proximos_pasos_to_dict(pasos[0]) if pasos else None,
+        "fecha_alta": cliente.fecha_alta,
     }
 
 
@@ -455,6 +487,29 @@ def _inicio_mes(fecha: date) -> date:
     return fecha.replace(day=1)
 
 
+DIAS_SEMANA_ES = ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
+TIPOS_CAJA2 = frozenset({"cuota_upsell", "cuota_recompra"})
+
+
+def _lunes_semana(fecha: date) -> date:
+    return fecha - timedelta(days=fecha.weekday())
+
+
+def _semana_vacia(lunes: date) -> dict[date, dict]:
+    dias: dict[date, dict] = {}
+    for i in range(7):
+        dia = lunes + timedelta(days=i)
+        dias[dia] = {
+            "fecha": dia,
+            "weekday": i,
+            "label": DIAS_SEMANA_ES[i],
+            "cobrado_usd": Decimal("0"),
+            "caja1_usd": Decimal("0"),
+            "caja2_usd": Decimal("0"),
+        }
+    return dias
+
+
 def _cuotas_impagas(cuotas: list[Cuota]) -> list[Cuota]:
     return [c for c in cuotas if c.estado in {"pendiente", "vencido"}]
 
@@ -469,6 +524,7 @@ def _detalle_item(
     estado: str | None = None,
     tipo: str | None = None,
     fecha: date | None = None,
+    origen: str | None = None,
 ) -> dict:
     return {
         "cliente_id": cliente_id,
@@ -479,6 +535,7 @@ def _detalle_item(
         "estado_efectivo": estado,
         "tipo": tipo,
         "fecha": fecha,
+        "origen": origen,
     }
 
 
@@ -682,7 +739,7 @@ class ClientesServices:
         estado: str | None = None,
         plan: str | None = None,
         q: str | None = None,
-        orden: str = "venc_asc",
+        orden: str = "alta_desc",
     ) -> list[dict]:
         with db_session:
             clientes = []
@@ -705,11 +762,16 @@ class ClientesServices:
         if estado:
             items = [item for item in items if item["estado_efectivo"] == estado]
 
-        reverse = orden == "venc_desc"
+        reverse = orden.endswith("_desc")
 
-        def sort_key(item: dict) -> tuple:
-            fv = item["fecha_vencimiento"]
-            return (fv is None, fv or date.min)
+        if orden.startswith("venc"):
+            def sort_key(item: dict) -> tuple:
+                fv = item["fecha_vencimiento"]
+                return (fv is None, fv or date.min)
+        else:
+            def sort_key(item: dict) -> tuple:
+                alta = item.get("fecha_alta")
+                return (alta or datetime.min, item["id"])
 
         items.sort(key=sort_key, reverse=reverse)
         return items
@@ -738,16 +800,27 @@ class ClientesServices:
         )
         return items
 
-    def obtener_dashboard(self, mes: int | None = None, anio: int | None = None) -> dict:
+    def obtener_dashboard(
+        self,
+        mes: int | None = None,
+        anio: int | None = None,
+        semana: date | None = None,
+    ) -> dict:
         hoy = _today()
         if mes is not None and anio is not None:
             ref = date(anio, mes, 1)
         else:
             ref = _inicio_mes(hoy)
 
+        lunes = _lunes_semana(semana or hoy)
+        domingo = lunes + timedelta(days=6)
+        dias_semana = _semana_vacia(lunes)
+
         detalles_cuotas: list[dict] = []
         detalles_proyeccion: list[dict] = []
         detalles_cobrado: list[dict] = []
+        detalles_semana: list[dict] = []
+        ultima_actualizacion: datetime | None = None
         meses_proyeccion: dict[tuple[int, int], dict] = {}
         for offset in range(6):
             punto = _add_months(ref, offset)
@@ -771,6 +844,8 @@ class ClientesServices:
             caja_2_cobrado_usd = Decimal("0")
             caja_2_cobrado_total_usd = Decimal("0")
             venta_cobrado = Decimal("0")
+            venta_nueva_cobrado = Decimal("0")
+            cuota_venta_cobrado = Decimal("0")
             upsell_cobrado = Decimal("0")
             recompra_cobrado = Decimal("0")
             venta_pendiente = Decimal("0")
@@ -790,14 +865,45 @@ class ClientesServices:
                         fp = cuota.fecha_pago or fv
                         if fp:
                             caja_2_cobrado_total_usd += monto
+                            if lunes <= fp <= domingo:
+                                dia_semana = dias_semana[fp]
+                                dia_semana["cobrado_usd"] += monto
+                                if tipo in TIPOS_CAJA2:
+                                    dia_semana["caja2_usd"] += monto
+                                    origen_semana = "upsell" if tipo == "cuota_upsell" else "recompra"
+                                elif es_venta_nueva(cuota, cuotas):
+                                    dia_semana["caja1_usd"] += monto
+                                    origen_semana = "venta_nueva"
+                                else:
+                                    dia_semana["caja1_usd"] += monto
+                                    origen_semana = "cuota_venta"
+                                detalles_semana.append(_detalle_item(
+                                    cliente_id=cliente.id,
+                                    nombre=base["nombre"],
+                                    plan=base["plan_actual"],
+                                    monto=monto,
+                                    subtitulo=f"{etiqueta_cuota_auto(cuota, cuotas)} · pagó {format_fecha_ar(fp)}",
+                                    estado=base["estado_efectivo"],
+                                    tipo=tipo,
+                                    fecha=fp,
+                                    origen=origen_semana,
+                                ))
                             if fp.year == ref.year and fp.month == ref.month:
                                 caja_2_cobrado_usd += monto
                                 if tipo == "cuota_upsell":
                                     upsell_cobrado += monto
+                                    origen = "upsell"
                                 elif tipo == "cuota_recompra":
                                     recompra_cobrado += monto
+                                    origen = "recompra"
+                                elif es_venta_nueva(cuota, cuotas):
+                                    venta_cobrado += monto
+                                    venta_nueva_cobrado += monto
+                                    origen = "venta_nueva"
                                 else:
                                     venta_cobrado += monto
+                                    cuota_venta_cobrado += monto
+                                    origen = "cuota_venta"
                                 nota_label = etiqueta_cuota_auto(cuota, cuotas)
                                 detalles_cobrado.append(_detalle_item(
                                     cliente_id=cliente.id,
@@ -808,6 +914,7 @@ class ClientesServices:
                                     estado=base["estado_efectivo"],
                                     tipo=tipo,
                                     fecha=fp,
+                                    origen=origen,
                                 ))
                         continue
 
@@ -862,14 +969,15 @@ class ClientesServices:
                         tipo=tipo,
                     ))
 
+            ultima_actualizacion = _ultima_actualizacion_caja()
+
         _sort_detalle_por_plan(detalles_cuotas)
         _sort_detalle_por_plan(detalles_proyeccion)
-        detalles_cobrado.sort(
-            key=lambda x: (
-                -((x.get("fecha") or date.min).toordinal()),
-                x["nombre"].lower(),
-            ),
-        )
+        def cobrado_sort(item: dict) -> tuple:
+            return (-((item.get("fecha") or date.min).toordinal()), item["nombre"].lower())
+
+        detalles_cobrado.sort(key=cobrado_sort)
+        detalles_semana.sort(key=cobrado_sort)
 
         caja_1_usd: Decimal | None = None
         caja_2_usd = cuotas_a_cobrar + proyeccion_total
@@ -895,15 +1003,26 @@ class ClientesServices:
                 "cuotas": detalles_cuotas,
                 "proyeccion": detalles_proyeccion,
                 "cobrado": detalles_cobrado,
+                "semana": detalles_semana,
             },
             "proyeccion_meses": list(meses_proyeccion.values()),
+            "semana": {
+                "inicio": lunes,
+                "fin": domingo,
+                "total_usd": sum((d["cobrado_usd"] for d in dias_semana.values()), Decimal("0")),
+                "dias": list(dias_semana.values()),
+            },
             "mes_cajas": {
                 "venta": venta_parte,
                 "upsell": upsell_parte,
                 "recompra": recompra_parte,
                 "caja_1_usd": venta_parte["total_usd"],
                 "caja_2_usd": upsell_parte["total_usd"] + recompra_parte["total_usd"],
+                "venta_nueva_usd": venta_nueva_cobrado,
+                "cuota_venta_usd": cuota_venta_cobrado,
             },
+            "ultima_actualizacion": ultima_actualizacion,
+            "ultima_actualizacion_label": label_actualizacion_caja(ultima_actualizacion),
         }
 
     def obtener_cliente(self, cliente_id: int) -> dict | None:
@@ -1142,6 +1261,7 @@ class ClientesServices:
                 nombre=Path(filename).name[:255] if filename else target_path.name,
             )
             cliente.updated_at = datetime.utcnow()
+            _marcar_cambio_caja()
             flush()
             cuotas = list(cliente.cuotas)
             return _cuota_to_dict(cuota, cuotas)
@@ -1188,6 +1308,7 @@ class ClientesServices:
             old_path = item.filepath
             item.delete()
             cliente.updated_at = datetime.utcnow()
+            _marcar_cambio_caja()
 
         _unlink_comprobante(old_path)
         return True

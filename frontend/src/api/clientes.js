@@ -60,16 +60,13 @@ export function fetchClientes(params = {}) {
   return request(`/api/clientes${suffix}`)
 }
 
-export function fetchDashboard({ mes, anio } = {}) {
+export function fetchDashboard({ mes, anio, semana } = {}) {
   const query = new URLSearchParams()
   if (mes) query.set('mes', String(mes))
   if (anio) query.set('anio', String(anio))
+  if (semana) query.set('semana', semana)
   const suffix = query.toString() ? `?${query.toString()}` : ''
   return request(`/api/clientes/dashboard${suffix}`)
-}
-
-export function fetchCobranza() {
-  return request('/api/clientes/cobranza')
 }
 
 export function fetchCliente(id) {

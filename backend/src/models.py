@@ -143,6 +143,13 @@ class AnalisisCash(db.Entity):
     updated_by = Optional(str, 255)
 
 
+class CajaMeta(db.Entity):
+    _table_ = ("clients", "caja_meta")
+
+    id = PrimaryKey(int)
+    cuotas_updated_at = Required(datetime, default=lambda: datetime.utcnow())
+
+
 class AnalisisIARun(db.Entity):
     _table_ = ("clients", "analisis_ia_runs")
 

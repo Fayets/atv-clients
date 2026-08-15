@@ -3,9 +3,14 @@ from fastapi import HTTPException, Request
 from src.session_utils import SESSION_COOKIE_NAME, verify_session_token
 
 ADMIN_API_KEY = config("ADMIN_API_KEY", default="")
+MOCK_AUTH = config("MOCK_AUTH", default=False, cast=bool)
+MOCK_USER = config("MOCK_USER", default="franco")
 
 
 def get_current_user(request: Request) -> str:
+    if MOCK_AUTH:
+        token = request.cookies.get(SESSION_COOKIE_NAME)
+        return verify_session_token(token or "") or MOCK_USER
     token = request.cookies.get(SESSION_COOKIE_NAME)
     username = verify_session_token(token or "")
     if not username:

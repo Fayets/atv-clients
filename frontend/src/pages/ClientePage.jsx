@@ -652,7 +652,7 @@ export default function ClientePage({ clienteId }) {
   const renderComprobanteCell = (cuota) => {
     const cantidad = cuota.comprobantes?.length || 0
     return (
-      <td>
+      <td data-label="Comprobante" className={styles.cuotaFiles}>
         <div className={styles.cuotaActions}>
           {cantidad ? (
             <button
@@ -1300,7 +1300,7 @@ export default function ClientePage({ clienteId }) {
               aria-label="Eliminar cliente"
             >
               <i className="ti ti-trash" />
-              <span>{deletingCliente ? 'Eliminando...' : 'Eliminar'}</span>
+              <span className={styles.btnLabel}>{deletingCliente ? 'Eliminando...' : 'Eliminar'}</span>
             </button>
           </div>
         </header>
@@ -1890,9 +1890,10 @@ export default function ClientePage({ clienteId }) {
                     editingCuotaId === cuota.id ? (
                       <tr
                         key={cuota.id}
+                        className={styles.cuotaRowEdit}
                         onKeyDown={(event) => handleCuotaRowKeyDown(event, () => guardarEditCuota(cuota.id), resetEditCuota)}
                       >
-                        <td>
+                        <td data-label="Monto" className={styles.cuotaMonto}>
                           <input
                             type="number"
                             className={styles.tableInput}
@@ -1900,7 +1901,7 @@ export default function ClientePage({ clienteId }) {
                             onChange={(e) => setEditCuota((prev) => ({ ...prev, monto_usd: e.target.value }))}
                           />
                         </td>
-                        <td>
+                        <td data-label="Vence" className={styles.cuotaVence}>
                           <input
                             type="date"
                             className={styles.tableInput}
@@ -1908,7 +1909,7 @@ export default function ClientePage({ clienteId }) {
                             onChange={(e) => handleCuotaFechaChange(setEditCuota, e, setCuotaError)}
                           />
                         </td>
-                        <td>
+                        <td data-label="Pago" className={styles.cuotaPago}>
                           <input
                             type="date"
                             className={styles.tableInput}
@@ -1916,8 +1917,10 @@ export default function ClientePage({ clienteId }) {
                             onChange={(e) => handleCuotaFechaChange(setEditCuota, e, setCuotaError, 'fecha_pago')}
                           />
                         </td>
-                        <td>{cuota.estado}</td>
-                        <td>
+                        <td data-label="Estado" className={styles.cuotaEstado}>
+                          <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>{cuota.estado}</span>
+                        </td>
+                        <td data-label="Tipo" className={styles.cuotaTipo}>
                           <select
                             className={styles.tableInput}
                             value={editCuota.notas}
@@ -1929,7 +1932,7 @@ export default function ClientePage({ clienteId }) {
                           </select>
                         </td>
                         {renderComprobanteCell(cuota)}
-                        <td>
+                        <td data-label="Acciones" className={styles.cuotaAcciones}>
                           <div className={styles.cuotaActions}>
                             <button type="button" className={styles.saveBtn} onClick={() => guardarEditCuota(cuota.id)}>
                               Guardar
@@ -1942,13 +1945,15 @@ export default function ClientePage({ clienteId }) {
                       </tr>
                     ) : (
                       <tr key={cuota.id}>
-                        <td>{formatUsd(cuota.monto_usd)}</td>
-                        <td>{formatDate(cuota.fecha_vence)}</td>
-                        <td>{formatDate(cuota.fecha_pago)}</td>
-                        <td>{cuota.estado}</td>
-                        <td>{labelTipoCuotaNota(cuota.notas, cuota.nota_label)}</td>
+                        <td data-label="Monto" className={styles.cuotaMonto}>{formatUsd(cuota.monto_usd)}</td>
+                        <td data-label="Vence" className={styles.cuotaVence}>{formatDate(cuota.fecha_vence)}</td>
+                        <td data-label="Pago" className={styles.cuotaPago}>{formatDate(cuota.fecha_pago)}</td>
+                        <td data-label="Estado" className={styles.cuotaEstado}>
+                          <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>{cuota.estado}</span>
+                        </td>
+                        <td data-label="Tipo" className={styles.cuotaTipo}>{labelTipoCuotaNota(cuota.notas, cuota.nota_label)}</td>
                         {renderComprobanteCell(cuota)}
-                        <td>
+                        <td data-label="Acciones" className={styles.cuotaAcciones}>
                           <div className={styles.cuotaActions}>
                             {cuota.estado !== 'pagado' ? (
                               <button type="button" className={styles.payBtn} onClick={() => marcarPagado(cuota.id)}>
@@ -1982,8 +1987,11 @@ export default function ClientePage({ clienteId }) {
                   ) : null}
                   {addingCuota ? (
                     <>
-                    <tr onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}>
-                      <td>
+                    <tr
+                      className={styles.cuotaRowEdit}
+                      onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}
+                    >
+                      <td data-label="Monto" className={styles.cuotaMonto}>
                         <input
                           type="number"
                           className={styles.tableInput}
@@ -1992,7 +2000,7 @@ export default function ClientePage({ clienteId }) {
                           onChange={(e) => setNewCuota((prev) => ({ ...prev, monto_usd: e.target.value }))}
                         />
                       </td>
-                      <td>
+                      <td data-label="Vence" className={styles.cuotaVence}>
                         <input
                           type="date"
                           className={styles.tableInput}
@@ -2000,9 +2008,11 @@ export default function ClientePage({ clienteId }) {
                           onChange={(e) => handleCuotaFechaChange(setNewCuota, e, setCuotaError)}
                         />
                       </td>
-                      <td>—</td>
-                      <td>pendiente</td>
-                      <td>
+                      <td data-label="Pago" className={styles.cuotaPago}>—</td>
+                      <td data-label="Estado" className={styles.cuotaEstado}>
+                        <span className={styles.cuotaEstadoBadge} data-estado="pendiente">pendiente</span>
+                      </td>
+                      <td data-label="Tipo" className={styles.cuotaTipo}>
                         <select
                           className={styles.tableInput}
                           value={newCuota.notas}
@@ -2022,8 +2032,8 @@ export default function ClientePage({ clienteId }) {
                           ))}
                         </select>
                       </td>
-                      <td>—</td>
-                      <td>
+                      <td data-label="Comprobante">—</td>
+                      <td data-label="Acciones" className={styles.cuotaAcciones}>
                         <div className={styles.cuotaActions}>
                           <button type="button" className={styles.saveBtn} onClick={guardarNuevaCuota}>
                             Guardar
@@ -2036,7 +2046,7 @@ export default function ClientePage({ clienteId }) {
                     </tr>
                     {TIPOS_RENOVACION.has(newCuota.notas) ? (
                       <tr onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}>
-                        <td colSpan={7}>
+                        <td colSpan={7} data-span>
                           <div className={styles.renovarBox}>
                             <p className={styles.renovarTitle}>
                               ¿Establecer un nuevo período de vencimiento?

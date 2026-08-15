@@ -13,7 +13,6 @@ export default function Navbar({ currentPath }) {
   const links = [
     { href: '/', label: 'Inicio' },
     { href: '/clientes', label: 'Clientes' },
-    { href: '/cobranza', label: 'Cobranza' },
   ]
 
   const handleToggleTheme = () => {
@@ -65,7 +64,9 @@ export default function Navbar({ currentPath }) {
         title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
       >
         <i className={`ti ${theme === 'dark' ? 'ti-sun' : 'ti-moon'}`} />
-        {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+        <span className={styles.themeLabel}>
+          {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+        </span>
       </button>
     </nav>
   )

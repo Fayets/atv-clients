@@ -32,7 +32,7 @@ PrioridadCobro = Literal["alta", "media", "baja"]
 Responsable = Literal["lucas", "juampi", "juan", "ale"]
 EstadoCuota = Literal["pendiente", "pagado", "vencido"]
 CuotaNotaTipo = Literal["cuota_venta", "cuota_upsell", "cuota_recompra", "sena"]
-OrdenListado = Literal["venc_asc", "venc_desc"]
+OrdenListado = Literal["venc_asc", "venc_desc", "alta_asc", "alta_desc"]
 
 
 class CuotaComprobanteResponse(BaseModel):
@@ -362,6 +362,8 @@ class DashboardDetalleItem(BaseModel):
     subtitulo: str | None = None
     estado_efectivo: EstadoEfectivo | None = None
     tipo: CuotaNotaTipo | None = None
+    origen: str | None = None
+    fecha: date | None = None
 
 
 class DashboardMesCobranza(BaseModel):
@@ -416,6 +418,7 @@ class DashboardDetalles(BaseModel):
     cuotas: list[DashboardDetalleItem] = Field(default_factory=list)
     proyeccion: list[DashboardProyeccionItem] = Field(default_factory=list)
     cobrado: list[DashboardDetalleItem] = Field(default_factory=list)
+    semana: list[DashboardDetalleItem] = Field(default_factory=list)
 
 
 class DashboardMesProyeccion(BaseModel):
@@ -439,6 +442,24 @@ class DashboardMesCajas(BaseModel):
     recompra: DashboardCajaParte
     caja_1_usd: Decimal = 0
     caja_2_usd: Decimal = 0
+    venta_nueva_usd: Decimal = 0
+    cuota_venta_usd: Decimal = 0
+
+
+class DashboardDiaSemana(BaseModel):
+    fecha: date
+    weekday: int
+    label: str
+    cobrado_usd: Decimal = 0
+    caja1_usd: Decimal = 0
+    caja2_usd: Decimal = 0
+
+
+class DashboardSemana(BaseModel):
+    inicio: date
+    fin: date
+    total_usd: Decimal = 0
+    dias: list[DashboardDiaSemana] = Field(default_factory=list)
 
 
 class DashboardResponse(BaseModel):
@@ -446,6 +467,9 @@ class DashboardResponse(BaseModel):
     detalles: DashboardDetalles = Field(default_factory=DashboardDetalles)
     proyeccion_meses: list[DashboardMesProyeccion] = Field(default_factory=list)
     mes_cajas: DashboardMesCajas | None = None
+    semana: DashboardSemana | None = None
+    ultima_actualizacion: datetime | None = None
+    ultima_actualizacion_label: str | None = None
 
 
 class ClienteResponse(ClienteListItem):

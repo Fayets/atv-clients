@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDashboard } from '../api/clientes'
 import Navbar from '../components/Navbar'
 import PlanBadge from '../components/PlanBadge'
-import { formatUsd } from '../utils/format'
+import {
+  formatDate,
+  formatLocalDateISO,
+  formatUsd,
+  parseDateValue,
+  todayLocalISO,
+} from '../utils/format'
 import { navigate } from '../utils/navigation'
 import styles from './HomePage.module.css'
 
@@ -53,13 +59,8 @@ function tagVariant(tag) {
   return 'default'
 }
 
-const SERIES = [
-  { key: 'cuotas_usd', label: 'Cuota venta', bar: 'barCuotas' },
-  { key: 'upsell_usd', label: 'Cuota upsell', bar: 'barUpsell' },
-  { key: 'recompra_usd', label: 'Cuota recompra', bar: 'barRecompra' },
-]
-
 const CAJA2_TIPOS = new Set(['cuota_upsell', 'cuota_recompra'])
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 function num(value) {
   return Number(value) || 0
@@ -70,18 +71,41 @@ function pct(part, total) {
   return Math.max(0, (num(part) / num(total)) * 100)
 }
 
-function niceMax(value) {
-  const n = Number(value) || 0
-  if (n <= 0) return 1000
-  const exp = 10 ** Math.floor(Math.log10(n))
-  const nrm = n / exp
-  const nice = nrm <= 1 ? 1 : nrm <= 2 ? 2 : nrm <= 5 ? 5 : 10
-  return nice * exp
+function isoDate(value) {
+  if (!value) return ''
+  if (typeof value === 'string') return value.slice(0, 10)
+  return formatLocalDateISO(value)
 }
 
-function shortMonthLabel(item) {
-  const name = MESES[(item.mes || 1) - 1] || ''
-  return `${name.slice(0, 3)} ${item.anio}`
+function startOfWeekMonday(d = new Date()) {
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const weekday = date.getDay()
+  const offset = weekday === 0 ? 6 : weekday - 1
+  date.setDate(date.getDate() - offset)
+  return formatLocalDateISO(date)
+}
+
+function shiftWeek(iso, days) {
+  const date = parseDateValue(iso)
+  if (!date) return iso
+  date.setDate(date.getDate() + days)
+  return formatLocalDateISO(date)
+}
+
+function formatWeekRange(inicio, fin) {
+  const from = parseDateValue(inicio)
+  const to = parseDateValue(fin)
+  if (!from || !to) return ''
+  if (from.getMonth() === to.getMonth()) {
+    return `${from.getDate()}–${to.getDate()} ${MESES_CORTOS[from.getMonth()]}`
+  }
+  return `${from.getDate()} ${MESES_CORTOS[from.getMonth()]} – ${to.getDate()} ${MESES_CORTOS[to.getMonth()]}`
+}
+
+function formatUsdCell(value) {
+  const amount = Number(value) || 0
+  if (amount === 0) return '—'
+  return `$${Math.round(amount).toLocaleString('es-AR')}`
 }
 
 function CajaMesCard({ kicker, title, cobrado, extra, accent, active, onClick }) {
@@ -106,6 +130,8 @@ function CajaMesCard({ kicker, title, cobrado, extra, accent, active, onClick })
 
 function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
   const venta = num(mesCajas?.venta?.cobrado_usd)
+  const ventaNueva = num(mesCajas?.venta_nueva_usd)
+  const cuotaVenta = num(mesCajas?.cuota_venta_usd)
   const upsell = num(mesCajas?.upsell?.cobrado_usd)
   const recompra = num(mesCajas?.recompra?.cobrado_usd)
   const caja2 = upsell + recompra
@@ -128,8 +154,9 @@ function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
       <div className={styles.splitGrid}>
         <CajaMesCard
           kicker="Caja 1"
-          title="Cuota venta"
+          title="Nuevas ventas / cuotas ventas"
           cobrado={venta}
+          extra={`Nuevas ventas ${formatUsd(ventaNueva)} · Cuotas ${formatUsd(cuotaVenta)}`}
           accent={styles.cajaVenta}
           active={popupId === 'caja1'}
           onClick={() => onCobrado('caja1')}
@@ -148,21 +175,16 @@ function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
       <div className={styles.splitBarWrap}>
         <div className={styles.splitBar} aria-hidden="true">
           <span className={styles.barCuotas} style={{ width: `${pct(venta, total)}%` }} />
-          <span className={styles.barUpsell} style={{ width: `${pct(upsell, total)}%` }} />
-          <span className={styles.barRecompra} style={{ width: `${pct(recompra, total)}%` }} />
+          <span className={styles.barRecompra} style={{ width: `${pct(caja2, total)}%` }} />
         </div>
         <ul className={styles.splitLegend}>
           <li>
             <span className={`${styles.legendSwatch} ${styles.barCuotas}`} />
-            Caja 1 · venta {loading ? '…' : formatUsd(venta)}
-          </li>
-          <li>
-            <span className={`${styles.legendSwatch} ${styles.barUpsell}`} />
-            Upsell {loading ? '…' : formatUsd(upsell)}
+            Caja 1 {loading ? '…' : formatUsd(venta)}
           </li>
           <li>
             <span className={`${styles.legendSwatch} ${styles.barRecompra}`} />
-            Recompra {loading ? '…' : formatUsd(recompra)}
+            Caja 2 {loading ? '…' : formatUsd(caja2)}
           </li>
         </ul>
       </div>
@@ -170,74 +192,177 @@ function MesCajas({ mesLabel, mesCajas, loading, popupId, onCobrado }) {
   )
 }
 
-function ProyeccionChart({ meses, loading }) {
-  const rows = meses || []
-  const peak = Math.max(
-    0,
-    ...rows.flatMap((item) => SERIES.map((serie) => Number(item[serie.key]) || 0)),
+function formatDiaLargo(iso) {
+  const date = parseDateValue(iso)
+  if (!date) return ''
+  const names = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+  return `${names[date.getDay()]} ${date.getDate()} ${MESES_CORTOS[date.getMonth()]}`
+}
+
+function DiaCirculo({ dia, loading, onPrev, onNext, onHoy, onOpen, actualizadoLabel }) {
+  const fecha = isoDate(dia?.fecha)
+  const hoy = todayLocalISO()
+  const esHoy = fecha === hoy
+  const caja1 = num(dia?.caja1_usd)
+  const caja2 = num(dia?.caja2_usd)
+  const total = num(dia?.cobrado_usd) || caja1 + caja2
+  const p1 = total ? (caja1 / total) * 100 : 0
+  const start = useRef(null)
+  const swiped = useRef(false)
+
+  const onTouchStart = (event) => {
+    const touch = event.changedTouches[0]
+    start.current = { x: touch.clientX, y: touch.clientY }
+    swiped.current = false
+  }
+
+  const onTouchEnd = (event) => {
+    if (!start.current) return
+    const touch = event.changedTouches[0]
+    const dx = touch.clientX - start.current.x
+    const dy = touch.clientY - start.current.y
+    start.current = null
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return
+    swiped.current = true
+    if (dx > 0) onPrev()
+    else onNext()
+  }
+
+  return (
+    <div
+      className={styles.dayCircleWrap}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      <div className={styles.dayCircleHead}>
+        <h2 className={styles.chartTitle}>{esHoy ? 'Hoy' : formatDiaLargo(fecha)}</h2>
+        {esHoy ? (
+          <p className={styles.chartMeta}>Cobrado del día</p>
+        ) : (
+          <button type="button" className={styles.weekTodayBtn} onClick={onHoy}>
+            Ir a hoy
+          </button>
+        )}
+      </div>
+      <button
+        type="button"
+        className={`${styles.dayRing} ${total ? '' : styles.dayRingEmpty}`}
+        style={total ? { background: `conic-gradient(#f79009 0 ${p1}%, #6172f3 ${p1}% 100%)` } : undefined}
+        onClick={() => {
+          if (swiped.current || !fecha) return
+          onOpen(fecha)
+        }}
+      >
+        <span className={styles.dayRingInner}>
+          <span className={styles.dayRingKicker}>{esHoy ? 'Hoy' : dia?.label || ''}</span>
+          <span className={styles.dayRingValue}>{loading ? '…' : formatUsd(total)}</span>
+        </span>
+      </button>
+      <ul className={styles.dayRingLegend}>
+        <li>
+          <span className={`${styles.legendSwatch} ${styles.barCuotas}`} />
+          Caja 1 {loading ? '…' : formatUsd(caja1)}
+        </li>
+        <li>
+          <span className={`${styles.legendSwatch} ${styles.barRecompra}`} />
+          Caja 2 {loading ? '…' : formatUsd(caja2)}
+        </li>
+      </ul>
+      <p className={styles.dayRingHint}>
+        {loading ? '…' : (actualizadoLabel || 'Todavía no hay cargas de caja')}
+      </p>
+    </div>
   )
-  const max = niceMax(peak)
-  const ticks = [max, max / 2, 0]
+}
+
+function SemanaCalendario({
+  semana,
+  loading,
+  diaSeleccionado,
+  onPrev,
+  onNext,
+  onToday,
+  onPrevDay,
+  onNextDay,
+  onHoy,
+  onDia,
+  activeFecha,
+  actualizadoLabel,
+}) {
+  const dias = semana?.dias || []
+  const hoy = todayLocalISO()
+  const esEstaSemana = isoDate(semana?.inicio) === startOfWeekMonday()
+  const total = num(semana?.total_usd)
+  const dia = dias.find((item) => isoDate(item.fecha) === diaSeleccionado) || null
 
   return (
     <section className={styles.chartCard}>
-      <div className={styles.chartHead}>
+      <div className={`${styles.chartHead} ${styles.weekHead}`}>
         <div>
-          <h2 className={styles.chartTitle}>Próximos 6 meses</h2>
-          <p className={styles.chartMeta}>Pendiente por vencer · cuota venta, upsell y recompra</p>
+          <h2 className={styles.chartTitle}>{esEstaSemana ? 'Esta semana' : 'Semana'}</h2>
+          <p className={styles.chartMeta}>
+            {formatWeekRange(semana?.inicio, semana?.fin)} · cobrado
+            {actualizadoLabel ? ` · ${actualizadoLabel}` : ''}
+          </p>
         </div>
-        <ul className={styles.chartLegend}>
-          {SERIES.map((serie) => (
-            <li key={serie.key}>
-              <span className={`${styles.legendSwatch} ${styles[serie.bar]}`} />
-              {serie.label}
-            </li>
-          ))}
-        </ul>
+        <div className={styles.weekToolbar}>
+          <span className={styles.weekTotal}>{loading ? '…' : formatUsd(total)}</span>
+          <div className={styles.weekNav}>
+            <button type="button" onClick={onPrev} aria-label="Semana anterior">
+              <i className="ti ti-chevron-left" />
+            </button>
+            {esEstaSemana ? null : (
+              <button type="button" className={styles.weekTodayBtn} onClick={onToday}>
+                Hoy
+              </button>
+            )}
+            <button type="button" onClick={onNext} aria-label="Semana siguiente">
+              <i className="ti ti-chevron-right" />
+            </button>
+          </div>
+        </div>
       </div>
-      {loading && !rows.length ? (
-        <p className={styles.chartEmpty}>Cargando proyección…</p>
+      {loading && !dias.length ? (
+        <p className={`${styles.chartEmpty} ${styles.weekHead}`}>Cargando semana…</p>
       ) : (
-        <div className={styles.chartBody}>
-          <div className={styles.chartYAxis} aria-hidden="true">
-            {ticks.map((tick) => (
-              <span key={tick}>{formatUsd(tick)}</span>
-            ))}
-          </div>
-          <div className={styles.chartPlot}>
-            <div className={styles.chartGrid} aria-hidden="true">
-              {ticks.map((tick) => (
-                <span key={tick} className={styles.chartGridLine} />
-              ))}
-            </div>
-            <div className={styles.chartGroups}>
-              {rows.map((item) => (
-                <div key={`${item.anio}-${item.mes}`} className={styles.chartGroup}>
-                  <div className={styles.chartBars}>
-                    {SERIES.map((serie) => {
-                      const value = Number(item[serie.key]) || 0
-                      const height = Math.max(0, (value / max) * 100)
-                      return (
-                        <div
-                          key={serie.key}
-                          className={styles.chartBarWrap}
-                          title={`${serie.label}: ${formatUsd(value)}`}
-                        >
-                          <div
-                            className={`${styles.chartBar} ${styles[serie.bar]}`}
-                            style={{ height: `${height}%` }}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <span className={styles.chartMonth}>{shortMonthLabel(item)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className={styles.weekGrid}>
+          {dias.map((dia) => {
+            const fecha = isoDate(dia.fecha)
+            const cobrado = num(dia.cobrado_usd)
+            const isToday = fecha === hoy
+            const isFuture = fecha > hoy
+            const active = activeFecha === fecha
+            const dayNum = parseDateValue(fecha)?.getDate()
+            return (
+              <button
+                key={fecha}
+                type="button"
+                className={[
+                  styles.weekDay,
+                  isToday ? styles.weekDayToday : '',
+                  cobrado > 0 ? styles.weekDayMoney : '',
+                  isFuture ? styles.weekDayFuture : '',
+                  active ? styles.weekDayActive : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => onDia(fecha)}
+              >
+                <span className={styles.weekDayName}>{dia.label}</span>
+                <span className={styles.weekDayNum}>{dayNum}</span>
+                <span className={styles.weekDayAmount}>{formatUsdCell(cobrado)}</span>
+              </button>
+            )
+          })}
         </div>
       )}
+      <DiaCirculo
+        dia={dia || { fecha: diaSeleccionado }}
+        loading={loading}
+        onPrev={onPrevDay}
+        onNext={onNextDay}
+        onHoy={onHoy}
+        onOpen={onDia}
+        actualizadoLabel={actualizadoLabel}
+      />
     </section>
   )
 }
@@ -257,43 +382,23 @@ function DetailList({ items }) {
             className={styles.detailRow}
             onClick={() => navigate(`/cliente/${item.cliente_id}`)}
           >
-            <div className={styles.detailRowMain}>
-              <span className={styles.detailName}>{item.nombre}</span>
+            <span className={styles.detailName}>{item.nombre}</span>
+            <span className={styles.detailTagCell}>
               {tag ? (
-                <div className={styles.detailTags}>
-                  <span className={`${styles.detailTag} ${styles[TAG_CLASS[variant] || TAG_CLASS.default]}`}>
-                    {tag}
-                  </span>
-                  {extra ? (
-                    <span className={styles.detailTagExtra}>{extra}</span>
-                  ) : null}
-                </div>
+                <span className={`${styles.detailTag} ${styles[TAG_CLASS[variant] || TAG_CLASS.default]}`}>
+                  {tag}
+                </span>
               ) : null}
-            </div>
-            <PlanBadge plan={item.plan_actual} />
+            </span>
+            <span className={styles.detailTagExtra}>{extra || ''}</span>
+            <span className={styles.detailPlan}>
+              <PlanBadge plan={item.plan_actual} />
+            </span>
             <span className={styles.detailAmount}>{formatUsd(item.monto_usd)}</span>
           </li>
         )
       })}
     </ul>
-  )
-}
-
-function DetailPanel({ title, hint, items, onClose }) {
-  return (
-    <section className={styles.detailPanel}>
-      <div className={styles.detailHead}>
-        <div>
-          <h2 className={styles.detailTitle}>{title}</h2>
-          {hint ? <p className={styles.detailMeta}>{hint}</p> : null}
-        </div>
-        <button type="button" className={styles.detailClose} onClick={onClose}>
-          <i className="ti ti-x" />
-          Cerrar
-        </button>
-      </div>
-      <DetailList items={items} />
-    </section>
   )
 }
 
@@ -343,14 +448,15 @@ export default function HomePage() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selected, setSelected] = useState(null)
   const [popupId, setPopupId] = useState(null)
+  const [semanaInicio, setSemanaInicio] = useState(() => startOfWeekMonday())
+  const [diaSeleccionado, setDiaSeleccionado] = useState(() => todayLocalISO())
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const result = await fetchDashboard({ mes, anio })
+      const result = await fetchDashboard({ mes, anio, semana: semanaInicio })
       setData(result)
     } catch (err) {
       setData(null)
@@ -358,7 +464,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [mes, anio])
+  }, [mes, anio, semanaInicio])
 
   useEffect(() => {
     load()
@@ -373,6 +479,7 @@ export default function HomePage() {
       label: 'Cuotas a cobrar',
       value: resumen?.cuotas_a_cobrar_usd,
       sub: 'Caja 1 · cuota venta pendiente del mes',
+      subShort: 'Caja 1',
       accent: styles.cardCuotas,
     },
     {
@@ -380,6 +487,7 @@ export default function HomePage() {
       label: 'Proyección',
       value: resumen?.proyeccion_usd,
       sub: 'Caja 2 · upsell y recompras pendientes',
+      subShort: 'Upsell y recompras',
       accent: styles.cardProyeccion,
     },
     {
@@ -387,29 +495,34 @@ export default function HomePage() {
       label: 'Pendiente del mes',
       value: resumen?.total_mes_usd,
       sub: `Caja 1 ${formatUsd(resumen?.cuotas_a_cobrar_usd ?? 0)} + Caja 2 ${formatUsd(resumen?.proyeccion_usd ?? 0)}`,
+      subShort: 'Caja 1 + Caja 2',
       accent: styles.cardTotal,
     },
   ]
 
-  const detailConfig = {
-    cuotas: {
-      title: `Cuotas a cobrar — ${resumen?.mes_label || ''}`,
-      hint: `${detalles.cuotas?.length || 0} cuotas · cargadas en ficha cliente`,
-      items: detalles.cuotas || [],
-    },
-    proyeccion: {
-      title: `Proyección — ${resumen?.mes_label || ''}`,
-      hint: `${detalles.proyeccion?.length || 0} recompras y upsells · cargados en ficha cliente`,
-      items: detalles.proyeccion || [],
-    },
-  }
-
+  const cuotasItems = detalles.cuotas || []
+  const proyeccionItems = detalles.proyeccion || []
   const cobradoVenta = (detalles.cobrado || []).filter((item) => !CAJA2_TIPOS.has(item.tipo))
   const cobradoCaja2 = (detalles.cobrado || []).filter((item) => CAJA2_TIPOS.has(item.tipo))
   const popupConfig = {
+    cuotas: {
+      title: `Cuotas a cobrar — ${resumen?.mes_label || ''}`,
+      hint: `${cuotasItems.length} cuotas · Caja 1`,
+      items: cuotasItems,
+    },
+    proyeccion: {
+      title: `Proyección — ${resumen?.mes_label || ''}`,
+      hint: `${proyeccionItems.length} upsells y recompras · Caja 2`,
+      items: proyeccionItems,
+    },
+    total: {
+      title: `Pendiente del mes — ${resumen?.mes_label || ''}`,
+      hint: `${cuotasItems.length + proyeccionItems.length} pendientes · Caja 1 + Caja 2`,
+      items: [...cuotasItems, ...proyeccionItems],
+    },
     caja1: {
       title: `Cobrado · Caja 1 — ${resumen?.mes_label || ''}`,
-      hint: `${cobradoVenta.length} pagos · cuota venta y seña`,
+      hint: `${cobradoVenta.length} pagos · nuevas ventas y cuotas`,
       items: cobradoVenta,
     },
     caja2: {
@@ -419,13 +532,48 @@ export default function HomePage() {
     },
   }
 
-  const openCobradoPopup = (id) => {
-    setSelected(null)
+  const openPopup = (id) => {
+    setPopupId((prev) => (prev === id ? null : id))
+  }
+
+  const openDiaPopup = (fecha) => {
+    const id = `dia:${fecha}`
     setPopupId((prev) => (prev === id ? null : id))
   }
 
   const closePopup = useCallback(() => setPopupId(null), [])
-  const popup = popupId ? popupConfig[popupId] : null
+
+  const goWeek = (iso) => {
+    setSemanaInicio(iso)
+    setPopupId((prev) => (prev?.startsWith('dia:') ? null : prev))
+  }
+
+  const goDay = (days) => {
+    const next = shiftWeek(diaSeleccionado, days)
+    setDiaSeleccionado(next)
+    const monday = startOfWeekMonday(parseDateValue(next) || new Date())
+    if (monday !== semanaInicio) setSemanaInicio(monday)
+    setPopupId((prev) => (prev?.startsWith('dia:') ? null : prev))
+  }
+
+  const goHoy = () => {
+    const hoy = todayLocalISO()
+    setDiaSeleccionado(hoy)
+    setSemanaInicio(startOfWeekMonday())
+    setPopupId((prev) => (prev?.startsWith('dia:') ? null : prev))
+  }
+
+  let popup = popupId ? popupConfig[popupId] : null
+  if (popupId?.startsWith('dia:')) {
+    const fecha = popupId.slice(4)
+    const items = (detalles.semana || []).filter((item) => isoDate(item.fecha) === fecha)
+    const dia = (data?.semana?.dias || []).find((d) => isoDate(d.fecha) === fecha)
+    popup = {
+      title: `Cobrado · ${dia?.label || ''} ${formatDate(fecha)}`,
+      hint: `${items.length} pagos`,
+      items,
+    }
+  }
 
   return (
     <div className={styles.page}>
@@ -433,64 +581,55 @@ export default function HomePage() {
 
       <main className={styles.content}>
         <header className={styles.hero}>
-          <div>
+          <div className={styles.heroCopy}>
             <h1 className={styles.heroTitle}>Dashboard</h1>
             <p className={styles.heroSubtitle}>Cuotas · proyección · plata del mes</p>
           </div>
-          <label className={styles.monthPicker}>
-            <span>Mes</span>
-            <select
-              value={`${anio}-${mes}`}
-              onChange={(e) => {
-                const [y, m] = e.target.value.split('-').map(Number)
-                setAnio(y)
-                setMes(m)
-                setSelected(null)
+          <select
+            className={styles.monthSelect}
+            aria-label="Mes"
+            value={`${anio}-${mes}`}
+            onChange={(e) => {
+              const [y, m] = e.target.value.split('-').map(Number)
+              setAnio(y)
+              setMes(m)
                 setPopupId(null)
-              }}
-            >
-              {mesesDisponibles.map((opt) => (
-                <option key={`${opt.anio}-${opt.mes}`} value={`${opt.anio}-${opt.mes}`}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            }}
+          >
+            {mesesDisponibles.map((opt) => (
+              <option key={`${opt.anio}-${opt.mes}`} value={`${opt.anio}-${opt.mes}`}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </header>
 
         {error ? <div className={styles.errorBanner}>{error}</div> : null}
 
         <section className={styles.cardsGrid}>
           {cards.map((card) => {
-            const active = selected === card.id
-            const clickable = card.id !== 'total'
+            const active = popupId === card.id
             return (
               <button
                 key={card.id}
                 type="button"
-                disabled={!clickable}
                 className={[
                   styles.card,
                   card.accent,
-                  clickable ? styles.clickable : '',
+                  styles.clickable,
                   active ? styles.cardActive : '',
                 ].filter(Boolean).join(' ')}
-                onClick={() => {
-                  if (!clickable) return
-                  setPopupId(null)
-                  setSelected((prev) => (prev === card.id ? null : card.id))
-                }}
+                onClick={() => openPopup(card.id)}
               >
                 <span className={styles.cardLabel}>{card.label}</span>
                 <span className={styles.cardValue}>
                   {loading ? '…' : formatUsd(card.value ?? 0)}
                 </span>
                 <span className={styles.cardSub}>{loading ? '…' : card.sub}</span>
-                {clickable ? (
-                  <span className={styles.cardHint}>
-                    {active ? 'Ocultar detalle' : 'Ver detalle'}
-                  </span>
-                ) : null}
+                <span className={styles.cardSubShort}>{loading ? '…' : card.subShort}</span>
+                <span className={styles.cardHint}>
+                  {active ? 'Ocultar detalle' : 'Ver detalle'}
+                </span>
               </button>
             )
           })}
@@ -501,17 +640,25 @@ export default function HomePage() {
           mesCajas={data?.mes_cajas}
           loading={loading}
           popupId={popupId}
-          onCobrado={openCobradoPopup}
+          onCobrado={openPopup}
         />
 
-        {selected && detailConfig[selected] ? (
-          <DetailPanel
-            title={detailConfig[selected].title}
-            hint={detailConfig[selected].hint}
-            items={detailConfig[selected].items}
-            onClose={() => setSelected(null)}
-          />
-        ) : null}
+        <SemanaCalendario
+          semana={data?.semana}
+          loading={loading}
+          diaSeleccionado={diaSeleccionado}
+          onPrev={() => goWeek(shiftWeek(semanaInicio, -7))}
+          onNext={() => goWeek(shiftWeek(semanaInicio, 7))}
+          onToday={() => {
+            goHoy()
+          }}
+          onPrevDay={() => goDay(-1)}
+          onNextDay={() => goDay(1)}
+          onHoy={goHoy}
+          onDia={openDiaPopup}
+          activeFecha={popupId?.startsWith('dia:') ? popupId.slice(4) : null}
+          actualizadoLabel={data?.ultima_actualizacion_label}
+        />
 
         {popup ? (
           <PagosPopup
@@ -521,8 +668,6 @@ export default function HomePage() {
             onClose={closePopup}
           />
         ) : null}
-
-        <ProyeccionChart meses={data?.proyeccion_meses} loading={loading} />
       </main>
     </div>
   )

@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from starlette.responses import FileResponse
 
@@ -51,7 +53,7 @@ def listar_clientes(
     estado: str | None = Query(default=None),
     plan: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    orden: OrdenListado = Query(default="venc_asc"),
+    orden: OrdenListado = Query(default="alta_desc"),
     _: str = Depends(get_current_user),
 ):
     try:
@@ -66,10 +68,11 @@ def listar_clientes(
 def obtener_dashboard(
     mes: int | None = Query(default=None, ge=1, le=12),
     anio: int | None = Query(default=None, ge=2020, le=2100),
+    semana: date | None = Query(default=None),
     _: str = Depends(get_current_user),
 ):
     try:
-        return service.obtener_dashboard(mes=mes, anio=anio)
+        return service.obtener_dashboard(mes=mes, anio=anio, semana=semana)
     except HTTPException as e:
         raise e
     except Exception:
