@@ -111,6 +111,17 @@ class AgentProyeccionesResponse(BaseModel):
     upsells: AgentProyeccionGrupo
 
 
+class AgentPlataDelDia(BaseModel):
+    total: float
+    caja_1: float
+    caja_2: float
+
+
+class AgentPlataDiaResponse(BaseModel):
+    fecha: date
+    plata_del_dia: AgentPlataDelDia
+
+
 class AgentCuotaBuscarItem(BaseModel):
     cuota_id: int
     cliente_nombre: str

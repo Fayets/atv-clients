@@ -491,6 +491,38 @@ DIAS_SEMANA_ES = ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
 TIPOS_CAJA2 = frozenset({"cuota_upsell", "cuota_recompra"})
 
 
+def _es_caja_2(tipo: str) -> bool:
+    return tipo in TIPOS_CAJA2
+
+
+def _fecha_cobro(cuota: Cuota, *, solo_fecha_pago: bool) -> date | None:
+    if cuota.estado != "pagado":
+        return None
+    if solo_fecha_pago:
+        return cuota.fecha_pago
+    return cuota.fecha_pago or cuota.fecha_vence
+
+
+def _sumar_cobrado_cajas(
+    cuotas: list[Cuota],
+    fecha: date,
+    *,
+    solo_fecha_pago: bool = False,
+) -> tuple[Decimal, Decimal]:
+    caja_1 = Decimal("0")
+    caja_2 = Decimal("0")
+    for cuota in cuotas:
+        if _fecha_cobro(cuota, solo_fecha_pago=solo_fecha_pago) != fecha:
+            continue
+        monto = _decimal(cuota.monto_usd)
+        tipo = normalizar_nota_cuota(cuota.notas) or TIPO_DEFAULT
+        if _es_caja_2(tipo):
+            caja_2 += monto
+        else:
+            caja_1 += monto
+    return caja_1, caja_2
+
+
 def _lunes_semana(fecha: date) -> date:
     return fecha - timedelta(days=fecha.weekday())
 
@@ -868,7 +900,7 @@ class ClientesServices:
                             if lunes <= fp <= domingo:
                                 dia_semana = dias_semana[fp]
                                 dia_semana["cobrado_usd"] += monto
-                                if tipo in TIPOS_CAJA2:
+                                if _es_caja_2(tipo):
                                     dia_semana["caja2_usd"] += monto
                                     origen_semana = "upsell" if tipo == "cuota_upsell" else "recompra"
                                 elif es_venta_nueva(cuota, cuotas):
@@ -1023,6 +1055,22 @@ class ClientesServices:
             },
             "ultima_actualizacion": ultima_actualizacion,
             "ultima_actualizacion_label": label_actualizacion_caja(ultima_actualizacion),
+        }
+
+    def obtener_plata_dia(self, fecha: date) -> dict:
+        with db_session:
+            caja_1, caja_2 = _sumar_cobrado_cajas(
+                list(Cuota.select()),
+                fecha,
+                solo_fecha_pago=True,
+            )
+        return {
+            "fecha": fecha,
+            "plata_del_dia": {
+                "total": caja_1 + caja_2,
+                "caja_1": caja_1,
+                "caja_2": caja_2,
+            },
         }
 
     def obtener_cliente(self, cliente_id: int) -> dict | None:

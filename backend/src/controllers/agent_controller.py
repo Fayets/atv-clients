@@ -11,6 +11,7 @@ from src.schemas import (
     AgentCuotaIdRequest,
     AgentDiscordTranscriptContenido,
     AgentDiscordTranscriptItem,
+    AgentPlataDiaResponse,
     AgentProyeccionesResponse,
     CuotaNotaTipo,
 )
@@ -49,6 +50,16 @@ def listar_proyecciones(
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Error al listar proyecciones.")
+
+
+@router.get("/plata-dia", response_model=AgentPlataDiaResponse)
+def obtener_plata_dia(_: None = Depends(get_agent_auth)):
+    try:
+        return service.obtener_plata_dia()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al obtener la plata del día.")
 
 
 @router.get("/cuotas/buscar", response_model=AgentCuotaBuscarResponse)
