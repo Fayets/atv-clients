@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import calendar
 import re
 from datetime import date, datetime
 from decimal import Decimal
@@ -11,6 +10,7 @@ from pony.orm import db_session
 
 from src.cuota_notas import normalizar_nota_cuota
 from src.models import Cliente, Cuota
+from src.services.clientes_services import _cuota_pendiente_del_mes, _es_caja_2
 
 AR = pytz.timezone("America/Argentina/Buenos_Aires")
 MONTH_RE = re.compile(r"^(\d{4})-(\d{2})$")
@@ -31,10 +31,6 @@ def parse_month(month: str | None) -> tuple[int, int, str]:
     if mes < 1 or mes > 12:
         raise HTTPException(status_code=400, detail="Mes inválido.")
     return anio, mes, f"{anio:04d}-{mes:02d}"
-
-
-def fin_de_mes(anio: int, mes: int) -> date:
-    return date(anio, mes, calendar.monthrange(anio, mes)[1])
 
 
 def inicio_de_mes(anio: int, mes: int) -> date:
@@ -63,11 +59,8 @@ def _filtrar_cuotas_cobros(
     *,
     arrastre: bool,
 ) -> list[Cuota]:
-    fin = fin_de_mes(anio, mes)
-    if arrastre:
-        return [cuota for cuota in cuotas if cuota.fecha_vence <= fin]
-    inicio = inicio_de_mes(anio, mes)
-    return [cuota for cuota in cuotas if inicio <= cuota.fecha_vence <= fin]
+    del arrastre
+    return [cuota for cuota in cuotas if _cuota_pendiente_del_mes(cuota, date(anio, mes, 1))]
 
 
 def build_cobros_item(cuota: Cuota, mes_consulta_inicio: date, clientes: dict[int, Cliente]) -> dict:
@@ -118,8 +111,8 @@ def _respuesta_cobros_arrastre(
     mes_label: str,
     filas: list[dict],
 ) -> dict:
-    cuotas_filas = [fila for fila in filas if fila["tipo"] in {"cuota_venta", "sena"}]
-    proyeccion_filas = [fila for fila in filas if fila["tipo"] in {"cuota_recompra", "cuota_upsell"}]
+    cuotas_filas = [fila for fila in filas if not _es_caja_2(fila["tipo"])]
+    proyeccion_filas = [fila for fila in filas if _es_caja_2(fila["tipo"])]
     grupo_cuotas = _grupo_cobros_detalle(cuotas_filas)
     grupo_proyeccion = _grupo_cobros_detalle(proyeccion_filas)
     return {
@@ -183,12 +176,12 @@ def obtener_proyecciones(month: str | None) -> dict:
 @db_session
 def _obtener_proyecciones_db(month: str | None) -> dict:
     anio, mes, mes_label = parse_month(month)
-    fin = fin_de_mes(anio, mes)
+    ref = date(anio, mes, 1)
 
     cuotas = [
         cuota
         for cuota in list(Cuota.select().order_by(Cuota.fecha_vence))
-        if cuota.estado != "pagado" and cuota.fecha_vence <= fin
+        if _cuota_pendiente_del_mes(cuota, ref)
     ]
     clientes = {cliente.id: cliente for cliente in list(Cliente.select())}
 

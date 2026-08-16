@@ -495,6 +495,13 @@ def _es_caja_2(tipo: str) -> bool:
     return tipo in TIPOS_CAJA2
 
 
+def _cuota_pendiente_del_mes(cuota: Cuota, ref: date) -> bool:
+    if cuota.estado not in {"pendiente", "vencido"}:
+        return False
+    fv = cuota.fecha_vence
+    return bool(fv) and fv.year == ref.year and fv.month == ref.month
+
+
 def _fecha_cobro(cuota: Cuota, *, solo_fecha_pago: bool) -> date | None:
     if cuota.estado != "pagado":
         return None
@@ -963,7 +970,7 @@ class ClientesServices:
                         else:
                             bucket["cuotas_usd"] += monto
 
-                    if fv.year != ref.year or fv.month != ref.month:
+                    if not _cuota_pendiente_del_mes(cuota, ref):
                         continue
                     nota_label = etiqueta_cuota_auto(cuota, cuotas)
 
