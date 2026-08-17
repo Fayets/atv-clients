@@ -1064,6 +1064,34 @@ class ClientesServices:
             "ultima_actualizacion_label": label_actualizacion_caja(ultima_actualizacion),
         }
 
+    def obtener_cobrado_semana(self, fecha: date) -> dict:
+        dash = self.obtener_dashboard(semana=fecha)
+        semana = dash["semana"]
+        dias = list(semana["dias"])
+        caja_1 = sum((d["caja1_usd"] for d in dias), Decimal("0"))
+        caja_2 = sum((d["caja2_usd"] for d in dias), Decimal("0"))
+        return {
+            "semana": {
+                "desde": semana["inicio"],
+                "hasta": semana["fin"],
+            },
+            "total": semana["total_usd"],
+            "por_dia": [
+                {
+                    "fecha": d["fecha"],
+                    "dia": d["label"],
+                    "total": d["cobrado_usd"],
+                    "caja_1": d["caja1_usd"],
+                    "caja_2": d["caja2_usd"],
+                }
+                for d in dias
+            ],
+            "totales": {
+                "caja_1": caja_1,
+                "caja_2": caja_2,
+            },
+        }
+
     def obtener_plata_dia(self, fecha: date) -> dict:
         with db_session:
             caja_1, caja_2 = _sumar_cobrado_cajas(

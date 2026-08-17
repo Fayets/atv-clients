@@ -122,6 +122,31 @@ class AgentPlataDiaResponse(BaseModel):
     plata_del_dia: AgentPlataDelDia
 
 
+class AgentCobradoSemanaRango(BaseModel):
+    desde: date
+    hasta: date
+
+
+class AgentCobradoDiaItem(BaseModel):
+    fecha: date
+    dia: str
+    total: float
+    caja_1: float
+    caja_2: float
+
+
+class AgentCobradoSemanaTotales(BaseModel):
+    caja_1: float
+    caja_2: float
+
+
+class AgentCobradoSemanaResponse(BaseModel):
+    semana: AgentCobradoSemanaRango
+    total: float
+    por_dia: list[AgentCobradoDiaItem] = Field(default_factory=list)
+    totales: AgentCobradoSemanaTotales
+
+
 class AgentCuotaBuscarItem(BaseModel):
     cuota_id: int
     cliente_nombre: str

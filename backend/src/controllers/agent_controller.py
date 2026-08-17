@@ -1,9 +1,11 @@
+from datetime import date
 from typing import Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.deps import get_agent_auth
 from src.schemas import (
+    AgentCobradoSemanaResponse,
     AgentCobrosArrastreResponse,
     AgentCobrosResponse,
     AgentCuotaAccionResponse,
@@ -60,6 +62,19 @@ def obtener_plata_dia(_: None = Depends(get_agent_auth)):
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Error al obtener la plata del día.")
+
+
+@router.get("/cobrado-semana", response_model=AgentCobradoSemanaResponse)
+def obtener_cobrado_semana(
+    fecha: date | None = Query(default=None, description="Cualquier día de la semana (YYYY-MM-DD). Default: hoy AR."),
+    _: None = Depends(get_agent_auth),
+):
+    try:
+        return service.obtener_cobrado_semana(fecha)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al obtener el cobrado de la semana.")
 
 
 @router.get("/cuotas/buscar", response_model=AgentCuotaBuscarResponse)

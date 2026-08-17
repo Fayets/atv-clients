@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import HTTPException
 
 from src.agent_caja import obtener_cobros, obtener_proyecciones, today_ar
@@ -63,6 +65,9 @@ class AgentServices:
 
     def obtener_plata_dia(self) -> dict:
         return self._clientes.obtener_plata_dia(today_ar())
+
+    def obtener_cobrado_semana(self, fecha: date | None = None) -> dict:
+        return self._clientes.obtener_cobrado_semana(fecha or today_ar())
 
     def buscar_cuotas(self, cliente: str | None) -> dict:
         return buscar_cuotas_por_cliente(cliente)
