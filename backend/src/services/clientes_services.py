@@ -1092,6 +1092,18 @@ class ClientesServices:
             },
         }
 
+    def obtener_cobrado_mes(self, mes: int, anio: int) -> dict:
+        dash = self.obtener_dashboard(mes=mes, anio=anio)
+        cajas = dash["mes_cajas"]
+        caja_1 = cajas["venta"]["cobrado_usd"]
+        caja_2 = cajas["upsell"]["cobrado_usd"] + cajas["recompra"]["cobrado_usd"]
+        return {
+            "mes": f"{anio:04d}-{mes:02d}",
+            "total": caja_1 + caja_2,
+            "caja_1": caja_1,
+            "caja_2": caja_2,
+        }
+
     def obtener_plata_dia(self, fecha: date) -> dict:
         with db_session:
             caja_1, caja_2 = _sumar_cobrado_cajas(

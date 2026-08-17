@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi import HTTPException
 
-from src.agent_caja import obtener_cobros, obtener_proyecciones, today_ar
+from src.agent_caja import obtener_cobros, obtener_proyecciones, parse_month, today_ar
 from src.agent_cuotas import (
     buscar_cuotas_por_cliente,
     marcar_cuota_pagada_agente,
@@ -68,6 +68,10 @@ class AgentServices:
 
     def obtener_cobrado_semana(self, fecha: date | None = None) -> dict:
         return self._clientes.obtener_cobrado_semana(fecha or today_ar())
+
+    def obtener_cobrado_mes(self, month: str | None = None) -> dict:
+        anio, mes, _ = parse_month(month)
+        return self._clientes.obtener_cobrado_mes(mes=mes, anio=anio)
 
     def buscar_cuotas(self, cliente: str | None) -> dict:
         return buscar_cuotas_por_cliente(cliente)

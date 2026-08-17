@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.deps import get_agent_auth
 from src.schemas import (
+    AgentCobradoMesResponse,
     AgentCobradoSemanaResponse,
     AgentCobrosArrastreResponse,
     AgentCobrosResponse,
@@ -75,6 +76,19 @@ def obtener_cobrado_semana(
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Error al obtener el cobrado de la semana.")
+
+
+@router.get("/cobrado-mes", response_model=AgentCobradoMesResponse)
+def obtener_cobrado_mes(
+    month: str | None = Query(default=None, description="Mes en formato YYYY-MM. Default: mes actual AR."),
+    _: None = Depends(get_agent_auth),
+):
+    try:
+        return service.obtener_cobrado_mes(month)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al obtener el cobrado del mes.")
 
 
 @router.get("/cuotas/buscar", response_model=AgentCuotaBuscarResponse)

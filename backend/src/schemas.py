@@ -147,6 +147,13 @@ class AgentCobradoSemanaResponse(BaseModel):
     totales: AgentCobradoSemanaTotales
 
 
+class AgentCobradoMesResponse(BaseModel):
+    mes: str
+    total: float
+    caja_1: float
+    caja_2: float
+
+
 class AgentCuotaBuscarItem(BaseModel):
     cuota_id: int
     cliente_nombre: str
