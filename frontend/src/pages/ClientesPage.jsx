@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { crearDiscordFaltantes, fetchClientes, patchCliente, triggerDiscordActualizacionTodos } from '../api/clientes'
 import InlineField from '../components/InlineField'
+import MigrarClienteForm from '../components/MigrarClienteForm'
 import Navbar from '../components/Navbar'
 import NuevoClienteForm from '../components/NuevoClienteForm'
 import PlanBadge from '../components/PlanBadge'
@@ -104,6 +105,7 @@ export default function ClientesPage() {
   const [planFilter, setPlanFilter] = useState(initialFilters.planFilter)
   const [orden, setOrden] = useState(initialFilters.orden)
   const [showCreate, setShowCreate] = useState(false)
+  const [showMigrar, setShowMigrar] = useState(false)
   const [page, setPage] = useState(initialFilters.page)
   const [miroModal, setMiroModal] = useState(null)
   const [pressedRowId, setPressedRowId] = useState(null)
@@ -148,6 +150,14 @@ export default function ClientesPage() {
     setShowCreate(false)
     await refreshLists()
     navigate(`/cliente/${created.id}`)
+  }
+
+  const handleClienteMigrated = async (destino) => {
+    setShowMigrar(false)
+    await refreshLists()
+    if (destino?.id) {
+      navigate(`/cliente/${destino.id}`)
+    }
   }
 
   useEffect(() => {
@@ -359,6 +369,14 @@ export default function ClientesPage() {
           />
         ) : null}
 
+        {showMigrar ? (
+          <MigrarClienteForm
+            clientes={allClientes}
+            onMigrated={handleClienteMigrated}
+            onCancel={() => setShowMigrar(false)}
+          />
+        ) : null}
+
         <section className={styles.toolbar}>
           <label className={styles.searchWrap}>
             <i className="ti ti-search" />
@@ -408,8 +426,23 @@ export default function ClientesPage() {
             </button>
             <button
               type="button"
+              className={styles.discordSyncBtn}
+              onClick={() => {
+                setShowMigrar((prev) => !prev)
+                setShowCreate(false)
+              }}
+              title="Migrar datos de un cliente a otro"
+            >
+              <i className="ti ti-arrows-exchange" />
+              <span className={styles.btnLabel}>Migrar</span>
+            </button>
+            <button
+              type="button"
               className={styles.createBtn}
-              onClick={() => setShowCreate((prev) => !prev)}
+              onClick={() => {
+                setShowCreate((prev) => !prev)
+                setShowMigrar(false)
+              }}
             >
               <i className="ti ti-plus" />
               <span className={styles.btnLabel}>Nuevo cliente</span>

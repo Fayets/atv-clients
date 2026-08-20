@@ -269,6 +269,74 @@ def _comprobantes_dir(cliente_id: int) -> Path:
     return _upload_root() / "comprobantes" / str(cliente_id)
 
 
+def _migrar_arbol_uploads(kind: str, origen_id: int, destino_id: int) -> dict[str, str]:
+    """Mueve archivos de uploads/{kind}/{origen} → {destino}. Devuelve old→new path strings."""
+    src = _upload_root() / kind / str(origen_id)
+    dst = _upload_root() / kind / str(destino_id)
+    mapping: dict[str, str] = {}
+    if not src.exists():
+        return mapping
+
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in sorted(src.rglob("*")):
+        if not item.is_file():
+            continue
+        rel = item.relative_to(src)
+        target = dst / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            target = target.parent / f"{target.stem}-{uuid.uuid4().hex[:8]}{target.suffix}"
+        shutil.move(str(item), str(target))
+
+        old_rel = str(Path(kind) / str(origen_id) / rel).replace("\\", "/")
+        new_rel = str(Path(kind) / str(destino_id) / target.relative_to(dst)).replace("\\", "/")
+        mapping[old_rel] = new_rel
+        mapping[str(item)] = str(target)
+        try:
+            mapping[str(item.resolve())] = str(target.resolve())
+        except OSError:
+            pass
+
+    shutil.rmtree(src, ignore_errors=True)
+    return mapping
+
+
+def _remap_stored_path(
+    stored: str | None,
+    mapping: dict[str, str],
+    origen_id: int,
+    destino_id: int,
+    kind: str,
+) -> str | None:
+    if not stored:
+        return stored
+    normalized = stored.replace("\\", "/")
+    if normalized in mapping:
+        return mapping[normalized]
+    if stored in mapping:
+        return mapping[stored]
+
+    try:
+        resolved = Path(stored).resolve()
+        key = str(resolved)
+        if key in mapping:
+            mapped = mapping[key]
+            if kind == "comprobantes" and f"/{kind}/" in mapped.replace("\\", "/"):
+                parts = Path(mapped).parts
+                if kind in parts:
+                    idx = parts.index(kind)
+                    return str(Path(*parts[idx:])).replace("\\", "/")
+            return mapped
+    except OSError:
+        pass
+
+    old_seg = f"{kind}/{origen_id}/"
+    new_seg = f"{kind}/{destino_id}/"
+    if old_seg in normalized:
+        return normalized.replace(old_seg, new_seg)
+    return stored
+
+
 def _comprobante_ext(filename: str, content_type: str | None) -> str:
     ext = Path(filename or "").suffix.lower()
     if ext in COMPROBANTE_EXTS:
@@ -1236,6 +1304,91 @@ class ClientesServices:
             cliente.updated_at = datetime.utcnow()
 
             return _cliente_base_dict(cliente)
+
+    def migrar_cliente(self, origen_id: int, destino_id: int) -> dict:
+        """Copia datos del origen al destino (salvo nombre), reasigna relaciones y borra el origen."""
+        if origen_id == destino_id:
+            raise HTTPException(status_code=400, detail="Origen y destino deben ser clientes distintos.")
+
+        with db_session:
+            if not Cliente.get(id=origen_id):
+                raise HTTPException(status_code=404, detail="Cliente origen no encontrado.")
+            if not Cliente.get(id=destino_id):
+                raise HTTPException(status_code=404, detail="Cliente destino no encontrado.")
+
+        path_mapping: dict[str, str] = {}
+        path_mapping.update(_migrar_arbol_uploads("comprobantes", origen_id, destino_id))
+        path_mapping.update(_migrar_arbol_uploads("discord", origen_id, destino_id))
+
+        with db_session:
+            origen = Cliente.get(id=origen_id)
+            destino = Cliente.get(id=destino_id)
+            if not origen or not destino:
+                raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+
+            for cuota in list(origen.cuotas):
+                for comprobante in list(cuota.comprobantes):
+                    comprobante.filepath = _remap_stored_path(
+                        comprobante.filepath,
+                        path_mapping,
+                        origen_id,
+                        destino_id,
+                        "comprobantes",
+                    ) or comprobante.filepath
+                cuota.cliente = destino
+
+            for obs in list(origen.registros_observacion):
+                obs.cliente = destino
+            for board in list(origen.miro_boards):
+                board.cliente = destino
+            for board in list(origen.fathom_boards):
+                board.cliente = destino
+            for link in list(origen.documento_links):
+                link.cliente = destino
+            for paso in list(origen.proximos_pasos):
+                paso.cliente = destino
+
+            destino_keys = {(t.canal, t.fecha) for t in destino.discord_transcripts}
+            for transcript in list(origen.discord_transcripts):
+                if (transcript.canal, transcript.fecha) in destino_keys:
+                    # El destino ya tiene ese canal/fecha (p.ej. sync Discord): se descarta el del origen.
+                    transcript.delete()
+                    continue
+                transcript.filepath = _remap_stored_path(
+                    transcript.filepath,
+                    path_mapping,
+                    origen_id,
+                    destino_id,
+                    "discord",
+                ) or transcript.filepath
+                transcript.cliente = destino
+
+            # Conservar nombre (y fecha_alta) del destino; el resto viene del origen.
+            destino.email = origen.email
+            destino.plan_actual = origen.plan_actual
+            if origen.session_id is not None:
+                destino.session_id = origen.session_id
+            destino.fecha_inicio = origen.fecha_inicio
+            destino.duracion_dias = origen.duracion_dias
+            destino.fecha_vencimiento = origen.fecha_vencimiento
+            destino.estado_cliente = origen.estado_cliente
+            destino.oportunidad = origen.oportunidad
+            destino.responsable = origen.responsable
+            destino.prioridad_cobro = origen.prioridad_cobro
+            if origen.miro_url:
+                destino.miro_url = origen.miro_url
+            if origen.fathoms_url:
+                destino.fathoms_url = origen.fathoms_url
+            if origen.arreglo_closer:
+                destino.arreglo_closer = origen.arreglo_closer
+            if origen.observaciones:
+                destino.observaciones = origen.observaciones
+            destino.fecha_baja = origen.fecha_baja
+
+            _recalcular_totales_cliente(destino)
+            origen.delete()
+            flush()
+            return _cliente_base_dict(destino)
 
     def eliminar_cliente(self, cliente_id: int) -> bool:
         filepaths: list[str] = []

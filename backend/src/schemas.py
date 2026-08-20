@@ -585,6 +585,17 @@ class ClientePatch(BaseModel):
     duracion_dias: int | None = None
 
 
+class ClienteMigrarRequest(BaseModel):
+    origen_id: int = Field(gt=0, description="Cliente que se migra y se elimina")
+    destino_id: int = Field(gt=0, description="Cliente que conserva el nombre y recibe los datos")
+
+    @model_validator(mode="after")
+    def ids_distintos(self):
+        if self.origen_id == self.destino_id:
+            raise ValueError("origen_id y destino_id deben ser distintos.")
+        return self
+
+
 class AnalisisCashResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

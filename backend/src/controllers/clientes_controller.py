@@ -6,6 +6,7 @@ from starlette.responses import FileResponse
 from src.deps import get_current_user
 from src.schemas import (
     ClienteCreate,
+    ClienteMigrarRequest,
     ClientePatch,
     ClienteResponse,
     ClienteListItem,
@@ -87,6 +88,16 @@ def listar_cobranza(_: str = Depends(get_current_user)):
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error al listar cobranza.")
+
+
+@router.post("/migrar", response_model=ClienteListItem)
+def migrar_cliente(body: ClienteMigrarRequest, _: str = Depends(get_current_user)):
+    try:
+        return service.migrar_cliente(body.origen_id, body.destino_id)
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al migrar el cliente.")
 
 
 @router.get("/{cliente_id}", response_model=ClienteResponse)

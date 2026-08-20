@@ -94,6 +94,13 @@ export function deleteCliente(id) {
   })
 }
 
+export function migrarCliente(origenId, destinoId) {
+  return request('/api/clientes/migrar', {
+    method: 'POST',
+    body: JSON.stringify({ origen_id: origenId, destino_id: destinoId }),
+  })
+}
+
 export function pagarCuota(clienteId, cuotaId) {
   return request(`/api/clientes/${clienteId}/cuotas/${cuotaId}/pagar`, {
     method: 'POST',
