@@ -1,4 +1,7 @@
 async function readErrorDetail(res) {
+  if (res.status === 413) {
+    return 'El archivo es demasiado grande para el servidor (máx. ~8 MB en comprobantes, ~5 MB en transcripts). Probá con uno más liviano.'
+  }
   let detail = `Error de servidor (${res.status})`
   try {
     const body = await res.json()
