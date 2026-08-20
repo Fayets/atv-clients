@@ -546,8 +546,11 @@ async def subir_comprobante_cuota(
         return cuota
     except HTTPException as e:
         raise e
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error al subir el comprobante de pago.")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al subir el comprobante de pago: {e}",
+        )
 
 
 @router.get("/{cliente_id}/cuotas/{cuota_id}/comprobantes/{comprobante_id}")
@@ -570,8 +573,11 @@ def ver_comprobante_cuota(
         )
     except HTTPException as e:
         raise e
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error al obtener el comprobante de pago.")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener el comprobante de pago: {e}",
+        )
 
 
 @router.delete("/{cliente_id}/cuotas/{cuota_id}/comprobantes/{comprobante_id}", status_code=204)

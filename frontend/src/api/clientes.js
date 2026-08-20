@@ -1,3 +1,25 @@
+async function readErrorDetail(res) {
+  let detail = `Error de servidor (${res.status})`
+  try {
+    const body = await res.json()
+    if (typeof body.detail === 'string' && body.detail.trim()) {
+      return body.detail
+    }
+    if (Array.isArray(body.detail) && body.detail.length) {
+      return body.detail.map((item) => item.msg || JSON.stringify(item)).join(' · ')
+    }
+    if (body.detail != null) {
+      return String(body.detail)
+    }
+  } catch {
+    // ignore parse errors
+  }
+  if (!res.status || res.status >= 502) {
+    return 'No se pudo conectar con el servidor. ¿Está corriendo el backend?'
+  }
+  return detail
+}
+
 async function request(path, options = {}) {
   const res = await fetch(path, {
     credentials: 'include',
@@ -9,14 +31,7 @@ async function request(path, options = {}) {
   })
 
   if (!res.ok) {
-    let detail = 'Error de servidor'
-    try {
-      const body = await res.json()
-      detail = body.detail || detail
-    } catch {
-      // ignore parse errors
-    }
-    throw new Error(detail)
+    throw new Error(await readErrorDetail(res))
   }
 
   if (res.status === 204) return null
@@ -30,14 +45,7 @@ async function requestText(path, options = {}) {
   })
 
   if (!res.ok) {
-    let detail = 'Error de servidor'
-    try {
-      const body = await res.json()
-      detail = body.detail || detail
-    } catch {
-      // ignore parse errors
-    }
-    throw new Error(detail)
+    throw new Error(await readErrorDetail(res))
   }
 
   return res.text()
@@ -190,21 +198,19 @@ export function deleteFathomBoard(clienteId, fathomId) {
 }
 
 async function uploadRequest(path, formData) {
-  const res = await fetch(path, {
-    credentials: 'include',
-    body: formData,
-    method: 'POST',
-  })
+  let res
+  try {
+    res = await fetch(path, {
+      credentials: 'include',
+      body: formData,
+      method: 'POST',
+    })
+  } catch {
+    throw new Error('No se pudo conectar con el servidor. ¿Está corriendo el backend?')
+  }
 
   if (!res.ok) {
-    let detail = 'Error de servidor'
-    try {
-      const body = await res.json()
-      detail = body.detail || detail
-    } catch {
-      // ignore parse errors
-    }
-    throw new Error(detail)
+    throw new Error(await readErrorDetail(res))
   }
 
   return res.json()

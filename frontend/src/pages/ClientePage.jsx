@@ -242,6 +242,7 @@ export default function ClientePage({ clienteId }) {
   const [comprobanteView, setComprobanteView] = useState(null)
   const [comprobanteNonce, setComprobanteNonce] = useState(0)
   const [comprobanteSaving, setComprobanteSaving] = useState(false)
+  const [comprobanteImgError, setComprobanteImgError] = useState(false)
   const comprobanteInputRef = useRef(null)
   const comprobanteTargetIdRef = useRef(null)
   const [arregloCloserOpen, setArregloCloserOpen] = useState(false)
@@ -594,6 +595,7 @@ export default function ClientePage({ clienteId }) {
   }
 
   const abrirComprobantes = (cuota) => {
+    setComprobanteImgError(false)
     setComprobanteView({ cuotaId: cuota.id, index: 0 })
   }
 
@@ -616,6 +618,7 @@ export default function ClientePage({ clienteId }) {
       const actualizada = data.cuotas?.find((c) => c.id === cuotaId)
       const total = actualizada?.comprobantes?.length || 0
       if (total) {
+        setComprobanteImgError(false)
         setComprobanteView({ cuotaId, index: total - 1 })
       }
     } catch (err) {
@@ -2503,23 +2506,34 @@ export default function ClientePage({ clienteId }) {
                   className={styles.iconBtn}
                   aria-label="Comprobante anterior"
                   disabled={comprobanteIndex === 0}
-                  onClick={() => setComprobanteView((prev) => ({ ...prev, index: prev.index - 1 }))}
+                  onClick={() => {
+                    setComprobanteImgError(false)
+                    setComprobanteView((prev) => ({ ...prev, index: prev.index - 1 }))
+                  }}
                 >
                   <i className="ti ti-chevron-left" />
                 </button>
               ) : null}
-              <img
-                src={`${cuotaComprobanteUrl(clienteId, comprobanteView.cuotaId, comprobanteActual.id)}?v=${comprobanteNonce}`}
-                alt={`Comprobante ${comprobanteIndex + 1}`}
-                className={styles.comprobanteImg}
-              />
+              {comprobanteImgError ? (
+                <p className={styles.error}>No se pudo cargar la imagen del comprobante.</p>
+              ) : (
+                <img
+                  src={`${cuotaComprobanteUrl(clienteId, comprobanteView.cuotaId, comprobanteActual.id)}?v=${comprobanteNonce}`}
+                  alt={`Comprobante ${comprobanteIndex + 1}`}
+                  className={styles.comprobanteImg}
+                  onError={() => setComprobanteImgError(true)}
+                />
+              )}
               {comprobantesVisibles.length > 1 ? (
                 <button
                   type="button"
                   className={styles.iconBtn}
                   aria-label="Comprobante siguiente"
                   disabled={comprobanteIndex >= comprobantesVisibles.length - 1}
-                  onClick={() => setComprobanteView((prev) => ({ ...prev, index: prev.index + 1 }))}
+                  onClick={() => {
+                    setComprobanteImgError(false)
+                    setComprobanteView((prev) => ({ ...prev, index: prev.index + 1 }))
+                  }}
                 >
                   <i className="ti ti-chevron-right" />
                 </button>

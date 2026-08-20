@@ -100,6 +100,17 @@ COMPROBANTE_MEDIA = {
 }
 
 
+def _upload_root() -> Path:
+    root = UPLOAD_DIR.expanduser()
+    if not root.is_absolute():
+        root = Path.cwd() / root
+    return root.resolve()
+
+
+def _comprobantes_root() -> Path:
+    return (_upload_root() / "comprobantes").resolve()
+
+
 def _today() -> date:
     return date.today()
 
@@ -251,11 +262,11 @@ def _documento_link_to_dict(link: DocumentoLink) -> dict:
 
 
 def _discord_client_dir(cliente_id: int) -> Path:
-    return UPLOAD_DIR / "discord" / str(cliente_id)
+    return _upload_root() / "discord" / str(cliente_id)
 
 
 def _comprobantes_dir(cliente_id: int) -> Path:
-    return UPLOAD_DIR / "comprobantes" / str(cliente_id)
+    return _upload_root() / "comprobantes" / str(cliente_id)
 
 
 def _comprobante_ext(filename: str, content_type: str | None) -> str:
@@ -270,19 +281,42 @@ def _comprobante_ext(filename: str, content_type: str | None) -> str:
 
 
 def _resolve_comprobante_path(stored: str | None) -> Path | None:
+    """Resuelve paths relativos, absolutos locales y legacy /app/uploads/..."""
     if not stored:
         return None
-    path = Path(stored)
-    if not path.is_absolute():
-        path = Path.cwd() / path
-    try:
-        resolved = path.resolve()
-        resolved.relative_to((UPLOAD_DIR / "comprobantes").resolve())
-    except (OSError, ValueError):
-        return None
-    if not resolved.is_file():
-        return None
-    return resolved
+
+    root = _upload_root()
+    comps_root = _comprobantes_root()
+    raw = Path(stored)
+    candidates: list[Path] = []
+
+    if raw.is_absolute():
+        candidates.append(raw)
+        parts = raw.parts
+        if "uploads" in parts:
+            idx = parts.index("uploads")
+            candidates.append(root.joinpath(*parts[idx + 1 :]))
+        if "comprobantes" in parts:
+            idx = parts.index("comprobantes")
+            candidates.append(comps_root.joinpath(*parts[idx + 1 :]))
+    else:
+        candidates.append(root / raw)
+        candidates.append(Path.cwd() / raw)
+
+    seen: set[str] = set()
+    for cand in candidates:
+        key = str(cand)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            resolved = cand.resolve()
+            resolved.relative_to(comps_root)
+        except (OSError, ValueError):
+            continue
+        if resolved.is_file():
+            return resolved
+    return None
 
 
 def _unlink_comprobante(stored: str | None) -> None:
@@ -1347,13 +1381,17 @@ class ClientesServices:
 
             target_dir = _comprobantes_dir(cliente_id)
             target_dir.mkdir(parents=True, exist_ok=True)
-            target_path = (target_dir / f"{cuota_id}-{uuid.uuid4().hex}{ext}").resolve()
+            filename_disk = f"{cuota_id}-{uuid.uuid4().hex}{ext}"
+            target_path = (target_dir / filename_disk).resolve()
             target_path.write_bytes(content)
+
+            # Guardar relativo a UPLOAD_DIR para que funcione en Docker y local.
+            stored_path = str(Path("comprobantes") / str(cliente_id) / filename_disk)
 
             CuotaComprobante(
                 cuota=cuota,
-                filepath=str(target_path),
-                nombre=Path(filename).name[:255] if filename else target_path.name,
+                filepath=stored_path,
+                nombre=Path(filename).name[:255] if filename else filename_disk,
             )
             cliente.updated_at = datetime.utcnow()
             _marcar_cambio_caja()
@@ -1378,7 +1416,10 @@ class ClientesServices:
 
             file_path = _resolve_comprobante_path(item.filepath)
             if not file_path:
-                return None
+                raise HTTPException(
+                    status_code=404,
+                    detail="El archivo del comprobante no está en el servidor.",
+                )
 
             nombre = item.nombre or file_path.name
             media = COMPROBANTE_MEDIA.get(file_path.suffix.lower(), "application/octet-stream")
