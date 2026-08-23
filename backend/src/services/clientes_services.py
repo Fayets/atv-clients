@@ -20,8 +20,10 @@ from src.cuota_notas import (
     NOTAS_PROYECCION,
     TIPO_DEFAULT,
     es_nota_proyeccion,
+    es_nota_sin_vencimiento,
     es_venta_nueva,
     etiqueta_cuota_auto,
+    etiqueta_dias_en_estado,
     etiqueta_nota_cuota,
     normalizar_nota_cuota,
 )
@@ -590,7 +592,7 @@ def _inicio_mes(fecha: date) -> date:
 
 
 DIAS_SEMANA_ES = ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
-TIPOS_CAJA2 = frozenset({"cuota_upsell", "cuota_recompra"})
+TIPOS_CAJA2 = frozenset({"cuota_upsell", "cuota_recompra", "posibilidad_upsell"})
 
 
 def _es_caja_2(tipo: str) -> bool:
@@ -600,6 +602,9 @@ def _es_caja_2(tipo: str) -> bool:
 def _cuota_pendiente_del_mes(cuota: Cuota, ref: date) -> bool:
     if cuota.estado not in {"pendiente", "vencido"}:
         return False
+    # Posibilidad de upsell: oportunidad abierta, visible en cualquier mes hasta cerrar/pagar.
+    if es_nota_sin_vencimiento(cuota.notas):
+        return True
     fv = cuota.fecha_vence
     return bool(fv) and fv.year == ref.year and fv.month == ref.month
 
@@ -1011,7 +1016,10 @@ class ClientesServices:
                                 dia_semana["cobrado_usd"] += monto
                                 if _es_caja_2(tipo):
                                     dia_semana["caja2_usd"] += monto
-                                    origen_semana = "upsell" if tipo == "cuota_upsell" else "recompra"
+                                    if tipo == "cuota_recompra":
+                                        origen_semana = "recompra"
+                                    else:
+                                        origen_semana = "upsell"
                                 elif es_venta_nueva(cuota, cuotas):
                                     dia_semana["caja1_usd"] += monto
                                     origen_semana = "venta_nueva"
@@ -1031,7 +1039,7 @@ class ClientesServices:
                                 ))
                             if fp.year == ref.year and fp.month == ref.month:
                                 caja_2_cobrado_usd += monto
-                                if tipo == "cuota_upsell":
+                                if tipo in {"cuota_upsell", "posibilidad_upsell"}:
                                     upsell_cobrado += monto
                                     origen = "upsell"
                                 elif tipo == "cuota_recompra":
@@ -1061,11 +1069,15 @@ class ClientesServices:
 
                     if cuota.estado not in {"pendiente", "vencido"}:
                         continue
-                    if not fv:
+                    sin_vence = es_nota_sin_vencimiento(cuota.notas)
+                    if not fv and not sin_vence:
                         continue
-                    bucket = meses_proyeccion.get((fv.year, fv.month))
+                    if sin_vence:
+                        bucket = meses_proyeccion.get((ref.year, ref.month))
+                    else:
+                        bucket = meses_proyeccion.get((fv.year, fv.month)) if fv else None
                     if bucket is not None:
-                        if tipo == "cuota_upsell":
+                        if tipo in {"cuota_upsell", "posibilidad_upsell"}:
                             bucket["upsell_usd"] += monto
                         elif tipo == "cuota_recompra":
                             bucket["recompra_usd"] += monto
@@ -1078,13 +1090,17 @@ class ClientesServices:
 
                     if es_nota_proyeccion(cuota.notas):
                         proyeccion_total += monto
-                        if tipo == "cuota_upsell":
+                        if tipo in {"cuota_upsell", "posibilidad_upsell"}:
                             upsell_pendiente += monto
                         else:
                             recompra_pendiente += monto
                         responsable = base.get("responsable")
                         responsable_label = RESPONSABLE_LABELS.get(responsable)
-                        subtitulo = f"{nota_label} · vence {format_fecha_ar(fv)}"
+                        if sin_vence:
+                            desde = (cuota.created_at.date() if cuota.created_at else None) or fv
+                            subtitulo = f"{nota_label} · {etiqueta_dias_en_estado(desde, hoy)}"
+                        else:
+                            subtitulo = f"{nota_label} · vence {format_fecha_ar(fv)}"
                         if responsable_label:
                             subtitulo = f"{subtitulo} · {responsable_label}"
                         detalles_proyeccion.append(_proyeccion_item(

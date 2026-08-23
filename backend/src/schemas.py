@@ -31,7 +31,7 @@ Oportunidad = Literal["upsell_boost", "upsell_advantage", "recompra", "consultar
 PrioridadCobro = Literal["alta", "media", "baja"]
 Responsable = Literal["lucas", "juampi", "juan", "ale"]
 EstadoCuota = Literal["pendiente", "pagado", "vencido"]
-CuotaNotaTipo = Literal["cuota_venta", "cuota_upsell", "cuota_recompra", "sena"]
+CuotaNotaTipo = Literal["cuota_venta", "cuota_upsell", "cuota_recompra", "sena", "posibilidad_upsell"]
 OrdenListado = Literal["venc_asc", "venc_desc", "alta_asc", "alta_desc"]
 
 

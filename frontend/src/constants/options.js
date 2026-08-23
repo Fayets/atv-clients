@@ -42,6 +42,7 @@ export const TIPOS_CUOTA_NOTA = [
   { value: 'cuota_venta', label: 'Cuota venta' },
   { value: 'cuota_upsell', label: 'Cuota upsell' },
   { value: 'cuota_recompra', label: 'Cuota recompra' },
+  { value: 'posibilidad_upsell', label: 'Posibilidad upsell' },
   { value: 'sena', label: 'Seña' },
 ]
 
@@ -59,6 +60,9 @@ const TIPOS_CUOTA_LEGACY = {
   sena: 'sena',
   seña: 'sena',
   senia: 'sena',
+  posibilidad_upsell: 'posibilidad_upsell',
+  posibilidad: 'posibilidad_upsell',
+  posible_upsell: 'posibilidad_upsell',
 }
 
 export function canonicalTipoCuota(value) {

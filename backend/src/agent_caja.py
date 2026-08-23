@@ -191,7 +191,7 @@ def _obtener_proyecciones_db(month: str | None) -> dict:
         nota_tipo = cuota_tipo(cuota)
         if nota_tipo == "cuota_recompra":
             recompras.append(build_proyeccion_item(cuota, clientes))
-        elif nota_tipo == "cuota_upsell":
+        elif nota_tipo in {"cuota_upsell", "posibilidad_upsell"}:
             upsells.append(build_proyeccion_item(cuota, clientes))
 
     total = round(

@@ -26,10 +26,11 @@ import styles from './ClientePage.module.css'
 const CUOTA_FECHA_INVALIDA = 'La fecha no es válida. Revisá día y mes (ej. septiembre tiene 30 días).'
 const COMPROBANTE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif'
 
-function validateCuotaFields(monto, fechaVence, dateInput) {
+function validateCuotaFields(monto, fechaVence, dateInput, { requiereVence = true } = {}) {
   if (!monto || Number.isNaN(Number(monto)) || Number(monto) <= 0) {
     return 'Completá un monto válido.'
   }
+  if (!requiereVence) return null
   if (dateInput?.validity?.badInput || (fechaVence && !isValidDateISO(fechaVence))) {
     return CUOTA_FECHA_INVALIDA
   }
@@ -73,6 +74,36 @@ function todayInputDate() {
 }
 
 const TIPOS_RENOVACION = new Set(['cuota_recompra', 'cuota_upsell'])
+const TIPOS_SIN_VENCIMIENTO = new Set(['posibilidad_upsell'])
+
+function diasEnEstadoLabel(createdAt) {
+  if (!createdAt) return '—'
+  const start = new Date(createdAt)
+  if (Number.isNaN(start.getTime())) return '—'
+  const hoy = new Date()
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const todayDay = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())
+  const dias = Math.round((todayDay - startDay) / 86400000)
+  if (dias <= 0) return 'desde hoy'
+  if (dias === 1) return 'hace 1 día'
+  return `hace ${dias} días`
+}
+
+function labelColumnaVence(tipo) {
+  return TIPOS_SIN_VENCIMIENTO.has(tipo) ? 'Días estado' : 'Vence'
+}
+
+function headerColumnaVence({ adding, newTipo, editingId, editTipo, cuotas }) {
+  if (adding && TIPOS_SIN_VENCIMIENTO.has(newTipo)) return 'Días estado'
+  if (editingId && TIPOS_SIN_VENCIMIENTO.has(editTipo)) return 'Días estado'
+  const list = cuotas || []
+  if (!list.length) return 'Vence'
+  const tipos = list.map((c) => canonicalTipoCuota(c.notas))
+  const allPos = tipos.every((t) => TIPOS_SIN_VENCIMIENTO.has(t))
+  if (allPos) return 'Días estado'
+  if (tipos.some((t) => TIPOS_SIN_VENCIMIENTO.has(t))) return 'Vence / Días'
+  return 'Vence'
+}
 
 function defaultDuracionMeses(cliente) {
   const actual = daysToMonths(cliente?.duracion_dias)
@@ -496,9 +527,19 @@ export default function ClientePage({ clienteId }) {
 
   const guardarNuevaCuota = async () => {
     setCuotaError('')
-    const validationError = validateCuotaFields(newCuota.monto_usd, newCuota.fecha_vence)
+    const sinVence = TIPOS_SIN_VENCIMIENTO.has(newCuota.notas)
+    const fechaVence = sinVence
+      ? (newCuota.fecha_vence || todayInputDate())
+      : newCuota.fecha_vence
+    const validationError = validateCuotaFields(newCuota.monto_usd, fechaVence, undefined, {
+      requiereVence: !sinVence,
+    })
     if (validationError) {
       setCuotaError(validationError)
+      return
+    }
+    if (sinVence && !isValidDateISO(fechaVence)) {
+      setCuotaError(CUOTA_FECHA_INVALIDA)
       return
     }
     const esRenovacion = TIPOS_RENOVACION.has(newCuota.notas)
@@ -519,7 +560,7 @@ export default function ClientePage({ clienteId }) {
     try {
       const payload = {
         monto_usd: Number(newCuota.monto_usd),
-        fecha_vence: newCuota.fecha_vence,
+        fecha_vence: fechaVence,
         notas: newCuota.notas.trim() || 'cuota_venta',
       }
       if (esRenovacion && newCuota.renovarPrograma) {
@@ -536,7 +577,13 @@ export default function ClientePage({ clienteId }) {
 
   const guardarEditCuota = async (cuotaId) => {
     setCuotaError('')
-    const validationError = validateCuotaFields(editCuota.monto_usd, editCuota.fecha_vence)
+    const sinVence = TIPOS_SIN_VENCIMIENTO.has(editCuota.notas)
+    const fechaVence = sinVence
+      ? (editCuota.fecha_vence || todayInputDate())
+      : editCuota.fecha_vence
+    const validationError = validateCuotaFields(editCuota.monto_usd, fechaVence, undefined, {
+      requiereVence: !sinVence,
+    })
     if (validationError) {
       setCuotaError(validationError)
       return
@@ -549,7 +596,7 @@ export default function ClientePage({ clienteId }) {
     const cuotaActual = cliente?.cuotas?.find((c) => c.id === cuotaId)
     const payload = {
       monto_usd: Number(editCuota.monto_usd),
-      fecha_vence: editCuota.fecha_vence,
+      fecha_vence: fechaVence,
       notas: editCuota.notas.trim() || 'cuota_venta',
       fecha_pago: fechaPago,
     }
@@ -1880,7 +1927,15 @@ export default function ClientePage({ clienteId }) {
                 <thead>
                   <tr>
                     <th>Monto</th>
-                    <th>Vence</th>
+                    <th>
+                      {headerColumnaVence({
+                        adding: addingCuota,
+                        newTipo: newCuota.notas,
+                        editingId: editingCuotaId,
+                        editTipo: editCuota.notas,
+                        cuotas: cliente.cuotas,
+                      })}
+                    </th>
                     <th>Pago</th>
                     <th>Estado</th>
                     <th>Tipo</th>
@@ -1904,13 +1959,17 @@ export default function ClientePage({ clienteId }) {
                             onChange={(e) => setEditCuota((prev) => ({ ...prev, monto_usd: e.target.value }))}
                           />
                         </td>
-                        <td data-label="Vence" className={styles.cuotaVence}>
-                          <input
-                            type="date"
-                            className={styles.tableInput}
-                            value={editCuota.fecha_vence}
-                            onChange={(e) => handleCuotaFechaChange(setEditCuota, e, setCuotaError)}
-                          />
+                        <td data-label={labelColumnaVence(editCuota.notas)} className={styles.cuotaVence}>
+                          {TIPOS_SIN_VENCIMIENTO.has(editCuota.notas) ? (
+                            <span className={styles.muted}>{diasEnEstadoLabel(cuota.created_at)}</span>
+                          ) : (
+                            <input
+                              type="date"
+                              className={styles.tableInput}
+                              value={editCuota.fecha_vence}
+                              onChange={(e) => handleCuotaFechaChange(setEditCuota, e, setCuotaError)}
+                            />
+                          )}
                         </td>
                         <td data-label="Pago" className={styles.cuotaPago}>
                           <input
@@ -1949,7 +2008,11 @@ export default function ClientePage({ clienteId }) {
                     ) : (
                       <tr key={cuota.id}>
                         <td data-label="Monto" className={styles.cuotaMonto}>{formatUsd(cuota.monto_usd)}</td>
-                        <td data-label="Vence" className={styles.cuotaVence}>{formatDate(cuota.fecha_vence)}</td>
+                        <td data-label={labelColumnaVence(canonicalTipoCuota(cuota.notas))} className={styles.cuotaVence}>
+                          {TIPOS_SIN_VENCIMIENTO.has(canonicalTipoCuota(cuota.notas))
+                            ? diasEnEstadoLabel(cuota.created_at)
+                            : formatDate(cuota.fecha_vence)}
+                        </td>
                         <td data-label="Pago" className={styles.cuotaPago}>{formatDate(cuota.fecha_pago)}</td>
                         <td data-label="Estado" className={styles.cuotaEstado}>
                           <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>{cuota.estado}</span>
@@ -2003,13 +2066,17 @@ export default function ClientePage({ clienteId }) {
                           onChange={(e) => setNewCuota((prev) => ({ ...prev, monto_usd: e.target.value }))}
                         />
                       </td>
-                      <td data-label="Vence" className={styles.cuotaVence}>
-                        <input
-                          type="date"
-                          className={styles.tableInput}
-                          value={newCuota.fecha_vence}
-                          onChange={(e) => handleCuotaFechaChange(setNewCuota, e, setCuotaError)}
-                        />
+                      <td data-label={labelColumnaVence(newCuota.notas)} className={styles.cuotaVence}>
+                        {TIPOS_SIN_VENCIMIENTO.has(newCuota.notas) ? (
+                          <span className={styles.muted}>Se cuenta desde hoy</span>
+                        ) : (
+                          <input
+                            type="date"
+                            className={styles.tableInput}
+                            value={newCuota.fecha_vence}
+                            onChange={(e) => handleCuotaFechaChange(setNewCuota, e, setCuotaError)}
+                          />
+                        )}
                       </td>
                       <td data-label="Pago" className={styles.cuotaPago}>—</td>
                       <td data-label="Estado" className={styles.cuotaEstado}>
@@ -2024,6 +2091,9 @@ export default function ClientePage({ clienteId }) {
                             setNewCuota((prev) => ({
                               ...prev,
                               notas,
+                              fecha_vence: TIPOS_SIN_VENCIMIENTO.has(notas)
+                                ? (prev.fecha_vence || todayInputDate())
+                                : prev.fecha_vence,
                               fecha_inicio: prev.fecha_inicio || todayInputDate(),
                               duracion_meses: prev.duracion_meses || defaultDuracionMeses(cliente),
                               renovarPrograma: TIPOS_RENOVACION.has(notas) ? null : prev.renovarPrograma,

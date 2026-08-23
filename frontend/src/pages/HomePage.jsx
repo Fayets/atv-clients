@@ -36,6 +36,7 @@ const TAG_CLASS = {
   sena: 'detailTagSena',
   recompra: 'detailTagRecompra',
   upsell: 'detailTagUpsell',
+  posibilidad: 'detailTagPosibilidad',
   vencido: 'detailTagVencido',
   default: 'detailTagDefault',
 }
@@ -51,6 +52,7 @@ function parseSubtitulo(subtitulo) {
 
 function tagVariant(tag) {
   const t = tag.toLowerCase()
+  if (t.includes('posibilidad')) return 'posibilidad'
   if (t.includes('upsell')) return 'upsell'
   if (t.includes('recompra')) return 'recompra'
   if (t.includes('seña') || t.includes('sena')) return 'sena'
@@ -59,7 +61,7 @@ function tagVariant(tag) {
   return 'default'
 }
 
-const CAJA2_TIPOS = new Set(['cuota_upsell', 'cuota_recompra'])
+const CAJA2_TIPOS = new Set(['cuota_upsell', 'cuota_recompra', 'posibilidad_upsell'])
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 const PULL_THRESHOLD = 68
 const PULL_MAX = 112
@@ -597,7 +599,7 @@ export default function HomePage() {
     },
     proyeccion: {
       title: `Proyección — ${resumen?.mes_label || ''}`,
-      hint: `${proyeccionItems.length} upsells y recompras · Caja 2`,
+      hint: `${proyeccionItems.length} upsells, posibilidades y recompras · Caja 2`,
       items: proyeccionItems,
     },
     total: {

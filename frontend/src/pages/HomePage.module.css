@@ -344,6 +344,11 @@
   color: #6941c6;
 }
 
+.detailTagPosibilidad {
+  background: rgba(180, 120, 20, 0.12);
+  color: #9a6700;
+}
+
 .detailTagVencido {
   background: rgba(180, 35, 24, 0.1);
   color: var(--red-accent);

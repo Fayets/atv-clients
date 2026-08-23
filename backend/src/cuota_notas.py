@@ -3,7 +3,13 @@
 from datetime import date
 from typing import Literal
 
-CuotaNotaTipo = Literal["cuota_venta", "cuota_upsell", "cuota_recompra", "sena"]
+CuotaNotaTipo = Literal[
+    "cuota_venta",
+    "cuota_upsell",
+    "cuota_recompra",
+    "sena",
+    "posibilidad_upsell",
+]
 
 TIPO_DEFAULT = "cuota_venta"
 
@@ -12,12 +18,14 @@ CUOTA_NOTA_LABELS: dict[str, str] = {
     "cuota_upsell": "Cuota upsell",
     "cuota_recompra": "Cuota recompra",
     "sena": "Seña",
+    "posibilidad_upsell": "Posibilidad upsell",
 }
 
 CUOTA_NOTAS_VALIDAS = frozenset(CUOTA_NOTA_LABELS)
 
-NOTAS_PROYECCION = frozenset({"cuota_upsell", "cuota_recompra"})
-NOTAS_SIN_NUMERO = frozenset({"sena", "cuota_upsell", "cuota_recompra"})
+NOTAS_PROYECCION = frozenset({"cuota_upsell", "cuota_recompra", "posibilidad_upsell"})
+NOTAS_SIN_NUMERO = frozenset({"sena", "cuota_upsell", "cuota_recompra", "posibilidad_upsell"})
+NOTAS_SIN_VENCIMIENTO = frozenset({"posibilidad_upsell"})
 
 _ALIASES: dict[str, str] = {
     "cuota": TIPO_DEFAULT,
@@ -36,6 +44,9 @@ _ALIASES: dict[str, str] = {
     "evento": TIPO_DEFAULT,
     "meta_20k": TIPO_DEFAULT,
     "otro": TIPO_DEFAULT,
+    "posibilidad_upsell": "posibilidad_upsell",
+    "posibilidad": "posibilidad_upsell",
+    "posible_upsell": "posibilidad_upsell",
 }
 
 _LEGACY_NOTA_MAP: dict[str, str] = {
@@ -66,6 +77,8 @@ _LEGACY_NOTA_MAP: dict[str, str] = {
     "CUOTA VENTA": TIPO_DEFAULT,
     "CUOTA UPSELL": "cuota_upsell",
     "CUOTA RECOMPRA": "cuota_recompra",
+    "POSIBILIDAD UPSELL": "posibilidad_upsell",
+    "POSIBILIDAD DE UPSELL": "posibilidad_upsell",
 }
 
 
@@ -110,6 +123,24 @@ def canonicalizar_valor_notas(raw: str | None) -> str:
 def es_nota_proyeccion(raw: str | None) -> bool:
     clave = normalizar_nota_cuota(raw)
     return clave in NOTAS_PROYECCION if clave else False
+
+
+def es_nota_sin_vencimiento(raw: str | None) -> bool:
+    clave = normalizar_nota_cuota(raw)
+    return clave in NOTAS_SIN_VENCIMIENTO if clave else False
+
+
+def etiqueta_dias_en_estado(desde: date | None, hoy: date | None = None) -> str:
+    """Texto corto: 'desde hoy' / 'hace 1 día' / 'hace N días'."""
+    if desde is None:
+        return "sin fecha"
+    ref = hoy or date.today()
+    dias = (ref - desde).days
+    if dias <= 0:
+        return "desde hoy"
+    if dias == 1:
+        return "hace 1 día"
+    return f"hace {dias} días"
 
 
 def etiqueta_nota_cuota(raw: str | None) -> str | None:
