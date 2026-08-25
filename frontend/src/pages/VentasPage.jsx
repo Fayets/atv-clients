@@ -41,9 +41,9 @@ function AdsFlag({ valor }) {
 /**
  * Punto base / punto final. Cuando la pieza tiene imagen, la miniatura ya la
  * identifica y el título largo solo estorba: se muestra imagen y fecha.
- * El texto queda solo para lo que no tiene imagen (bio, texto libre).
+ * El texto queda solo para lo que no tiene imagen (texto libre u otros).
  */
-const CON_IMAGEN = ['reel', 'historia', 'youtube', 'ads']
+const CON_IMAGEN = ['reel', 'historia', 'youtube', 'ads', 'bio']
 const APAISADAS = ['youtube', 'ads']
 
 function PiezaCelda({ pieza, vacio }) {

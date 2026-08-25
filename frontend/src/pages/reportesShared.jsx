@@ -37,6 +37,8 @@ export function KpiCard({ label, valor, anterior, sub, formato = numero, inverti
 
 /** Los ads no tienen miniatura propia: se usa un frame fijo del creativo. */
 const THUMB_ADS = '/punto-ads.jpg'
+/** El link de bio no trae thumbnail: foto fija del perfil de Instagram. */
+const THUMB_BIO = '/punto-bio.jpg'
 
 /**
  * Miniatura de una pieza. Si el archivo no existe (o la pieza no tiene
@@ -44,7 +46,7 @@ const THUMB_ADS = '/punto-ads.jpg'
  */
 export function Thumb({ src, tipo, alt, formato = 'vertical', size = 'md' }) {
   const [falla, setFalla] = useState(false)
-  const url = tipo === 'ads' ? THUMB_ADS : src
+  const url = tipo === 'ads' ? THUMB_ADS : tipo === 'bio' ? THUMB_BIO : src
   const clases = [
     styles.thumb,
     formato === 'horizontal' ? styles.thumbHorizontal : styles.thumbVertical,
