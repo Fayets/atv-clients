@@ -1,22 +1,25 @@
 /**
  * Reporte semanal — datos de ATV MKT.
  *
- * En desarrollo pasa por el proxy `/mkt` de vite.config.js, que agrega la
- * API key del lado del server. En producción esta llamada va a apuntar al
- * backend de Clients, que guarda el snapshot de la semana.
+ * Va contra el backend de Clients, que es quien habla con ATV MKT y guarda
+ * la API key. Nunca directo a MKT: el navegador no debe ver esa key, y un
+ * proxy de Vite solo existiría en `npm run dev`.
  */
 
 async function request(path) {
   let res
   try {
-    res = await fetch(path, { headers: { Accept: 'application/json' } })
+    res = await fetch(path, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    })
   } catch {
-    throw new Error('No se pudo conectar con ATV MKT. ¿Está levantado el backend?')
+    throw new Error('No se pudo conectar con el servidor.')
   }
   if (!res.ok) {
-    if (res.status === 401) throw new Error('ATV MKT rechazó la API key.')
-    if (res.status === 404) throw new Error('El endpoint no existe en ese ATV MKT (falta deployarlo).')
-    let detail = `Error de ATV MKT (${res.status})`
+    if (res.status === 401) throw new Error('Sesión expirada. Recargá la página.')
+    if (res.status === 404) throw new Error('El backend de Clients no tiene el endpoint de reportes (falta deployarlo).')
+    let detail = `Error del servidor (${res.status})`
     try {
       const body = await res.json()
       if (typeof body.detail === 'string' && body.detail.trim()) detail = body.detail
@@ -24,6 +27,10 @@ async function request(path) {
       // sin cuerpo JSON
     }
     throw new Error(detail)
+  }
+  const tipo = res.headers.get('content-type') || ''
+  if (!tipo.includes('application/json')) {
+    throw new Error('El servidor devolvió una página en vez de datos: el backend de Clients no está respondiendo /api/reportes.')
   }
   return res.json()
 }
@@ -34,13 +41,13 @@ async function request(path) {
  */
 export function fetchContenido({ desde, hasta }) {
   const qs = new URLSearchParams({ desde, hasta })
-  return request(`/mkt/api/reportes/contenido?${qs}`)
+  return request(`/api/reportes/contenido?${qs}`)
 }
 
 /** Llamadas de la semana con su atribución, estado y pago, más el funnel. */
 export function fetchVentas({ desde, hasta }) {
   const qs = new URLSearchParams({ desde, hasta })
-  return request(`/mkt/api/reportes/ventas?${qs}`)
+  return request(`/api/reportes/ventas?${qs}`)
 }
 
 /** Corre una semana comercial `dias` hacia adelante o atrás. */
