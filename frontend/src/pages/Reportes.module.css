@@ -278,9 +278,14 @@
 }
 
 .leadIg {
-  display: block;
+  display: inline-block;
   color: var(--red-accent);
   font-size: 12px;
+  text-decoration: none;
+}
+
+.leadIg:hover {
+  text-decoration: underline;
 }
 
 .leadSeguidores {
@@ -321,18 +326,6 @@
   letter-spacing: 0.5px;
 }
 
-.leadCloser {
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
-.pagoDebe {
-  display: block;
-  font-size: 11px;
-  color: var(--badge-mentoria-text);
-  margin-top: 1px;
-}
-
 .adsSi { color: var(--success); font-size: 19px; }
 .adsNo { color: var(--red-bright); font-size: 19px; }
 
@@ -364,6 +357,87 @@
 .estadoNoShow { background: var(--red-dim); color: var(--red-bright); }
 .estadoDescalificado { background: var(--badge-inactivo-bg); color: var(--badge-inactivo-text); }
 .estadoDefault { background: var(--surface2); color: var(--muted); }
+
+/* ---------- tarjetas de lead (mobile) ---------- */
+
+.soloMobile { display: none; }
+.soloDesktop { display: block; }
+
+.leadCard {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.leadCard > .thumbSm {
+  width: 78px;
+  flex-shrink: 0;
+}
+
+.leadCard > .thumbSm.thumbVertical {
+  width: 54px;
+}
+
+.leadCardBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.leadCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.leadCardHead .leadNombre {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.leadCardDatos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.leadCardDatos dt {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--label);
+}
+
+.leadCardDatos dd {
+  font-size: 12.5px;
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
+
+.leadCardPago {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.leadCardNota {
+  text-align: center;
+  font-size: 12px;
+  color: var(--label);
+  font-style: italic;
+  padding: 6px 0 2px;
+}
 
 /* ---------- marketing ---------- */
 
@@ -694,6 +768,10 @@
 }
 
 @media (max-width: 720px) {
+  /* la tabla necesita 880px: en mobile se cambia por tarjetas */
+  .soloMobile { display: block; }
+  .soloDesktop { display: none; }
+
   .content { padding: 18px 14px 60px; }
   .heroTitle { font-size: 27px; }
   .kpiGrid { grid-template-columns: repeat(2, 1fr); }

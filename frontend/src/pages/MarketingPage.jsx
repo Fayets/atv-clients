@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { correrSemana, etiquetaSemana, fetchContenido, semanaComercial } from '../api/reportes'
+import { correrSemana, etiquetaSemana, fetchContenido, fetchVentas, semanaComercial } from '../api/reportes'
 import Navbar from '../components/Navbar'
 import { formatUsd } from '../utils/format'
 import { fechaConAnio, numero } from '../utils/reportes'
@@ -43,9 +43,48 @@ function Canal({ titulo, piezas, tipo, metricas }) {
   )
 }
 
-function RankingCash({ piezas }) {
-  const conCash = piezas.filter((p) => p.cash > 0).sort((a, b) => b.cash - a.cash)
-  const maxCash = Math.max(...conCash.map((p) => p.cash), 1)
+const NOMBRE_TIPO = {
+  reel: 'Reel',
+  historia: 'Historia',
+  youtube: 'YouTube',
+  ads: 'ADS',
+  bio: 'BIO',
+}
+
+/**
+ * Cash de la semana agrupado por punto de agenda.
+ *
+ * Parte de los leads que pagaron, no de las piezas publicadas en el rango: una
+ * venta de esta semana suele venir de contenido de hace meses, o de ads, y esas
+ * piezas no aparecen en el listado semanal.
+ */
+function rankingDesdeLeads(leads) {
+  const porPieza = new Map()
+
+  for (const lead of leads) {
+    if (!(lead.pago > 0)) continue
+    const pieza = lead.punto_final
+    const clave = pieza?.label || 'Sin registrar'
+    const acum = porPieza.get(clave) || {
+      clave,
+      label: pieza?.label || 'Sin registrar',
+      tipo: pieza?.tipo || 'desconocido',
+      thumb: pieza?.thumb || '',
+      fecha: pieza?.fecha || '',
+      cierres: 0,
+      cash: 0,
+    }
+    acum.cierres += 1
+    acum.cash += lead.pago
+    porPieza.set(clave, acum)
+  }
+
+  return [...porPieza.values()].sort((a, b) => b.cash - a.cash)
+}
+
+function RankingCash({ leads }) {
+  const filas = rankingDesdeLeads(leads)
+  const maxCash = Math.max(...filas.map((f) => f.cash), 1)
 
   return (
     <section className={styles.seccion}>
@@ -53,32 +92,35 @@ function RankingCash({ piezas }) {
         <div>
           <h2 className={styles.seccionTitulo}>Cash por pieza</h2>
           <p className={styles.seccionMeta}>
-            Sale de los leads cuyo punto de agenda apunta a la pieza
+            Cobrado esta semana, atribuido al punto de agenda de cada venta
           </p>
         </div>
       </header>
 
       <div className={styles.panel}>
-        {conCash.length === 0 ? (
+        {filas.length === 0 ? (
           <p className={styles.panelVacio}>
-            Ninguna pieza de esta semana tiene cash asociado. El cash aparece acá cuando
-            el lead cerrado tiene cargado el <strong>punto de agenda</strong> en ATV MKT.
+            No hubo cobros esta semana. El cash aparece acá cuando un lead con pago tiene
+            cargado el <strong>punto de agenda</strong> en ATV MKT.
           </p>
         ) : (
           <ul className={styles.ranking}>
-            {conCash.map((row) => (
-              <li key={`${row.tipo}-${row.id}`} className={styles.rankingRow}>
+            {filas.map((row) => (
+              <li key={row.clave} className={styles.rankingRow}>
                 <Thumb
-                  src={row.thumbnail_url || (row.slides || [])[0]?.image_url}
+                  src={row.thumb}
                   tipo={row.tipo}
-                  alt={row.titulo}
+                  alt={row.label}
                   size="xs"
-                  formato={row.tipo === 'youtube' ? 'horizontal' : 'vertical'}
+                  formato={row.tipo === 'youtube' || row.tipo === 'ads' ? 'horizontal' : 'vertical'}
                 />
                 <div className={styles.rankingInfo}>
-                  <span className={styles.rankingPieza}>{row.titulo || '(sin título)'}</span>
+                  <span className={styles.rankingPieza}>
+                    {NOMBRE_TIPO[row.tipo] || row.label}
+                  </span>
                   <span className={styles.rankingMeta}>
-                    {row.agendas} {row.agendas === 1 ? 'agenda' : 'agendas'} · publicada {fechaConAnio(row.fecha)}
+                    {row.cierres} {row.cierres === 1 ? 'venta' : 'ventas'}
+                    {row.fecha ? ` · publicada ${fechaConAnio(row.fecha)}` : ''}
                   </span>
                 </div>
                 <div className={styles.rankingBarra}>
@@ -97,6 +139,7 @@ function RankingCash({ piezas }) {
 export default function MarketingPage() {
   const [semana, setSemana] = useState(() => semanaComercial())
   const [data, setData] = useState(null)
+  const [ventas, setVentas] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -104,7 +147,14 @@ export default function MarketingPage() {
     setLoading(true)
     setError('')
     try {
-      setData(await fetchContenido(semana))
+      // las ventas son para el ranking de cash: el contenido de la semana no
+      // alcanza, porque el cash suele venir de piezas más viejas o de ads
+      const [contenido, vts] = await Promise.all([
+        fetchContenido(semana),
+        fetchVentas(semana).catch(() => null),
+      ])
+      setData(contenido)
+      setVentas(vts)
     } catch (err) {
       setData(null)
       setError(err.message || 'Error al cargar el reporte')
@@ -119,11 +169,6 @@ export default function MarketingPage() {
   const historias = data?.historias || []
   const youtube = data?.youtube || []
   const totales = data?.totales
-  const todas = [
-    ...reels.map((p) => ({ ...p, tipo: 'reel' })),
-    ...historias.map((p) => ({ ...p, tipo: 'historia' })),
-    ...youtube.map((p) => ({ ...p, tipo: 'youtube' })),
-  ]
 
   const subtitulo = loading
     ? 'Cargando…'
@@ -186,7 +231,7 @@ export default function MarketingPage() {
           </div>
         </section>
 
-        {!loading && !error ? <RankingCash piezas={todas} /> : null}
+        {!loading && !error ? <RankingCash leads={ventas?.leads || []} /> : null}
       </main>
     </div>
   )

@@ -6,6 +6,22 @@ import { ESTADO_VARIANT, fechaConAnio, tasa } from '../utils/reportes'
 import { HeroReporte, Thumb } from './reportesShared'
 import styles from './Reportes.module.css'
 
+/** El handle enlaza al perfil; se abre en otra pestaña. */
+function IgLink({ handle }) {
+  if (!handle) return null
+  return (
+    <a
+      className={styles.leadIg}
+      href={`https://instagram.com/${encodeURIComponent(handle)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+    >
+      @{handle}
+    </a>
+  )
+}
+
 function EstadoBadge({ estado }) {
   if (!estado) return <span className={styles.vacio}>sin cargar</span>
   const variant = ESTADO_VARIANT[estado.toLowerCase()] || 'estadoDefault'
@@ -22,7 +38,6 @@ function AdsFlag({ valor }) {
   return <span className={styles.adsDesconocido} title="Sin registrar">?</span>
 }
 
-/** Celda de punto base / punto final: miniatura + label, o el hueco explícito. */
 /**
  * Punto base / punto final. Cuando la pieza tiene imagen, la miniatura ya la
  * identifica y el título largo solo estorba: se muestra imagen y fecha.
@@ -55,7 +70,87 @@ function PiezaCelda({ pieza, vacio }) {
   )
 }
 
+const NOMBRE_TIPO = {
+  reel: 'Reel',
+  historia: 'Historia',
+  youtube: 'YouTube',
+  ads: 'ADS',
+  bio: 'BIO',
+}
+
+/**
+ * Texto corto de una pieza. Para las que tienen imagen se usa el canal y la
+ * fecha: el título completo es largo y la miniatura ya la identifica.
+ */
+function resumenPieza(pieza) {
+  if (!pieza) return null
+  const nombre = NOMBRE_TIPO[pieza.tipo] || pieza.label
+  if (!CON_IMAGEN.includes(pieza.tipo)) return pieza.label
+  return pieza.fecha ? `${nombre} · ${fechaConAnio(pieza.fecha)}` : nombre
+}
+
+/** ¿Tiene algo que mostrar más allá del nombre? */
+function tieneDatos(lead) {
+  return Boolean(lead.punto_base || lead.punto_final || lead.pago > 0)
+}
+
+/** Vista de mobile: imagen a la izquierda, datos al lado. */
+function LeadCard({ lead }) {
+  const pieza = lead.punto_base || lead.punto_final
+  const conImagen = pieza && CON_IMAGEN.includes(pieza.tipo)
+
+  return (
+    <article className={styles.leadCard}>
+      {conImagen ? (
+        <Thumb
+          src={pieza.thumb}
+          tipo={pieza.tipo}
+          alt={pieza.label}
+          size="sm"
+          formato={APAISADAS.includes(pieza.tipo) ? 'horizontal' : 'vertical'}
+        />
+      ) : null}
+
+      <div className={styles.leadCardBody}>
+        <div className={styles.leadCardHead}>
+          <span className={styles.leadNombre}>{lead.nombre}</span>
+          <EstadoBadge estado={lead.estado} />
+        </div>
+        <IgLink handle={lead.ig} />
+
+        <dl className={styles.leadCardDatos}>
+          <div>
+            <dt>Punto base</dt>
+            <dd>{resumenPieza(lead.punto_base) || <span className={styles.vacio}>desconocido</span>}</dd>
+          </div>
+          <div>
+            <dt>Punto final</dt>
+            <dd>{resumenPieza(lead.punto_final) || <span className={styles.vacio}>sin registrar</span>}</dd>
+          </div>
+          <div>
+            <dt>Ads</dt>
+            <dd><AdsFlag valor={lead.vino_de_ads} /></dd>
+          </div>
+          <div>
+            <dt>Llamada</dt>
+            <dd>{fechaConAnio(lead.fecha_call)}</dd>
+          </div>
+        </dl>
+
+        {lead.pago > 0 ? (
+          <div className={styles.leadCardPago}>
+            <span className={styles.pagoMonto}>{formatUsd(lead.pago)}</span>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
 function TablaLeads({ leads }) {
+  const conDatos = leads.filter(tieneDatos)
+  const ocultos = leads.length - conDatos.length
+
   return (
     <section className={styles.seccion}>
       <header className={styles.seccionHead}>
@@ -70,7 +165,24 @@ function TablaLeads({ leads }) {
       {leads.length === 0 ? (
         <p className={styles.panelVacio}>No hubo llamadas en esta semana.</p>
       ) : (
-        <div className={styles.tablaWrap}>
+        <>
+        <div className={styles.soloMobile}>
+          {conDatos.length === 0 ? (
+            <p className={styles.panelVacio}>
+              Ninguna de las {leads.length} llamadas tiene datos cargados todavía.
+            </p>
+          ) : (
+            <>
+              {conDatos.map((lead) => <LeadCard key={lead.id} lead={lead} />)}
+              {ocultos > 0 ? (
+                <p className={styles.leadCardNota}>
+                  {ocultos} {ocultos === 1 ? 'llamada más sin datos cargados' : 'llamadas más sin datos cargados'}
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+        <div className={`${styles.tablaWrap} ${styles.soloDesktop}`}>
           <table className={styles.tabla}>
             <thead>
               <tr>
@@ -79,7 +191,6 @@ function TablaLeads({ leads }) {
                 <th className={styles.colCentro}>Ads</th>
                 <th>Punto final</th>
                 <th>Estado</th>
-                <th>Closer</th>
                 <th className={styles.colDerecha}>Pago</th>
               </tr>
             </thead>
@@ -88,29 +199,26 @@ function TablaLeads({ leads }) {
                 <tr key={lead.id}>
                   <td>
                     <span className={styles.leadNombre}>{lead.nombre}</span>
-                    {lead.ig ? <span className={styles.leadIg}>@{lead.ig}</span> : null}
+                    <IgLink handle={lead.ig} />
                     <span className={styles.leadSeguidores}>{fechaConAnio(lead.fecha_call)}</span>
                   </td>
                   <td><PiezaCelda pieza={lead.punto_base} vacio="desconocido" /></td>
                   <td className={styles.colCentro}><AdsFlag valor={lead.vino_de_ads} /></td>
                   <td><PiezaCelda pieza={lead.punto_final} vacio="sin registrar" /></td>
                   <td><EstadoBadge estado={lead.estado} /></td>
-                  <td><span className={styles.leadCloser}>{lead.closer || '—'}</span></td>
                   <td className={styles.colDerecha}>
                     {lead.pago > 0 ? (
                       <span className={styles.pagoMonto}>{formatUsd(lead.pago)}</span>
                     ) : (
                       <span className={styles.vacio}>—</span>
                     )}
-                    {lead.debe > 0 ? (
-                      <span className={styles.pagoDebe}>debe {formatUsd(lead.debe)}</span>
-                    ) : null}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
   )
