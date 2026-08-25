@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from src.deps import get_current_user
 from src.services import mkt_services
@@ -40,3 +40,18 @@ def ventas(
 ) -> dict[str, Any]:
     d, h = _validar(desde, hasta)
     return mkt_services.get_ventas(d, h)
+
+
+@router.get("/media/{path:path}")
+def media(path: str, _: str = Depends(get_current_user)) -> Response:
+    """Sirve las imágenes de historias de MKT por HTTPS.
+
+    MKT las expone por HTTP y Clients corre en HTTPS: sin este pase el navegador
+    las bloquea por contenido mixto.
+    """
+    contenido, tipo = mkt_services.get_media(path)
+    return Response(
+        content=contenido,
+        media_type=tipo,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
