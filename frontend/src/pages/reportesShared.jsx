@@ -153,3 +153,29 @@ export function HeroReporte({ titulo, subtitulo, enVivo = false, children }) {
     </header>
   )
 }
+
+/** Indicador visual del pull-to-refresh (misma UX que el dashboard). */
+export function PullSlot({ pullPx, refreshing, threshold = 68 }) {
+  return (
+    <div
+      className={[
+        styles.pullSlot,
+        pullPx > 0 && !refreshing ? styles.pullSlotLive : '',
+      ].filter(Boolean).join(' ')}
+      style={{ height: pullPx }}
+      aria-hidden
+    >
+      <span
+        className={[
+          styles.pullSpinner,
+          refreshing || pullPx >= threshold ? styles.pullSpinnerSpin : '',
+        ].filter(Boolean).join(' ')}
+        style={
+          refreshing || pullPx >= threshold
+            ? undefined
+            : { transform: `rotate(${pullPx * 2.6}deg)` }
+        }
+      />
+    </div>
+  )
+}

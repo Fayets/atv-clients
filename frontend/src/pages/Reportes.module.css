@@ -6,6 +6,39 @@
   font-family: var(--font-body);
   overflow-x: clip;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.pullSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  transition: height 0.18s ease;
+}
+
+.pullSlotLive {
+  transition: none;
+}
+
+.pullSpinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--text);
+  flex-shrink: 0;
+}
+
+.pullSpinnerSpin {
+  animation: reportesPullSpin 0.7s linear infinite;
+}
+
+@keyframes reportesPullSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .content {
@@ -92,6 +125,62 @@
   font-size: 12px !important;
   padding: 5px 12px !important;
   color: var(--muted) !important;
+}
+
+.periodoToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.periodoToggle button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.periodoToggle button:hover {
+  color: var(--text);
+}
+
+.periodoToggleOn {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+}
+
+.heroNavCol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .heroNavCol {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .periodoToggle,
+  .semanaNav {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .periodoToggle button {
+    flex: 1;
+  }
 }
 
 .errorBanner {

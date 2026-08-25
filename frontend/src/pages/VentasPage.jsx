@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
-import { correrSemana, etiquetaSemana, fetchVentas, semanaComercial } from '../api/reportes'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  correrMes,
+  correrSemana,
+  etiquetaMes,
+  etiquetaSemana,
+  fetchVentas,
+  mesCalendario,
+  semanaComercial,
+} from '../api/reportes'
 import Navbar from '../components/Navbar'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { formatUsd } from '../utils/format'
 import { ESTADO_VARIANT, fechaConAnio, tasa, TIPO_ICON } from '../utils/reportes'
-import { HeroReporte, Thumb } from './reportesShared'
+import { HeroReporte, PullSlot, Thumb } from './reportesShared'
 import styles from './Reportes.module.css'
 
 /** El handle enlaza al perfil; se abre en otra pestaña. */
@@ -119,6 +128,20 @@ function tieneDatos(lead) {
   return Boolean(lead.punto_base || lead.punto_final || lead.pago > 0)
 }
 
+function esCerrado(estado) {
+  return String(estado || '').trim().toLowerCase() === 'cerrado'
+}
+
+/** Cerrados primero; dentro de cada grupo, llamada más reciente arriba. */
+function ordenarLeads(leads) {
+  return [...leads].sort((a, b) => {
+    const ca = esCerrado(a.estado) ? 0 : 1
+    const cb = esCerrado(b.estado) ? 0 : 1
+    if (ca !== cb) return ca - cb
+    return String(b.fecha_call || '').localeCompare(String(a.fecha_call || ''))
+  })
+}
+
 /** Vista de mobile: datos del lead + puntos con miniatura. */
 function LeadCard({ lead }) {
   return (
@@ -162,29 +185,34 @@ function LeadCard({ lead }) {
   )
 }
 
-function TablaLeads({ leads }) {
-  const conDatos = leads.filter(tieneDatos)
-  const ocultos = leads.length - conDatos.length
+function TablaLeads({ leads, periodo }) {
+  const ordenados = useMemo(() => ordenarLeads(leads), [leads])
+  const conDatos = ordenados.filter(tieneDatos)
+  const ocultos = ordenados.length - conDatos.length
+  const titulo = periodo === 'mes' ? 'Llamadas del mes' : 'Llamadas de la semana'
+  const vacioMsg = periodo === 'mes'
+    ? 'No hubo llamadas en este mes.'
+    : 'No hubo llamadas en esta semana.'
 
   return (
     <section className={styles.seccion}>
       <header className={styles.seccionHead}>
         <div>
-          <h2 className={styles.seccionTitulo}>Llamadas de la semana</h2>
+          <h2 className={styles.seccionTitulo}>{titulo}</h2>
           <p className={styles.seccionMeta}>
-            {leads.length} {leads.length === 1 ? 'llamada' : 'llamadas'} · una fila por lead que tuvo call
+            {ordenados.length} {ordenados.length === 1 ? 'llamada' : 'llamadas'} · cerradas primero
           </p>
         </div>
       </header>
 
-      {leads.length === 0 ? (
-        <p className={styles.panelVacio}>No hubo llamadas en esta semana.</p>
+      {ordenados.length === 0 ? (
+        <p className={styles.panelVacio}>{vacioMsg}</p>
       ) : (
         <>
         <div className={styles.soloMobile}>
           {conDatos.length === 0 ? (
             <p className={styles.panelVacio}>
-              Ninguna de las {leads.length} llamadas tiene datos cargados todavía.
+              Ninguna de las {ordenados.length} llamadas tiene datos cargados todavía.
             </p>
           ) : (
             <>
@@ -210,7 +238,7 @@ function TablaLeads({ leads }) {
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead) => (
+              {ordenados.map((lead) => (
                 <tr key={lead.id}>
                   <td>
                     <span className={styles.leadNombre}>{lead.nombre}</span>
@@ -286,53 +314,96 @@ function PuntoFinal({ filas }) {
 }
 
 export default function VentasPage() {
-  const [semana, setSemana] = useState(() => semanaComercial())
+  const [periodo, setPeriodo] = useState('semana')
+  const [rango, setRango] = useState(() => semanaComercial())
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const cargar = useCallback(async () => {
-    setLoading(true)
+  const cambiarPeriodo = (next) => {
+    if (next === periodo) return
+    setPeriodo(next)
+    setRango(next === 'mes' ? mesCalendario() : semanaComercial())
+  }
+
+  const cargar = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
-      setData(await fetchVentas(semana))
+      setData(await fetchVentas(rango))
     } catch (err) {
-      setData(null)
+      if (!silent) setData(null)
       setError(err.message || 'Error al cargar el reporte')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
-  }, [semana])
+  }, [rango])
 
   useEffect(() => { cargar() }, [cargar])
+
+  const onRefresh = useCallback(() => cargar({ silent: true }), [cargar])
+  const { pageRef, pullPx, refreshing, pullThreshold } = usePullToRefresh(onRefresh)
 
   const f = data?.funnel
   const leads = data?.leads || []
 
+  const subtitulo = loading
+    ? 'Cargando…'
+    : periodo === 'mes'
+      ? `${etiquetaMes(rango.desde)} · mes calendario`
+      : `Semana ${etiquetaSemana(rango.desde, rango.hasta)} (viernes a viernes)`
+
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={pageRef}>
       <Navbar currentPath="/ventas" />
 
+      <PullSlot pullPx={pullPx} refreshing={refreshing} threshold={pullThreshold} />
+
       <main className={styles.content}>
-        <HeroReporte
-          titulo="Ventas"
-          subtitulo={
-            loading
-              ? 'Cargando…'
-              : `Semana ${etiquetaSemana(semana.desde, semana.hasta)} (viernes a viernes)`
-          }
-          enVivo
-        >
-          <div className={styles.semanaNav}>
-            <button type="button" onClick={() => setSemana(correrSemana(semana.desde, -7))} aria-label="Semana anterior">
-              <i className="ti ti-chevron-left" />
-            </button>
-            <button type="button" className={styles.semanaHoy} onClick={() => setSemana(semanaComercial())}>
-              Esta semana
-            </button>
-            <button type="button" onClick={() => setSemana(correrSemana(semana.desde, 7))} aria-label="Semana siguiente">
-              <i className="ti ti-chevron-right" />
-            </button>
+        <HeroReporte titulo="Ventas" subtitulo={subtitulo} enVivo>
+          <div className={styles.heroNavCol}>
+            <div className={styles.periodoToggle} role="group" aria-label="Periodo">
+              <button
+                type="button"
+                className={periodo === 'semana' ? styles.periodoToggleOn : ''}
+                onClick={() => cambiarPeriodo('semana')}
+              >
+                Semana
+              </button>
+              <button
+                type="button"
+                className={periodo === 'mes' ? styles.periodoToggleOn : ''}
+                onClick={() => cambiarPeriodo('mes')}
+              >
+                Mes
+              </button>
+            </div>
+
+            {periodo === 'semana' ? (
+              <div className={styles.semanaNav}>
+                <button type="button" onClick={() => setRango(correrSemana(rango.desde, -7))} aria-label="Semana anterior">
+                  <i className="ti ti-chevron-left" />
+                </button>
+                <button type="button" className={styles.semanaHoy} onClick={() => setRango(semanaComercial())}>
+                  Esta semana
+                </button>
+                <button type="button" onClick={() => setRango(correrSemana(rango.desde, 7))} aria-label="Semana siguiente">
+                  <i className="ti ti-chevron-right" />
+                </button>
+              </div>
+            ) : (
+              <div className={styles.semanaNav}>
+                <button type="button" onClick={() => setRango(correrMes(rango.desde, -1))} aria-label="Mes anterior">
+                  <i className="ti ti-chevron-left" />
+                </button>
+                <button type="button" className={styles.semanaHoy} onClick={() => setRango(mesCalendario())}>
+                  Este mes
+                </button>
+                <button type="button" onClick={() => setRango(correrMes(rango.desde, 1))} aria-label="Mes siguiente">
+                  <i className="ti ti-chevron-right" />
+                </button>
+              </div>
+            )}
           </div>
         </HeroReporte>
 
@@ -340,7 +411,7 @@ export default function VentasPage() {
 
         {f ? (
           <>
-            <TablaLeads leads={leads} />
+            <TablaLeads leads={leads} periodo={periodo} />
             <PuntoFinal filas={data.punto_final || []} />
           </>
         ) : null}

@@ -81,3 +81,31 @@ export function semanaComercial(fecha = new Date()) {
   const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
   return { desde: iso(inicio), hasta: iso(fin) }
 }
+
+function isoLocal(x) {
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+}
+
+/** Mes calendario que contiene a `fecha`: [primer día, primer día del mes siguiente). */
+export function mesCalendario(fecha = new Date()) {
+  const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), 1)
+  const fin = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 1)
+  return { desde: isoLocal(inicio), hasta: isoLocal(fin) }
+}
+
+/** Corre `meses` meses (positivo o negativo) desde el `desde` de un mesCalendario. */
+export function correrMes(desde, meses) {
+  const d = new Date(`${desde}T12:00:00`)
+  return mesCalendario(new Date(d.getFullYear(), d.getMonth() + meses, 1))
+}
+
+const MESES_LARGOS = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+/** Etiqueta del mes, p. ej. "Agosto 2026". */
+export function etiquetaMes(desde) {
+  const d = new Date(`${desde}T12:00:00`)
+  return `${MESES_LARGOS[d.getMonth()]} ${d.getFullYear()}`
+}

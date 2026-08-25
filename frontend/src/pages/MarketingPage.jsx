@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { correrSemana, etiquetaSemana, fetchContenido, fetchVentas, semanaComercial } from '../api/reportes'
 import Navbar from '../components/Navbar'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { formatUsd } from '../utils/format'
 import { fechaConAnio, numero } from '../utils/reportes'
-import { HeroReporte, Metricas, PiezaCard, Thumb } from './reportesShared'
+import { HeroReporte, Metricas, PiezaCard, PullSlot, Thumb } from './reportesShared'
 import styles from './Reportes.module.css'
 
 /** Normaliza una pieza de MKT al shape que espera PiezaCard. */
@@ -143,8 +144,8 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const cargar = useCallback(async () => {
-    setLoading(true)
+  const cargar = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
       // las ventas son para el ranking de cash: el contenido de la semana no
@@ -156,14 +157,17 @@ export default function MarketingPage() {
       setData(contenido)
       setVentas(vts)
     } catch (err) {
-      setData(null)
+      if (!silent) setData(null)
       setError(err.message || 'Error al cargar el reporte')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [semana])
 
   useEffect(() => { cargar() }, [cargar])
+
+  const onRefresh = useCallback(() => cargar({ silent: true }), [cargar])
+  const { pageRef, pullPx, refreshing, pullThreshold } = usePullToRefresh(onRefresh)
 
   const reels = data?.reels || []
   const historias = data?.historias || []
@@ -177,8 +181,10 @@ export default function MarketingPage() {
       : `Semana ${etiquetaSemana(semana.desde, semana.hasta)} (viernes a viernes)`
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={pageRef}>
       <Navbar currentPath="/marketing" />
+
+      <PullSlot pullPx={pullPx} refreshing={refreshing} threshold={pullThreshold} />
 
       <main className={styles.content}>
         <HeroReporte titulo="Marketing" subtitulo={subtitulo} enVivo>
