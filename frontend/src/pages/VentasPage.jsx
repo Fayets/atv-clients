@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { correrSemana, etiquetaSemana, fetchVentas, semanaComercial } from '../api/reportes'
 import Navbar from '../components/Navbar'
 import { formatUsd } from '../utils/format'
-import { ESTADO_VARIANT, fechaConAnio, tasa } from '../utils/reportes'
+import { ESTADO_VARIANT, fechaConAnio, tasa, TIPO_ICON } from '../utils/reportes'
 import { HeroReporte, Thumb } from './reportesShared'
 import styles from './Reportes.module.css'
 
@@ -46,30 +46,6 @@ function AdsFlag({ valor }) {
 const CON_IMAGEN = ['reel', 'historia', 'youtube', 'ads', 'bio']
 const APAISADAS = ['youtube', 'ads']
 
-function PiezaCelda({ pieza, vacio }) {
-  if (!pieza) return <span className={styles.vacio}>{vacio}</span>
-
-  const conImagen = CON_IMAGEN.includes(pieza.tipo)
-
-  return (
-    <div className={styles.puntoBase}>
-      {conImagen ? (
-        <Thumb
-          src={pieza.thumb}
-          tipo={pieza.tipo}
-          alt={pieza.label}
-          size="sm"
-          formato={APAISADAS.includes(pieza.tipo) ? 'horizontal' : 'vertical'}
-        />
-      ) : null}
-      <div className={styles.puntoBaseTexto}>
-        {conImagen ? null : <span className={styles.piezaRef}>{pieza.label}</span>}
-        {pieza.fecha ? <span className={styles.piezaRefFecha}>{fechaConAnio(pieza.fecha)}</span> : null}
-      </div>
-    </div>
-  )
-}
-
 const NOMBRE_TIPO = {
   reel: 'Reel',
   historia: 'Historia',
@@ -78,15 +54,64 @@ const NOMBRE_TIPO = {
   bio: 'BIO',
 }
 
-/**
- * Texto corto de una pieza. Para las que tienen imagen se usa el canal y la
- * fecha: el título completo es largo y la miniatura ya la identifica.
- */
-function resumenPieza(pieza) {
+function nombrePieza(pieza) {
   if (!pieza) return null
-  const nombre = NOMBRE_TIPO[pieza.tipo] || pieza.label
-  if (!CON_IMAGEN.includes(pieza.tipo)) return pieza.label
-  return pieza.fecha ? `${nombre} · ${fechaConAnio(pieza.fecha)}` : nombre
+  return NOMBRE_TIPO[pieza.tipo] || pieza.label
+}
+
+function PiezaCelda({ pieza, vacio }) {
+  if (!pieza) return <span className={styles.vacio}>{vacio}</span>
+
+  const conImagen = CON_IMAGEN.includes(pieza.tipo)
+  const nombre = nombrePieza(pieza)
+
+  return (
+    <div className={styles.puntoBase}>
+      {conImagen ? (
+        <Thumb
+          src={pieza.thumb}
+          tipo={pieza.tipo}
+          alt={nombre}
+          size="sm"
+          formato={APAISADAS.includes(pieza.tipo) ? 'horizontal' : 'vertical'}
+        />
+      ) : null}
+      <div className={styles.puntoBaseTexto}>
+        <span className={styles.piezaRef}>{nombre}</span>
+        {pieza.fecha ? <span className={styles.piezaRefFecha}>{fechaConAnio(pieza.fecha)}</span> : null}
+      </div>
+    </div>
+  )
+}
+
+/** Bloque visual para mobile: miniatura + nombre debajo. */
+function PiezaMini({ pieza, vacio }) {
+  if (!pieza) return <span className={styles.vacio}>{vacio}</span>
+
+  const conImagen = CON_IMAGEN.includes(pieza.tipo)
+  const nombre = nombrePieza(pieza)
+
+  return (
+    <div className={styles.piezaMini}>
+      {conImagen ? (
+        <Thumb
+          src={pieza.thumb}
+          tipo={pieza.tipo}
+          alt={nombre}
+          size="sm"
+          formato={APAISADAS.includes(pieza.tipo) ? 'horizontal' : 'vertical'}
+        />
+      ) : (
+        <span className={`${styles.thumb} ${styles.thumbSm} ${styles.piezaMiniVacio}`}>
+          <i className={`ti ${TIPO_ICON[pieza.tipo] || 'ti-help-circle'}`} />
+        </span>
+      )}
+      <span className={styles.piezaMiniNombre}>{nombre}</span>
+      {pieza.fecha ? (
+        <span className={styles.piezaMiniFecha}>{fechaConAnio(pieza.fecha)}</span>
+      ) : null}
+    </div>
+  )
 }
 
 /** ¿Tiene algo que mostrar más allá del nombre? */
@@ -94,23 +119,10 @@ function tieneDatos(lead) {
   return Boolean(lead.punto_base || lead.punto_final || lead.pago > 0)
 }
 
-/** Vista de mobile: imagen a la izquierda, datos al lado. */
+/** Vista de mobile: datos del lead + puntos con miniatura. */
 function LeadCard({ lead }) {
-  const pieza = lead.punto_base || lead.punto_final
-  const conImagen = pieza && CON_IMAGEN.includes(pieza.tipo)
-
   return (
     <article className={styles.leadCard}>
-      {conImagen ? (
-        <Thumb
-          src={pieza.thumb}
-          tipo={pieza.tipo}
-          alt={pieza.label}
-          size="sm"
-          formato={APAISADAS.includes(pieza.tipo) ? 'horizontal' : 'vertical'}
-        />
-      ) : null}
-
       <div className={styles.leadCardBody}>
         <div className={styles.leadCardHead}>
           <span className={styles.leadNombre}>{lead.nombre}</span>
@@ -118,15 +130,18 @@ function LeadCard({ lead }) {
         </div>
         <IgLink handle={lead.ig} />
 
+        <div className={styles.leadCardPuntos}>
+          <div className={styles.leadCardPunto}>
+            <span className={styles.leadCardPuntoLabel}>Punto base</span>
+            <PiezaMini pieza={lead.punto_base} vacio="desconocido" />
+          </div>
+          <div className={styles.leadCardPunto}>
+            <span className={styles.leadCardPuntoLabel}>Punto final</span>
+            <PiezaMini pieza={lead.punto_final} vacio="sin registrar" />
+          </div>
+        </div>
+
         <dl className={styles.leadCardDatos}>
-          <div>
-            <dt>Punto base</dt>
-            <dd>{resumenPieza(lead.punto_base) || <span className={styles.vacio}>desconocido</span>}</dd>
-          </div>
-          <div>
-            <dt>Punto final</dt>
-            <dd>{resumenPieza(lead.punto_final) || <span className={styles.vacio}>sin registrar</span>}</dd>
-          </div>
           <div>
             <dt>Ads</dt>
             <dd><AdsFlag valor={lead.vino_de_ads} /></dd>

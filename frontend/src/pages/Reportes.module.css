@@ -364,9 +364,6 @@
 .soloDesktop { display: block; }
 
 .leadCard {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -374,17 +371,7 @@
   margin-bottom: 10px;
 }
 
-.leadCard > .thumbSm {
-  width: 78px;
-  flex-shrink: 0;
-}
-
-.leadCard > .thumbSm.thumbVertical {
-  width: 54px;
-}
-
 .leadCardBody {
-  flex: 1;
   min-width: 0;
 }
 
@@ -404,8 +391,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px 10px;
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid var(--border);
 }
 
@@ -647,18 +634,100 @@
   gap: 10px;
 }
 
-/* dentro de la tabla la miniatura no debe empujar la columna */
-.puntoBase .thumbSm {
-  width: 76px;
-  flex-shrink: 0;
-}
-
-.puntoBase .thumbSm.thumbVertical {
+.puntoBase .thumbSm,
+.puntoBase .thumbSm.thumbVertical,
+.puntoBase .thumbSm.thumbHorizontal {
   width: 44px;
+  height: 44px;
+  aspect-ratio: unset;
+  flex-shrink: 0;
 }
 
 .puntoBaseTexto {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.puntoBaseTexto .piezaRef {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.puntoBaseTexto .piezaRefFecha {
+  font-size: 11px;
+  color: var(--label);
+}
+
+/* bloque miniatura + nombre (cards mobile) */
+.piezaMini {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+}
+
+.piezaMini .thumb,
+.piezaMini .thumb.thumbVertical,
+.piezaMini .thumb.thumbHorizontal {
+  width: 56px;
+  height: 56px;
+  aspect-ratio: unset;
+}
+
+.piezaMiniVacio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  aspect-ratio: unset;
+  border-style: dashed;
+  color: var(--label);
+  background: var(--surface2);
+}
+
+.piezaMiniVacio i {
+  font-size: 18px;
+}
+
+.piezaMiniNombre {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.piezaMiniFecha {
+  font-size: 10.5px;
+  color: var(--label);
+  line-height: 1.2;
+}
+
+.leadCardPuntos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.leadCardPunto {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.leadCardPuntoLabel {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--label);
+  font-weight: 600;
 }
 
 /* ---------- atribución ---------- */
@@ -698,6 +767,15 @@
   grid-template-columns: auto 1fr 90px 72px;
   gap: 10px;
   align-items: center;
+}
+
+/* Mismo alto/ancho para reel, bio, ads, etc.: evita filas desparejas */
+.rankingRow .thumb,
+.rankingRow .thumb.thumbVertical,
+.rankingRow .thumb.thumbHorizontal {
+  width: 44px;
+  height: 44px;
+  aspect-ratio: unset;
 }
 
 .rankingRowSimple {
