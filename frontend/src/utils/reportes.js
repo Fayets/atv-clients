@@ -19,6 +19,7 @@ export const TIPO_ICON = {
   historia: 'ti-circle-dashed',
   youtube: 'ti-brand-youtube',
   bio: 'ti-link',
+  ads: 'ti-speakerphone',
   desconocido: 'ti-help-circle',
 }
 

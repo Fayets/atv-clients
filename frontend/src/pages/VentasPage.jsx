@@ -23,21 +23,32 @@ function AdsFlag({ valor }) {
 }
 
 /** Celda de punto base / punto final: miniatura + label, o el hueco explícito. */
+/**
+ * Punto base / punto final. Cuando la pieza tiene imagen, la miniatura ya la
+ * identifica y el título largo solo estorba: se muestra imagen y fecha.
+ * El texto queda solo para lo que no tiene imagen (bio, texto libre).
+ */
+const CON_IMAGEN = ['reel', 'historia', 'youtube', 'ads']
+const APAISADAS = ['youtube', 'ads']
+
 function PiezaCelda({ pieza, vacio }) {
   if (!pieza) return <span className={styles.vacio}>{vacio}</span>
+
+  const conImagen = CON_IMAGEN.includes(pieza.tipo)
+
   return (
     <div className={styles.puntoBase}>
-      {pieza.tipo !== 'texto' && pieza.tipo !== 'bio' ? (
+      {conImagen ? (
         <Thumb
           src={pieza.thumb}
           tipo={pieza.tipo}
           alt={pieza.label}
-          size="xs"
-          formato={pieza.tipo === 'youtube' ? 'horizontal' : 'vertical'}
+          size="sm"
+          formato={APAISADAS.includes(pieza.tipo) ? 'horizontal' : 'vertical'}
         />
       ) : null}
       <div className={styles.puntoBaseTexto}>
-        <span className={styles.piezaRef}>{pieza.label}</span>
+        {conImagen ? null : <span className={styles.piezaRef}>{pieza.label}</span>}
         {pieza.fecha ? <span className={styles.piezaRefFecha}>{fechaConAnio(pieza.fecha)}</span> : null}
       </div>
     </div>

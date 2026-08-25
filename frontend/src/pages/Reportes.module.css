@@ -573,6 +573,16 @@
   gap: 10px;
 }
 
+/* dentro de la tabla la miniatura no debe empujar la columna */
+.puntoBase .thumbSm {
+  width: 76px;
+  flex-shrink: 0;
+}
+
+.puntoBase .thumbSm.thumbVertical {
+  width: 44px;
+}
+
 .puntoBaseTexto {
   min-width: 0;
 }
