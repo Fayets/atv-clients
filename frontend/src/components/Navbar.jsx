@@ -13,6 +13,8 @@ export default function Navbar({ currentPath }) {
   const links = [
     { href: '/', label: 'Inicio' },
     { href: '/clientes', label: 'Clientes' },
+    { href: '/marketing', label: 'Marketing' },
+    { href: '/ventas', label: 'Ventas' },
   ]
 
   const handleToggleTheme = () => {
@@ -41,7 +43,6 @@ export default function Navbar({ currentPath }) {
             width={32}
             height={32}
           />
-          <span className={styles.brandText}>Clients</span>
         </a>
         <div className={styles.links}>
           {links.map((link) => (
