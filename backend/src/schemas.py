@@ -331,6 +331,17 @@ class AgentDiscordTranscriptContenido(BaseModel):
     contenido: str
 
 
+class AgentDiscordUpdateMensaje(BaseModel):
+    autor: str
+    mensaje: str
+    fecha: str
+
+
+class AgentDiscordUpdatesResponse(BaseModel):
+    canal: str
+    mensajes: list[AgentDiscordUpdateMensaje] = Field(default_factory=list)
+
+
 class AgentClienteResumen(BaseModel):
     id: int
     nombre: str

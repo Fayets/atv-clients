@@ -14,6 +14,7 @@ from src.schemas import (
     AgentCuotaIdRequest,
     AgentDiscordTranscriptContenido,
     AgentDiscordTranscriptItem,
+    AgentDiscordUpdatesResponse,
     AgentPlataDiaResponse,
     AgentProyeccionesResponse,
     CuotaNotaTipo,
@@ -145,6 +146,21 @@ def buscar_clientes(
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Error al buscar clientes.")
+
+
+@router.get("/discord/updates", response_model=AgentDiscordUpdatesResponse)
+async def listar_discord_updates(
+    limit: int = Query(default=50, ge=1, le=200),
+    _: None = Depends(get_agent_auth),
+):
+    try:
+        from src.services.discord_service import obtener_mensajes_updates
+
+        return await obtener_mensajes_updates(limit)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al listar mensajes de #updates.")
 
 
 @router.get(

@@ -58,6 +58,12 @@ async def _ciclo() -> None:
             procesados += 1
             await asyncio.sleep(0.5)
 
+    # Canal especial: #updates (no pertenece a ninguna categoría de cliente)
+    canal_updates = discord.utils.get(guild.text_channels, name="updates")
+    if canal_updates:
+        await _extraer_canal(canal_updates, "updates")
+        procesados += 1
+
     logger.info(f"Ciclo completado — {procesados} canales procesados.")
 
 

@@ -14,6 +14,7 @@ from src.models import Cliente, DiscordTranscript
 from src.discord_transcript_paths import (
     canonical_transcript_filepath,
     get_transcripts_base,
+    resolve_transcript_filepath,
 )
 
 logger = logging.getLogger("discord_bot")
@@ -530,3 +531,84 @@ async def sync_cliente(cliente_id: int, guild: discord.Guild) -> dict[str, int]:
             await asyncio.sleep(0.5)
 
     return {"canales": canales, "mensajes": mensajes}
+
+
+def _fecha_ar_label(dt: datetime) -> str:
+    """Formato 'YYYY-MM-DD HH:MM AR' en hora Argentina."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    ar = dt.astimezone(timezone(timedelta(hours=-3)))
+    return ar.strftime("%Y-%m-%d %H:%M AR")
+
+
+def _parse_updates_txt(limit: int) -> list[dict]:
+    """Lee el .txt acumulado de #updates (fallback si el bot no está online)."""
+    path = resolve_transcript_filepath(
+        canonical_transcript_filepath("updates", "updates")
+    )
+    if not path or not path.is_file():
+        # también probar ruta local vía TRANSCRIPTS_BASE
+        local = TRANSCRIPTS_BASE / "updates" / "updates" / "updates.txt"
+        path = local if local.is_file() else None
+    if not path:
+        return []
+
+    text = path.read_text(encoding="utf-8")
+    # Separar header del cuerpo
+    if "=" * 20 in text:
+        text = text.split("=" * 60, 1)[-1] if "=" * 60 in text else text.split("====", 1)[-1]
+
+    pattern = re.compile(
+        r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\] (.+)\n([\s\S]*?)(?=^\[\d{4}-\d{2}-\d{2} |\Z)",
+        re.MULTILINE,
+    )
+    items: list[dict] = []
+    for match in pattern.finditer(text.strip() + "\n"):
+        ts_raw, autor, cuerpo = match.group(1), match.group(2), match.group(3)
+        cuerpo = cuerpo.strip()
+        try:
+            naive = datetime.strptime(ts_raw, "%Y-%m-%d %H:%M")
+            # Los .txt se escriben con timestamp UTC naive → convertir a AR
+            fecha = _fecha_ar_label(naive.replace(tzinfo=timezone.utc))
+        except ValueError:
+            fecha = f"{ts_raw} AR"
+        items.append({"autor": autor.strip(), "mensaje": cuerpo, "fecha": fecha})
+
+    # archivo está oldest→newest; devolver newest first
+    items.reverse()
+    return items[:limit]
+
+
+async def _fetch_updates_live(canal: discord.TextChannel, limit: int) -> list[dict]:
+    items: list[dict] = []
+    async for msg in canal.history(limit=limit):
+        if msg.author.bot:
+            continue
+        parts = [msg.content or ""]
+        for att in msg.attachments:
+            parts.append(f"📎 {att.url}")
+        items.append({
+            "autor": msg.author.display_name,
+            "mensaje": "\n".join(p for p in parts if p).strip(),
+            "fecha": _fecha_ar_label(msg.created_at),
+        })
+    return items
+
+
+async def obtener_mensajes_updates(limit: int = 50) -> dict:
+    """Últimos mensajes de #updates (más reciente primero). Para el agente Theo."""
+    limit = max(1, min(int(limit), 200))
+
+    try:
+        from src.discord_bot import get_guild
+
+        guild = get_guild()
+        if guild:
+            canal = discord.utils.get(guild.text_channels, name="updates")
+            if canal:
+                mensajes = await _fetch_updates_live(canal, limit)
+                return {"canal": "updates", "mensajes": mensajes}
+    except Exception as exc:
+        logger.warning("No se pudo leer #updates en vivo: %s", exc)
+
+    return {"canal": "updates", "mensajes": _parse_updates_txt(limit)}
