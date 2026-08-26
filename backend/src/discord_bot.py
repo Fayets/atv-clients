@@ -61,7 +61,10 @@ async def _ciclo() -> None:
     # Debug temporal: listar todos los text_channels del guild
     all_channels = [c.name for c in guild.text_channels]
     logger.info(f"[DEBUG] Canales de texto disponibles: {all_channels}")
-    canal_updates = discord.utils.get(guild.text_channels, name="updates")
+    canal_updates = next(
+        (c for c in guild.text_channels if "updates" in c.name.lower()),
+        None
+    )
     logger.info(f"[DEBUG] canal_updates encontrado: {canal_updates}")
     if canal_updates:
         await _extraer_canal(canal_updates, "updates")
