@@ -58,14 +58,11 @@ async def _ciclo() -> None:
             procesados += 1
             await asyncio.sleep(0.5)
 
-    # Debug temporal: listar todos los text_channels del guild
-    all_channels = [c.name for c in guild.text_channels]
-    logger.info(f"[DEBUG] Canales de texto disponibles: {all_channels}")
+    # Canal especial: #updates (no pertenece a ninguna categoría de cliente)
     canal_updates = next(
         (c for c in guild.text_channels if "updates" in c.name.lower()),
         None
     )
-    logger.info(f"[DEBUG] canal_updates encontrado: {canal_updates}")
     if canal_updates:
         await _extraer_canal(canal_updates, "updates")
         procesados += 1
