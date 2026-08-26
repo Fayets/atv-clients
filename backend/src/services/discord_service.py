@@ -541,15 +541,26 @@ def _fecha_ar_label(dt: datetime) -> str:
     return ar.strftime("%Y-%m-%d %H:%M AR")
 
 
+def _resolve_updates_txt_path() -> Path | None:
+    """Path real del .txt de #updates (el canal puede tener emoji en el nombre)."""
+    base = TRANSCRIPTS_BASE / "updates"
+    if not base.is_dir():
+        return None
+    subdirs = sorted(d for d in base.iterdir() if d.is_dir())
+    for sub in subdirs:
+        candidate = sub / f"{sub.name}.txt"
+        if candidate.is_file():
+            return candidate
+        # cualquier .txt dentro del subdir
+        txts = sorted(sub.glob("*.txt"))
+        if txts:
+            return txts[0]
+    return None
+
+
 def _parse_updates_txt(limit: int) -> list[dict]:
     """Lee el .txt acumulado de #updates (fallback si el bot no está online)."""
-    path = resolve_transcript_filepath(
-        canonical_transcript_filepath("updates", "updates")
-    )
-    if not path or not path.is_file():
-        # también probar ruta local vía TRANSCRIPTS_BASE
-        local = TRANSCRIPTS_BASE / "updates" / "updates" / "updates.txt"
-        path = local if local.is_file() else None
+    path = _resolve_updates_txt_path()
     if not path:
         return []
 
@@ -604,11 +615,16 @@ async def obtener_mensajes_updates(limit: int = 50) -> dict:
 
         guild = get_guild()
         if guild:
-            canal = discord.utils.get(guild.text_channels, name="updates")
+            canal = next(
+                (c for c in guild.text_channels if "updates" in c.name.lower()),
+                None,
+            )
             if canal:
                 mensajes = await _fetch_updates_live(canal, limit)
-                return {"canal": "updates", "mensajes": mensajes}
+                return {"canal": canal.name, "mensajes": mensajes}
     except Exception as exc:
         logger.warning("No se pudo leer #updates en vivo: %s", exc)
 
-    return {"canal": "updates", "mensajes": _parse_updates_txt(limit)}
+    path = _resolve_updates_txt_path()
+    canal_label = path.parent.name if path else "updates"
+    return {"canal": canal_label, "mensajes": _parse_updates_txt(limit)}
