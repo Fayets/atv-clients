@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import psycopg2
+import pytz
 from decouple import config
 from fastapi import HTTPException, UploadFile
 from pony.orm import db_session, flush
@@ -114,7 +115,8 @@ def _comprobantes_root() -> Path:
 
 
 def _today() -> date:
-    return date.today()
+    """Hoy en Argentina (UTC-3). El server suele correr en UTC."""
+    return datetime.now(pytz.timezone("America/Argentina/Buenos_Aires")).date()
 
 
 def _add_months(value: date, months: int) -> date:
