@@ -418,6 +418,8 @@ class DashboardDetalleItem(BaseModel):
     tipo: CuotaNotaTipo | None = None
     origen: str | None = None
     fecha: date | None = None
+    grupo: str | None = None
+    grupo_key: str | None = None
 
 
 class DashboardMesCobranza(BaseModel):
@@ -453,6 +455,8 @@ class DashboardProyeccionItem(BaseModel):
     subtitulo: str | None = None
     responsable: Responsable | None = None
     tipo: CuotaNotaTipo | None = None
+    grupo: str | None = None
+    grupo_key: str | None = None
 
 
 class DashboardResumen(BaseModel):

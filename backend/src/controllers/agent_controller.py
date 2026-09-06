@@ -92,6 +92,20 @@ def obtener_cobrado_mes(
         raise HTTPException(status_code=500, detail="Error al obtener el cobrado del mes.")
 
 
+@router.get("/cobranza-mes")
+def obtener_cobranza_mes_ops(
+    month: str | None = Query(default=None, description="Mes YYYY-MM. Default: mes actual AR."),
+    _: None = Depends(get_agent_auth),
+):
+    """Listado de cuotas del mes para atv-ops (pagadas + pendientes + vencidas)."""
+    try:
+        return service.obtener_cobranza_mes(month)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al obtener la cobranza del mes.")
+
+
 @router.get("/cuotas/buscar", response_model=AgentCuotaBuscarResponse)
 def buscar_cuotas_agente(
     cliente: str = Query(..., min_length=1, description="Nombre del cliente (substring)"),

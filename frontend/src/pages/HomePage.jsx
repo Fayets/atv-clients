@@ -351,38 +351,77 @@ function SemanaCalendario({
   )
 }
 
+function groupDetailItems(items) {
+  const groups = []
+  let current = null
+  for (const item of items) {
+    const key = item.grupo_key || item.grupo || '_'
+    const label = item.grupo || null
+    if (!current || current.key !== key) {
+      current = { key, label, items: [] }
+      groups.push(current)
+    }
+    current.items.push(item)
+  }
+  return groups
+}
+
+function DetailRow({ item }) {
+  const { tag, extra } = parseSubtitulo(item.subtitulo)
+  const variant = tag ? tagVariant(tag) : 'default'
+  return (
+    <li
+      className={styles.detailRow}
+      onClick={() => navigate(`/cliente/${item.cliente_id}`)}
+    >
+      <span className={styles.detailName}>{item.nombre}</span>
+      <span className={styles.detailTagCell}>
+        {tag ? (
+          <span className={`${styles.detailTag} ${styles[TAG_CLASS[variant] || TAG_CLASS.default]}`}>
+            {tag}
+          </span>
+        ) : null}
+      </span>
+      <span className={styles.detailTagExtra}>{extra || ''}</span>
+      <span className={styles.detailPlan}>
+        <PlanBadge plan={item.plan_actual} />
+      </span>
+      <span className={styles.detailAmount}>{formatUsd(item.monto_usd)}</span>
+    </li>
+  )
+}
+
 function DetailList({ items }) {
   if (items.length === 0) {
     return <p className={styles.detailEmpty}>Sin registros.</p>
   }
+  const groups = groupDetailItems(items)
+  const showSections = groups.some((g) => g.label)
+  if (!showSections) {
+    return (
+      <ul className={styles.detailList}>
+        {items.map((item, index) => (
+          <DetailRow key={`${item.cliente_id}-${item.subtitulo}-${index}`} item={item} />
+        ))}
+      </ul>
+    )
+  }
   return (
-    <ul className={styles.detailList}>
-      {items.map((item, index) => {
-        const { tag, extra } = parseSubtitulo(item.subtitulo)
-        const variant = tag ? tagVariant(tag) : 'default'
-        return (
-          <li
-            key={`${item.cliente_id}-${item.subtitulo}-${index}`}
-            className={styles.detailRow}
-            onClick={() => navigate(`/cliente/${item.cliente_id}`)}
-          >
-            <span className={styles.detailName}>{item.nombre}</span>
-            <span className={styles.detailTagCell}>
-              {tag ? (
-                <span className={`${styles.detailTag} ${styles[TAG_CLASS[variant] || TAG_CLASS.default]}`}>
-                  {tag}
-                </span>
-              ) : null}
-            </span>
-            <span className={styles.detailTagExtra}>{extra || ''}</span>
-            <span className={styles.detailPlan}>
-              <PlanBadge plan={item.plan_actual} />
-            </span>
-            <span className={styles.detailAmount}>{formatUsd(item.monto_usd)}</span>
-          </li>
-        )
-      })}
-    </ul>
+    <div className={styles.detailList}>
+      {groups.map((group) => (
+        <section key={group.key} className={styles.detailSection}>
+          {group.label ? <h3 className={styles.detailSectionTitle}>{group.label}</h3> : null}
+          <ul className={styles.detailSectionList}>
+            {group.items.map((item, index) => (
+              <DetailRow
+                key={`${group.key}-${item.cliente_id}-${item.subtitulo}-${index}`}
+                item={item}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
   )
 }
 
@@ -599,7 +638,7 @@ export default function HomePage() {
     },
     proyeccion: {
       title: `Proyección — ${resumen?.mes_label || ''}`,
-      hint: `${proyeccionItems.length} upsells, posibilidades y recompras · Caja 2`,
+      hint: `${proyeccionItems.length} ítems · Caja 2 (posibilidades al fondo, no suman)`,
       items: proyeccionItems,
     },
     total: {

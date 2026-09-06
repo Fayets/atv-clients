@@ -585,8 +585,58 @@ def _sort_detalle_por_plan(items: list[dict]) -> None:
     )
 
 
+def _sort_cuotas_a_cobrar(items: list[dict], ref: date) -> None:
+    """Mes consultado primero; arrastre por mes (más reciente primero)."""
+    ref_key = f"{ref.year:04d}-{ref.month:02d}"
+    items.sort(
+        key=lambda x: (
+            *_orden_grupo_mes(x.get("grupo_key"), ref_key),
+            _orden_plan(x["plan_actual"]),
+            -float(x["monto_usd"]),
+            x["nombre"].lower(),
+        ),
+    )
+
+
+def _sort_proyeccion(items: list[dict], ref: date) -> None:
+    """Por mes de vencimiento; posibilidad upsell al fondo (no suma al total)."""
+    ref_key = f"{ref.year:04d}-{ref.month:02d}"
+    items.sort(
+        key=lambda x: (
+            *_orden_grupo_mes(x.get("grupo_key"), ref_key),
+            _orden_plan(x["plan_actual"]),
+            -float(x["monto_usd"]),
+            x["nombre"].lower(),
+        ),
+    )
+
+
 def _mes_label(fecha: date) -> str:
     return f"{MESES_ES[fecha.month - 1]} {fecha.year}"
+
+
+def _mes_grupo(fv: date | None, *, tipo: str | None = None) -> tuple[str, str]:
+    """(grupo_key, etiqueta) para subdivisiones en listas del dashboard."""
+    if tipo == "posibilidad_upsell":
+        return ("zzzz-posibilidad", "Posibilidad upsell")
+    if not fv:
+        return ("0000-00", "Sin fecha")
+    key = f"{fv.year:04d}-{fv.month:02d}"
+    return (key, _mes_label(fv).capitalize())
+
+
+def _orden_grupo_mes(grupo_key: str | None, ref_key: str) -> tuple:
+    """Mes consultado → meses anteriores (más reciente primero) → posibilidad."""
+    gk = grupo_key or "0000-00"
+    if gk.startswith("zzzz"):
+        return (2, 0)
+    if gk == ref_key:
+        return (0, 0)
+    try:
+        anio_s, mes_s = gk.split("-", 1)
+        return (1, -(int(anio_s) * 12 + int(mes_s)))
+    except ValueError:
+        return (1, 0)
 
 
 def _inicio_mes(fecha: date) -> date:
@@ -602,13 +652,19 @@ def _es_caja_2(tipo: str) -> bool:
 
 
 def _cuota_pendiente_del_mes(cuota: Cuota, ref: date) -> bool:
+    """Cuotas del mes + barrido de vencidas de meses anteriores (sigue pendiente)."""
     if cuota.estado not in {"pendiente", "vencido"}:
         return False
     # Posibilidad de upsell: oportunidad abierta, visible en cualquier mes hasta cerrar/pagar.
     if es_nota_sin_vencimiento(cuota.notas):
         return True
     fv = cuota.fecha_vence
-    return bool(fv) and fv.year == ref.year and fv.month == ref.month
+    if not fv:
+        return False
+    if fv.year == ref.year and fv.month == ref.month:
+        return True
+    # Barrido: vencida antes del mes consultado y aún impaga.
+    return fv < date(ref.year, ref.month, 1)
 
 
 def _fecha_cobro(cuota: Cuota, *, solo_fecha_pago: bool) -> date | None:
@@ -673,6 +729,8 @@ def _detalle_item(
     tipo: str | None = None,
     fecha: date | None = None,
     origen: str | None = None,
+    grupo: str | None = None,
+    grupo_key: str | None = None,
 ) -> dict:
     return {
         "cliente_id": cliente_id,
@@ -684,6 +742,8 @@ def _detalle_item(
         "tipo": tipo,
         "fecha": fecha,
         "origen": origen,
+        "grupo": grupo,
+        "grupo_key": grupo_key,
     }
 
 
@@ -724,6 +784,8 @@ def _proyeccion_item(
     subtitulo: str | None = None,
     responsable: str | None = None,
     tipo: str | None = None,
+    grupo: str | None = None,
+    grupo_key: str | None = None,
 ) -> dict:
     return {
         "cliente_id": cliente_id,
@@ -733,6 +795,8 @@ def _proyeccion_item(
         "subtitulo": subtitulo,
         "responsable": responsable,
         "tipo": tipo,
+        "grupo": grupo,
+        "grupo_key": grupo_key,
     }
 
 
@@ -1071,6 +1135,9 @@ class ClientesServices:
 
                     if cuota.estado not in {"pendiente", "vencido"}:
                         continue
+                    # Inactivos: no suman cuotas pendientes ni proyección.
+                    if estado == "inactivo":
+                        continue
                     sin_vence = es_nota_sin_vencimiento(cuota.notas)
                     if not fv and not sin_vence:
                         continue
@@ -1078,8 +1145,8 @@ class ClientesServices:
                         bucket = meses_proyeccion.get((ref.year, ref.month))
                     else:
                         bucket = meses_proyeccion.get((fv.year, fv.month)) if fv else None
-                    if bucket is not None:
-                        if tipo in {"cuota_upsell", "posibilidad_upsell"}:
+                    if bucket is not None and tipo != "posibilidad_upsell":
+                        if tipo == "cuota_upsell":
                             bucket["upsell_usd"] += monto
                         elif tipo == "cuota_recompra":
                             bucket["recompra_usd"] += monto
@@ -1091,13 +1158,16 @@ class ClientesServices:
                     nota_label = etiqueta_cuota_auto(cuota, cuotas)
 
                     if es_nota_proyeccion(cuota.notas):
-                        proyeccion_total += monto
-                        if tipo in {"cuota_upsell", "posibilidad_upsell"}:
-                            upsell_pendiente += monto
-                        else:
-                            recompra_pendiente += monto
+                        # Posibilidad upsell: visible al fondo, no suma a proyecciones.
+                        if tipo != "posibilidad_upsell":
+                            proyeccion_total += monto
+                            if tipo == "cuota_upsell":
+                                upsell_pendiente += monto
+                            else:
+                                recompra_pendiente += monto
                         responsable = base.get("responsable")
                         responsable_label = RESPONSABLE_LABELS.get(responsable)
+                        grupo_key, grupo = _mes_grupo(fv, tipo=tipo)
                         if sin_vence:
                             desde = (cuota.created_at.date() if cuota.created_at else None) or fv
                             subtitulo = f"{nota_label} · {etiqueta_dias_en_estado(desde, hoy)}"
@@ -1113,25 +1183,31 @@ class ClientesServices:
                             subtitulo=subtitulo,
                             responsable=responsable,
                             tipo=tipo,
+                            grupo=grupo,
+                            grupo_key=grupo_key,
                         ))
                         continue
 
                     cuotas_a_cobrar += monto
                     venta_pendiente += monto
+                    grupo_key, grupo = _mes_grupo(fv, tipo=tipo)
+                    subtitulo = f"{nota_label} · vence {format_fecha_ar(fv)}"
                     detalles_cuotas.append(_detalle_item(
                         cliente_id=cliente.id,
                         nombre=base["nombre"],
                         plan=base["plan_actual"],
                         monto=monto,
-                        subtitulo=f"{nota_label} · vence {format_fecha_ar(fv)}",
+                        subtitulo=subtitulo,
                         estado=estado,
                         tipo=tipo,
+                        grupo=grupo,
+                        grupo_key=grupo_key,
                     ))
 
             ultima_actualizacion = _ultima_actualizacion_caja()
 
-        _sort_detalle_por_plan(detalles_cuotas)
-        _sort_detalle_por_plan(detalles_proyeccion)
+        _sort_cuotas_a_cobrar(detalles_cuotas, ref)
+        _sort_proyeccion(detalles_proyeccion, ref)
         def cobrado_sort(item: dict) -> tuple:
             return (-((item.get("fecha") or date.min).toordinal()), item["nombre"].lower())
 

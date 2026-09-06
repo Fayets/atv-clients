@@ -40,23 +40,35 @@ def _now_ar():
 TRANSCRIPTS_BASE = get_transcripts_base()
 
 CATEGORIAS = {
+    # Keywords más específicas primero (ver detectar_categoria).
     "boost": ["canales atv boost"],
     "advantage": ["canales atv adva", "canales atv advantage"],
+    "avanzados": ["canales privados avanzados", "privados avanzados"],
+    "principiantes": ["canales privados principiantes", "privados principiantes"],
+    # Fallback legacy por si queda alguna categoría genérica.
     "mentoria": ["canales privados"],
 }
 
-DURACION_POR_PLAN = {"boost": 240, "mentoria": 120, "advantage": 120}
+DURACION_POR_PLAN = {
+    "boost": 240,
+    "mentoria": 120,
+    "advantage": 120,
+    "avanzados": 120,
+    "principiantes": 120,
+}
 
 
 def detectar_categoria(category_name: str) -> str | None:
-    """Retorna 'boost', 'advantage', 'mentoria' o None."""
+    """Retorna slug de plan/categoría de cliente, o None si no aplica."""
     import re
     # Eliminar emojis y caracteres especiales, pasar a minúsculas
-    name = re.sub(r'[^\w\s]', '', category_name).lower().strip()
+    name = re.sub(r"[^\w\s]", "", category_name).lower().strip()
     # Colapsar espacios múltiples
-    name = re.sub(r'\s+', ' ', name)
-    for slug, keywords in CATEGORIAS.items():
-        for kw in keywords:
+    name = re.sub(r"\s+", " ", name)
+    # Orden fijo: específicas antes que el fallback "canales privados".
+    orden = ("boost", "advantage", "avanzados", "principiantes", "mentoria")
+    for slug in orden:
+        for kw in CATEGORIAS.get(slug, []):
             if kw in name:
                 return slug
     return None
@@ -273,12 +285,16 @@ def guardar_transcript(
     categoria: str,
     mensajes: list[dict],
     cliente_id: int | None,
+    force_rewrite: bool = False,
 ) -> str:
     """Append de mensajes nuevos al .txt acumulativo y upsert en BD. Retorna filepath."""
     if not mensajes:
         raise ValueError("guardar_transcript requiere al menos un mensaje")
 
     append_mode, mensajes_previos = _transcript_bot_state(canal_name)
+    if force_rewrite:
+        append_mode = False
+        mensajes_previos = 0
 
     carpeta = TRANSCRIPTS_BASE / categoria / canal_name
     carpeta.mkdir(parents=True, exist_ok=True)
@@ -325,6 +341,7 @@ def _upsert_transcript(
     if existente:
         existente.mensajes = total_mensajes
         existente.filepath = filepath
+        existente.categoria = categoria
         existente.ultimo_mensaje_id = ultimo_mensaje_id
         existente.creado_en = ahora
         existente.fecha = date.today()
@@ -346,10 +363,30 @@ def _upsert_transcript(
         )
 
 
+def _transcript_local_existe(categoria: str, canal_name: str) -> bool:
+    return (TRANSCRIPTS_BASE / categoria / canal_name / f"{canal_name}.txt").is_file()
+
+
+def _borrar_transcript_legacy(canal_name: str, categoria_nueva: str) -> None:
+    """Si el canal migró de mentoria → avanzados/principiantes, borra la copia vieja."""
+    if categoria_nueva not in ("avanzados", "principiantes"):
+        return
+    legacy = TRANSCRIPTS_BASE / "mentoria" / canal_name / f"{canal_name}.txt"
+    if legacy.is_file():
+        try:
+            legacy.unlink()
+            parent = legacy.parent
+            if parent.is_dir() and not any(parent.iterdir()):
+                parent.rmdir()
+        except OSError as e:
+            logger.warning("No pude borrar legacy %s: %s", legacy, e)
+
+
 async def sync_canal(
     canal: discord.TextChannel,
     categoria: str,
     cliente_id: int | None = None,
+    force_full: bool = False,
 ) -> dict:
     """Extrae mensajes nuevos de un canal y los persiste."""
     base = {
@@ -362,7 +399,10 @@ async def sync_canal(
     }
     try:
         mensajes = []
-        ultimo_id = obtener_ultimo_mensaje_id(canal.name)
+        # Sin .txt local (o force): re-bajar historial completo; el cursor en BD
+        # solo sirve si el archivo ya está materializado.
+        needs_full = force_full or not _transcript_local_existe(categoria, canal.name)
+        ultimo_id = None if needs_full else obtener_ultimo_mensaje_id(canal.name)
         history_kwargs: dict = {"limit": None, "oldest_first": True}
         if ultimo_id:
             history_kwargs["after"] = discord.Object(id=int(ultimo_id))
@@ -385,7 +425,10 @@ async def sync_canal(
         if not cid:
             logger.warning(f"Sin match de cliente para #{canal.name}")
 
-        path = guardar_transcript(canal.name, categoria, mensajes, cid)
+        path = guardar_transcript(
+            canal.name, categoria, mensajes, cid, force_rewrite=needs_full,
+        )
+        _borrar_transcript_legacy(canal.name, categoria)
         logger.info(f"✓ #{canal.name} → {len(mensajes)} msgs → {path}")
 
         plan_actual = None
