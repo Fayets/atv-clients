@@ -9,6 +9,7 @@ from decouple import config
 
 from src.services.discord_service import (
     detectar_categoria,
+    guardar_mensaje_en_vivo,
     sync_canal,
 )
 
@@ -31,14 +32,40 @@ _client = discord.Client(intents=intents)
 _scheduler = AsyncIOScheduler()
 _canal_activo: str = ""
 
+# Un candado por canal: el barrido programado y el modo en vivo nunca escriben
+# el mismo .txt al mismo tiempo, así el cursor no se pisa ni se duplican líneas.
+_locks: dict[str, asyncio.Lock] = {}
+
+
+def _lock_canal(nombre: str) -> asyncio.Lock:
+    lock = _locks.get(nombre)
+    if lock is None:
+        lock = asyncio.Lock()
+        _locks[nombre] = lock
+    return lock
+
+
+def _categoria_de_canal(canal: discord.abc.GuildChannel) -> str | None:
+    """Categoría del bot para un canal ('boost', 'advantage', 'mentoria', 'updates') o None."""
+    if not isinstance(canal, discord.TextChannel):
+        return None
+    if canal.category:
+        slug = detectar_categoria(canal.category.name)
+        if slug:
+            return slug
+    if "updates" in canal.name.lower():
+        return "updates"
+    return None
+
 
 async def _extraer_canal(canal: discord.TextChannel, categoria: str) -> None:
     global _canal_activo
-    _canal_activo = canal.name
-    try:
-        await sync_canal(canal, categoria)
-    finally:
-        _canal_activo = ""
+    async with _lock_canal(canal.name):
+        _canal_activo = canal.name
+        try:
+            await sync_canal(canal, categoria)
+        finally:
+            _canal_activo = ""
 
 
 async def _ciclo() -> None:
@@ -68,6 +95,27 @@ async def _ciclo() -> None:
         procesados += 1
 
     logger.info(f"Ciclo completado — {procesados} canales procesados.")
+
+
+@_client.event
+async def on_message(message: discord.Message) -> None:
+    """Modo en vivo: cada mensaje de un canal de cliente va al .txt al instante.
+    El barrido programado sigue igual y queda como red de seguridad: si el bot
+    estuvo caído, el próximo ciclo completa por cursor lo que faltó."""
+    if message.author.bot or message.guild is None or message.guild.id != DISCORD_GUILD_ID:
+        return
+    categoria = _categoria_de_canal(message.channel)
+    if not categoria:
+        return
+    try:
+        async with _lock_canal(message.channel.name):
+            escrito = await asyncio.to_thread(
+                guardar_mensaje_en_vivo, message.channel, categoria, message
+            )
+        if escrito:
+            logger.info(f"⚡ #{message.channel.name} → 1 msg en vivo")
+    except Exception as e:
+        logger.error(f"Error en vivo #{message.channel.name}: {e}", exc_info=True)
 
 
 @_client.event

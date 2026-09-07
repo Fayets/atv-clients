@@ -243,6 +243,17 @@ def obtener_ultimo_mensaje_id(canal_name: str) -> str | None:
     return transcript.ultimo_mensaje_id
 
 
+def mensaje_a_dict(msg: discord.Message) -> dict:
+    """Forma común del mensaje para el .txt, usada por el sync y por el modo en vivo."""
+    return {
+        "id": str(msg.id),
+        "timestamp": msg.created_at,
+        "author": msg.author.display_name,
+        "content": msg.content or "",
+        "attachments": [a.url for a in msg.attachments],
+    }
+
+
 def _format_mensaje(msg: dict) -> str:
     ts = msg["timestamp"].strftime("%Y-%m-%d %H:%M")
     lines = [f"[{ts}] {msg['author']}\n", f"{msg['content']}\n"]
@@ -410,13 +421,7 @@ async def sync_canal(
         async for msg in canal.history(**history_kwargs):
             if msg.author.bot:
                 continue
-            mensajes.append({
-                "id": str(msg.id),
-                "timestamp": msg.created_at,
-                "author": msg.author.display_name,
-                "content": msg.content or "",
-                "attachments": [a.url for a in msg.attachments],
-            })
+            mensajes.append(mensaje_a_dict(msg))
 
         if not mensajes:
             return base
@@ -455,6 +460,23 @@ async def sync_canal(
     except Exception as e:
         logger.error(f"Error en #{canal.name}: {e}", exc_info=True)
         return base
+
+
+def guardar_mensaje_en_vivo(canal: discord.TextChannel, categoria: str, msg: discord.Message) -> bool:
+    """Modo en vivo: apendea UN mensaje recién llegado al .txt del canal y avanza
+    el cursor, con las mismas funciones que usa el sync programado.
+
+    Idempotente: si el cursor ya pasó este mensaje (porque el sync lo bajó
+    primero), no escribe nada. Retorna True si escribió.
+    """
+    if msg.author.bot:
+        return False
+    ultimo_id = obtener_ultimo_mensaje_id(canal.name)
+    if ultimo_id and int(msg.id) <= int(ultimo_id):
+        return False
+    cid = buscar_cliente(canal.name, categoria)
+    guardar_transcript(canal.name, categoria, [mensaje_a_dict(msg)], cid)
+    return True
 
 
 def _set_sync_progress(canales_procesados: int) -> None:
