@@ -8,8 +8,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from decouple import config
 
 from src.services.discord_service import (
+    descargar_adjuntos,
     detectar_categoria,
     guardar_mensaje_en_vivo,
+    registrar_en_directorio,
     sync_canal,
 )
 
@@ -75,6 +77,15 @@ async def _ciclo() -> None:
         logger.error("Guild no encontrado")
         return
 
+    # Roles y canales del guild al directorio: no necesitan intent members.
+    try:
+        registrar_en_directorio(
+            roles={str(r.id): r.name for r in guild.roles},
+            canales={str(c.id): c.name for c in guild.text_channels},
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Directorio (guild): {e}")
+
     procesados = 0
     for category in guild.categories:
         slug = detectar_categoria(category.name)
@@ -109,6 +120,7 @@ async def on_message(message: discord.Message) -> None:
         return
     try:
         async with _lock_canal(message.channel.name):
+            await descargar_adjuntos(message, categoria, message.channel.name)
             escrito = await asyncio.to_thread(
                 guardar_mensaje_en_vivo, message.channel, categoria, message
             )

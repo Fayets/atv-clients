@@ -243,13 +243,92 @@ def obtener_ultimo_mensaje_id(canal_name: str) -> str | None:
     return transcript.ultimo_mensaje_id
 
 
+DIRECTORIO_PATH = TRANSCRIPTS_BASE / "_directorio.json"
+_MAX_ADJUNTO_BYTES = 10 * 1024 * 1024
+
+
+def _leer_directorio() -> dict:
+    """id → nombre de usuarios, roles y canales. Lo consume ATV Ops para volver
+    legibles las menciones (<@id>) de los transcripts viejos."""
+    try:
+        import json
+        data = json.loads(DIRECTORIO_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return {k: dict(data.get(k) or {}) for k in ("usuarios", "roles", "canales")}
+    except (OSError, ValueError):
+        pass
+    return {"usuarios": {}, "roles": {}, "canales": {}}
+
+
+def _escribir_directorio(data: dict) -> None:
+    import json
+    DIRECTORIO_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = DIRECTORIO_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=0, sort_keys=True), encoding="utf-8")
+    tmp.replace(DIRECTORIO_PATH)
+
+
+def registrar_en_directorio(usuarios: dict | None = None, roles: dict | None = None, canales: dict | None = None) -> None:
+    """Agrega nombres al directorio. Solo escribe si hay algo nuevo."""
+    data = _leer_directorio()
+    cambio = False
+    for clave, nuevos in (("usuarios", usuarios), ("roles", roles), ("canales", canales)):
+        for k, v in (nuevos or {}).items():
+            k = str(k)
+            if v and data[clave].get(k) != v:
+                data[clave][k] = v
+                cambio = True
+    if cambio:
+        _escribir_directorio(data)
+
+
+def registrar_mensaje_en_directorio(msg: discord.Message) -> None:
+    """Autor y mencionados del mensaje: el bot sabe id y nombre de cada uno."""
+    usuarios = {str(msg.author.id): msg.author.display_name}
+    for u in msg.mentions:
+        usuarios[str(u.id)] = u.display_name
+    roles = {str(r.id): r.name for r in getattr(msg, "role_mentions", [])}
+    canales = {str(c.id): c.name for c in getattr(msg, "channel_mentions", [])}
+    registrar_en_directorio(usuarios, roles, canales)
+
+
+def carpeta_adjuntos(categoria: str, canal_name: str) -> Path:
+    return TRANSCRIPTS_BASE / categoria / canal_name / "adjuntos"
+
+
+async def descargar_adjuntos(msg: discord.Message, categoria: str, canal_name: str) -> None:
+    """Guarda las imágenes del mensaje en disco. Los links de Discord caducan a
+    las 24 h; sin esto, el transcript viejo no puede mostrarlas."""
+    imagenes = [
+        a for a in msg.attachments
+        if (a.content_type or "").startswith("image/") and (a.size or 0) <= _MAX_ADJUNTO_BYTES
+    ]
+    if not imagenes:
+        return
+    carpeta = carpeta_adjuntos(categoria, canal_name)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    for a in imagenes:
+        destino = carpeta / f"{a.id}_{a.filename}"
+        if destino.exists():
+            continue
+        try:
+            await a.save(destino)
+        except Exception as e:  # noqa: BLE001 — un adjunto roto no frena el transcript
+            logger.warning(f"No se pudo guardar adjunto {a.id} de #{canal_name}: {e}")
+
+
 def mensaje_a_dict(msg: discord.Message) -> dict:
-    """Forma común del mensaje para el .txt, usada por el sync y por el modo en vivo."""
+    """Forma común del mensaje para el .txt, usada por el sync y por el modo en vivo.
+    `clean_content` trae las menciones resueltas (@Nombre, #canal) en vez de <@id>."""
+    try:
+        registrar_mensaje_en_directorio(msg)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Directorio: {e}")
     return {
         "id": str(msg.id),
         "timestamp": msg.created_at,
         "author": msg.author.display_name,
-        "content": msg.content or "",
+        "content": (msg.clean_content or msg.content or ""),
         "attachments": [a.url for a in msg.attachments],
     }
 
@@ -421,6 +500,7 @@ async def sync_canal(
         async for msg in canal.history(**history_kwargs):
             if msg.author.bot:
                 continue
+            await descargar_adjuntos(msg, categoria, canal.name)
             mensajes.append(mensaje_a_dict(msg))
 
         if not mensajes:
