@@ -254,10 +254,10 @@ def _leer_directorio() -> dict:
         import json
         data = json.loads(DIRECTORIO_PATH.read_text(encoding="utf-8"))
         if isinstance(data, dict):
-            return {k: dict(data.get(k) or {}) for k in ("usuarios", "roles", "canales")}
+            return {k: dict(data.get(k) or {}) for k in ("usuarios", "roles", "canales", "canales_cliente")}
     except (OSError, ValueError):
         pass
-    return {"usuarios": {}, "roles": {}, "canales": {}}
+    return {"usuarios": {}, "roles": {}, "canales": {}, "canales_cliente": {}}
 
 
 def _escribir_directorio(data: dict) -> None:
@@ -279,6 +279,16 @@ def registrar_en_directorio(usuarios: dict | None = None, roles: dict | None = N
                 data[clave][k] = v
                 cambio = True
     if cambio:
+        _escribir_directorio(data)
+
+
+def reemplazar_canales_cliente(canales: dict) -> None:
+    """Foto completa de los canales que HOY están en una categoría de cliente
+    (nombre → categoría). Se reemplaza entera en cada ciclo: un canal que salió
+    de esas categorías desaparece de acá, y ATV Ops lo trata como cerrado."""
+    data = _leer_directorio()
+    if data.get("canales_cliente") != canales:
+        data["canales_cliente"] = dict(canales)
         _escribir_directorio(data)
 
 

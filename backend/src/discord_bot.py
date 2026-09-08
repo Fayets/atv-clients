@@ -11,6 +11,7 @@ from src.services.discord_service import (
     descargar_adjuntos,
     detectar_categoria,
     guardar_mensaje_en_vivo,
+    reemplazar_canales_cliente,
     registrar_en_directorio,
     sync_canal,
 )
@@ -85,6 +86,21 @@ async def _ciclo() -> None:
         )
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Directorio (guild): {e}")
+
+    # Foto de los canales de cliente de este ciclo: es lo que define "vivo" en ATV Ops.
+    canales_cliente: dict[str, str] = {}
+    for category in guild.categories:
+        slug = detectar_categoria(category.name)
+        if slug:
+            for canal in category.text_channels:
+                canales_cliente[canal.name] = slug
+    for c in guild.text_channels:
+        if "updates" in c.name.lower():
+            canales_cliente[c.name] = "updates"
+    try:
+        reemplazar_canales_cliente(canales_cliente)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Directorio (canales cliente): {e}")
 
     procesados = 0
     for category in guild.categories:
