@@ -49,6 +49,12 @@ CATEGORIAS = {
     "mentoria": ["canales privados"],
 }
 
+PLANES_EQUIVALENTES = {
+    "avanzados": {"avanzados", "mentoria"},
+    "principiantes": {"principiantes", "mentoria"},
+    "mentoria": {"mentoria", "avanzados", "principiantes"},
+}
+
 DURACION_POR_PLAN = {
     "boost": 240,
     "mentoria": 120,
@@ -104,11 +110,11 @@ def buscar_cliente(canal_name: str, plan: str | None = None) -> int | None:
 
     clientes = list(Cliente.select())
     if plan:
-        filtered: list[Cliente] = []
-        for c in clientes:
-            if c.plan_actual == plan:
-                filtered.append(c)
-        clientes = filtered
+        # avanzados / principiantes son la partición de la vieja "mentoria": un cliente
+        # cargado como mentoria sigue siendo el mismo cliente aunque su canal esté hoy
+        # en "Canales privados avanzados" o "principiantes".
+        planes = PLANES_EQUIVALENTES.get(plan, {plan})
+        clientes = [c for c in clientes if c.plan_actual in planes]
 
     for c in clientes:
         if c.nombre.lower() == nombre_lower:
@@ -166,10 +172,12 @@ def _crear_cliente_desde_canal(canal: str, plan: str) -> dict:
     email = f"{canal}@discord.pendiente.atvos.io"
     fecha_inicio = date.today()
     duracion = DURACION_POR_PLAN[plan]
+    # La base solo conoce mentoria / boost / advantage: avanzados y principiantes se guardan como mentoria.
+    plan_bd = "mentoria" if plan in ("avanzados", "principiantes") else plan
     cliente = Cliente(
         nombre=nombre,
         email=email,
-        plan_actual=plan,
+        plan_actual=plan_bd,
         fecha_inicio=fecha_inicio,
         duracion_dias=duracion,
         fecha_vencimiento=fecha_inicio + timedelta(days=duracion),
