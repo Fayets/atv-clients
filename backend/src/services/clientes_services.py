@@ -751,6 +751,29 @@ def _es_caja_2(tipo: str) -> bool:
     return tipo in TIPOS_CAJA2
 
 
+def _fin_de_mes(dia: date) -> date:
+    ultimo = calendar.monthrange(dia.year, dia.month)[1]
+    return date(dia.year, dia.month, ultimo)
+
+
+def _fecha_vencimiento_a_cobrar(cuota: Cuota) -> date | None:
+    """Fecha para agrupar en 'cuotas a cobrar'.
+
+    Cuota completa: fecha_vence de la cuota.
+    Saldo restante (subcuota): fin de mes del último pago — no hereda el vence original.
+    """
+    saldos = cuota_saldos_dict(cuota)
+    if saldos["monto_pagado_usd"] > 0 and saldos["saldo_pendiente_usd"] > 0:
+        fechas = [
+            imp.pago.fecha
+            for imp in list(cuota.imputaciones)
+            if imp.pago is not None and imp.pago.fecha is not None
+        ]
+        if fechas:
+            return _fin_de_mes(max(fechas))
+    return cuota.fecha_vence
+
+
 def _cuota_pendiente_del_mes(cuota: Cuota, ref: date) -> bool:
     """Cuotas del mes + barrido de vencidas de meses anteriores (sigue pendiente)."""
     if cuota.estado not in ESTADOS_CON_SALDO:
@@ -760,7 +783,7 @@ def _cuota_pendiente_del_mes(cuota: Cuota, ref: date) -> bool:
     # Posibilidad de upsell: oportunidad abierta, visible en cualquier mes hasta cerrar/pagar.
     if es_nota_sin_vencimiento(cuota.notas):
         return True
-    fv = cuota.fecha_vence
+    fv = _fecha_vencimiento_a_cobrar(cuota)
     if not fv:
         return False
     if fv.year == ref.year and fv.month == ref.month:
@@ -1244,7 +1267,7 @@ class ClientesServices:
 
                 for cuota in cuotas:
                     tipo = normalizar_nota_cuota(cuota.notas) or TIPO_DEFAULT
-                    fv = cuota.fecha_vence
+                    fv = _fecha_vencimiento_a_cobrar(cuota)
                     monto = saldo_pendiente(cuota)
 
                     if cuota.estado not in ESTADOS_CON_SALDO or monto <= 0:
@@ -1286,7 +1309,7 @@ class ClientesServices:
                             desde = (cuota.created_at.date() if cuota.created_at else None) or fv
                             subtitulo = f"{nota_label} · {etiqueta_dias_en_estado(desde, hoy)}"
                         else:
-                            subtitulo = f"{nota_label} · vence {format_fecha_ar(fv)}"
+                            subtitulo = f"{nota_label} · {format_fecha_ar(fv)}"
                         if responsable_label:
                             subtitulo = f"{subtitulo} · {responsable_label}"
                         detalles_proyeccion.append(_proyeccion_item(
@@ -1305,7 +1328,10 @@ class ClientesServices:
                     cuotas_a_cobrar += monto
                     venta_pendiente += monto
                     grupo_key, grupo = _mes_grupo(fv, tipo=tipo)
-                    subtitulo = f"{nota_label} · vence {format_fecha_ar(fv)}"
+                    saldos = cuota_saldos_dict(cuota)
+                    label = "Subcuota" if saldos["monto_pagado_usd"] > 0 else nota_label
+                    fecha_txt = format_fecha_ar(fv) if fv else ""
+                    subtitulo = f"{label} · {fecha_txt}" if fecha_txt else label
                     detalles_cuotas.append(_detalle_item(
                         cliente_id=cliente.id,
                         nombre=base["nombre"],
@@ -1314,6 +1340,7 @@ class ClientesServices:
                         subtitulo=subtitulo,
                         estado=estado,
                         tipo=tipo,
+                        fecha=fv,
                         grupo=grupo,
                         grupo_key=grupo_key,
                     ))

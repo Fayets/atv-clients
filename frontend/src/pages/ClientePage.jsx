@@ -189,6 +189,15 @@ function subpagosParaMostrar(cuota) {
   return pagos
 }
 
+/** Saldo restante como fila pendiente, junto a los subpagos ya pagados. */
+function saldoPendienteSubpago(cuota) {
+  const saldo = Number(cuota?.saldo_pendiente_usd) || 0
+  if (saldo <= 0) return null
+  if (cuota?.estado === 'pagado') return null
+  if (!subpagosParaMostrar(cuota).length) return null
+  return { monto_usd: saldo }
+}
+
 function buildProximosPasosDraft() {
   return {
     fecha_llamada: todayInputDate(),
@@ -2844,10 +2853,6 @@ export default function ClientePage({ clienteId }) {
                               {Number(cuota.arrastre_usd) > 0 ? (
                                 <span className={styles.cuotaMeta}>+{formatUsd(cuota.arrastre_usd)} arr.</span>
                               ) : null}
-                              {Number(cuota.saldo_pendiente_usd) > 0
-                                && Number(cuota.saldo_pendiente_usd) !== Number(cuota.monto_exigido_usd ?? cuota.monto_usd) ? (
-                                <span className={styles.cuotaMeta}>Debe {formatUsd(cuota.saldo_pendiente_usd)}</span>
-                              ) : null}
                             </div>
                           </td>
                           <td data-label={labelColumnaVence(canonicalTipoCuota(cuota.notas))} className={styles.cuotaVence}>
@@ -2871,7 +2876,7 @@ export default function ClientePage({ clienteId }) {
                           {renderComprobanteCell(cuota)}
                           <td data-label="Acciones" className={styles.cuotaAcciones}>
                             <div className={styles.cuotaActions}>
-                              {cuota.estado !== 'pagado' ? (
+                              {cuota.estado !== 'pagado' && !saldoPendienteSubpago(cuota) ? (
                                 <>
                                   <button
                                     type="button"
@@ -3035,6 +3040,43 @@ export default function ClientePage({ clienteId }) {
                             </tr>
                           )
                         ))}
+                        {saldoPendienteSubpago(cuota) ? (
+                          <tr key={`pendiente-${cuota.id}`} className={styles.cuotaSub}>
+                            <td data-label="Cuota" className={styles.cuotaIdCell}>
+                              <span className={styles.cuotaSubIndent} aria-hidden="true" />
+                            </td>
+                            <td data-label="Monto" className={styles.cuotaMonto}>
+                              {formatUsd(cuota.saldo_pendiente_usd)}
+                            </td>
+                            <td data-label="Fecha" className={styles.cuotaVence} />
+                            <td data-label="Pago" className={styles.cuotaPago}>—</td>
+                            <td data-label="Estado" className={styles.cuotaEstado}>
+                              <span className={styles.cuotaEstadoBadge} data-estado="pendiente">
+                                Pendiente
+                              </span>
+                            </td>
+                            <td data-label="Tipo" className={styles.cuotaTipo} />
+                            <td data-label="Comprobante" />
+                            <td data-label="Acciones" className={styles.cuotaAcciones}>
+                              <div className={styles.cuotaActions}>
+                                <button
+                                  type="button"
+                                  className={styles.saveBtn}
+                                  onClick={() => openRegistrarPago(cuota)}
+                                >
+                                  Subpago
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.payBtn}
+                                  onClick={() => marcarPagado(cuota.id)}
+                                >
+                                  Pagado
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null}
                         {Number(cuota.arrastre_usd) > 0 ? (
                           <tr key={`arrastre-${cuota.id}`} className={styles.cuotaSub}>
                             <td data-label="Cuota" className={styles.cuotaIdCell}>

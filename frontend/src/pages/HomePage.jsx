@@ -56,7 +56,7 @@ function tagVariant(tag) {
   if (t.includes('upsell')) return 'upsell'
   if (t.includes('recompra')) return 'recompra'
   if (t.includes('seña') || t.includes('sena')) return 'sena'
-  if (t.startsWith('cuota')) return 'cuota'
+  if (t.startsWith('subcuota') || t.startsWith('cuota')) return 'cuota'
   if (t.includes('vencido') || t.includes('vence')) return 'vencido'
   return 'default'
 }
@@ -366,9 +366,10 @@ function groupDetailItems(items) {
   return groups
 }
 
-function DetailRow({ item }) {
+function DetailRow({ item, hidePlan = false }) {
   const { tag, extra } = parseSubtitulo(item.subtitulo)
   const variant = tag ? tagVariant(tag) : 'default'
+  const fechaTxt = extra || (item.fecha ? formatDate(item.fecha) : '')
   return (
     <li
       className={styles.detailRow}
@@ -382,16 +383,20 @@ function DetailRow({ item }) {
           </span>
         ) : null}
       </span>
-      <span className={styles.detailTagExtra}>{extra || ''}</span>
-      <span className={styles.detailPlan}>
-        <PlanBadge plan={item.plan_actual} />
-      </span>
+      <span className={styles.detailTagExtra}>{fechaTxt}</span>
+      {!hidePlan ? (
+        <span className={styles.detailPlan}>
+          <PlanBadge plan={item.plan_actual} />
+        </span>
+      ) : (
+        <span className={styles.detailPlan} />
+      )}
       <span className={styles.detailAmount}>{formatUsd(item.monto_usd)}</span>
     </li>
   )
 }
 
-function DetailList({ items }) {
+function DetailList({ items, hidePlan = false }) {
   if (items.length === 0) {
     return <p className={styles.detailEmpty}>Sin registros.</p>
   }
@@ -401,7 +406,11 @@ function DetailList({ items }) {
     return (
       <ul className={styles.detailList}>
         {items.map((item, index) => (
-          <DetailRow key={`${item.cliente_id}-${item.subtitulo}-${index}`} item={item} />
+          <DetailRow
+            key={`${item.cliente_id}-${item.subtitulo}-${index}`}
+            item={item}
+            hidePlan={hidePlan}
+          />
         ))}
       </ul>
     )
@@ -409,13 +418,14 @@ function DetailList({ items }) {
   return (
     <div className={styles.detailList}>
       {groups.map((group) => (
-        <section key={group.key} className={styles.detailSection}>
+        <section key={group.key || group.label} className={styles.detailSection}>
           {group.label ? <h3 className={styles.detailSectionTitle}>{group.label}</h3> : null}
           <ul className={styles.detailSectionList}>
             {group.items.map((item, index) => (
               <DetailRow
                 key={`${group.key}-${item.cliente_id}-${item.subtitulo}-${index}`}
                 item={item}
+                hidePlan={hidePlan}
               />
             ))}
           </ul>
@@ -425,7 +435,7 @@ function DetailList({ items }) {
   )
 }
 
-function PagosPopup({ title, hint, items, onClose }) {
+function PagosPopup({ title, hint, items, onClose, hidePlan = false }) {
   useEffect(() => {
     const onKey = (event) => {
       if (event.key === 'Escape') onClose()
@@ -458,7 +468,7 @@ function PagosPopup({ title, hint, items, onClose }) {
             Cerrar
           </button>
         </div>
-        <DetailList items={items} />
+        <DetailList items={items} hidePlan={hidePlan} />
       </div>
     </div>
   )
@@ -635,6 +645,7 @@ export default function HomePage() {
       title: `Cuotas a cobrar — ${resumen?.mes_label || ''}`,
       hint: `${cuotasItems.length} cuotas · Caja 1`,
       items: cuotasItems,
+      hidePlan: true,
     },
     proyeccion: {
       title: `Proyección — ${resumen?.mes_label || ''}`,
@@ -645,6 +656,7 @@ export default function HomePage() {
       title: `Pendiente del mes — ${resumen?.mes_label || ''}`,
       hint: `${cuotasItems.length + proyeccionItems.length} pendientes · Caja 1 + Caja 2`,
       items: [...cuotasItems, ...proyeccionItems],
+      hidePlan: true,
     },
     caja1: {
       title: `Cobrado · Caja 1 — ${resumen?.mes_label || ''}`,
@@ -812,6 +824,7 @@ export default function HomePage() {
             title={popup.title}
             hint={popup.hint}
             items={popup.items}
+            hidePlan={Boolean(popup.hidePlan)}
             onClose={closePopup}
           />
         ) : null}
