@@ -20,6 +20,7 @@ from src.schemas import (
     GenerarPlanResponse,
     MoverImputacionRequest,
     MoverSaldoCuotaRequest,
+    ImputacionPatch,
     ObservacionCreate,
     ObservacionResponse,
     PagoCreate,
@@ -613,6 +614,46 @@ def mover_imputacion(
         raise HTTPException(status_code=500, detail="Error al mover el pago a otra cuota.")
 
 
+@router.patch("/{cliente_id}/imputaciones/{imputacion_id}")
+def actualizar_imputacion(
+    cliente_id: int,
+    imputacion_id: int,
+    body: ImputacionPatch,
+    _: str = Depends(get_current_user),
+):
+    try:
+        result = service.actualizar_imputacion_cliente(
+            cliente_id,
+            imputacion_id,
+            monto_usd=body.monto_usd,
+            fecha=body.fecha,
+        )
+        if not result:
+            raise HTTPException(status_code=404, detail="Cliente o imputación no encontrados.")
+        return result
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al actualizar el subpago.")
+
+
+@router.delete("/{cliente_id}/imputaciones/{imputacion_id}", status_code=204)
+def eliminar_imputacion(
+    cliente_id: int,
+    imputacion_id: int,
+    _: str = Depends(get_current_user),
+):
+    try:
+        result = service.eliminar_imputacion_cliente(cliente_id, imputacion_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Cliente o imputación no encontrados.")
+        return None
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al eliminar el subpago.")
+
+
 @router.get("/{cliente_id}/pagos/historial", response_model=ClientePagosHistorialResponse)
 def historial_pagos(
     cliente_id: int,
@@ -660,10 +701,16 @@ async def subir_comprobante_cuota(
     cliente_id: int,
     cuota_id: int,
     file: UploadFile = File(...),
+    pago_id: int | None = Form(default=None),
     _: str = Depends(get_current_user),
 ):
     try:
-        cuota = await service.subir_comprobante_cuota(cliente_id, cuota_id, file)
+        cuota = await service.subir_comprobante_cuota(
+            cliente_id,
+            cuota_id,
+            file,
+            pago_id=pago_id,
+        )
         if not cuota:
             raise HTTPException(status_code=404, detail="Cliente o cuota no encontrados.")
         return cuota

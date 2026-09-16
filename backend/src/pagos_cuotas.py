@@ -454,6 +454,11 @@ def mover_imputacion_a_cuota(cliente, imputacion_id: int, cuota_destino_id: int,
         )
 
     imputacion.cuota = destino
+    pago = imputacion.pago
+    if pago is not None:
+        for comp in list(getattr(origen, "comprobantes", []) or []):
+            if getattr(comp, "pago", None) is not None and comp.pago.id == pago.id:
+                comp.cuota = destino
     recalcular_cuotas_cliente(cliente, ref)
     return {
         "imputacion_id": imputacion.id,
@@ -461,6 +466,67 @@ def mover_imputacion_a_cuota(cliente, imputacion_id: int, cuota_destino_id: int,
         "cuota_origen_id": origen.id,
         "cuota_destino_id": destino.id,
     }
+
+
+def actualizar_imputacion(
+    cliente,
+    imputacion_id: int,
+    *,
+    monto_usd: Decimal | None = None,
+    fecha: date | None = None,
+    hoy: date | None = None,
+) -> dict:
+    ref = hoy or date.today()
+    imputacion = next(
+        (i for p in cliente.pagos for i in p.imputaciones if i.id == imputacion_id),
+        None,
+    )
+    if imputacion is None:
+        raise ValueError("Imputación no encontrada.")
+    pago = imputacion.pago
+    cuota = imputacion.cuota
+    if monto_usd is not None:
+        nuevo = _dec(monto_usd)
+        if nuevo <= ZERO:
+            raise ValueError("El monto debe ser mayor a cero.")
+        # Permitir subir hasta cubrir el saldo pendiente + lo ya imputado en esta fila.
+        room = saldo_pendiente(cuota) + _dec(imputacion.monto_usd)
+        if nuevo > room:
+            raise ValueError(f"El monto supera el saldo de la cuota ({room}).")
+        imputacion.monto_usd = nuevo
+        if pago is not None and len(list(pago.imputaciones)) == 1:
+            pago.monto_usd = nuevo
+    if fecha is not None and pago is not None:
+        pago.fecha = fecha
+    recalcular_cuotas_cliente(cliente, ref)
+    return {
+        "imputacion_id": imputacion.id,
+        "pago_id": pago.id if pago else None,
+        "cuota_id": cuota.id,
+        "monto_usd": _dec(imputacion.monto_usd),
+        "fecha": pago.fecha if pago else None,
+    }
+
+
+def eliminar_imputacion(cliente, imputacion_id: int, hoy: date | None = None) -> dict:
+    ref = hoy or date.today()
+    imputacion = next(
+        (i for p in cliente.pagos for i in p.imputaciones if i.id == imputacion_id),
+        None,
+    )
+    if imputacion is None:
+        raise ValueError("Imputación no encontrada.")
+    pago = imputacion.pago
+    cuota_id = imputacion.cuota.id
+    imputacion_id_out = imputacion.id
+    imputacion.delete()
+    if pago is not None and not list(pago.imputaciones):
+        # Desvincular comprobantes del pago antes de borrar.
+        for comp in list(getattr(pago, "comprobantes", []) or []):
+            comp.pago = None
+        pago.delete()
+    recalcular_cuotas_cliente(cliente, ref)
+    return {"imputacion_id": imputacion_id_out, "cuota_id": cuota_id}
 
 
 def pago_to_dict(pago: Pago) -> dict:

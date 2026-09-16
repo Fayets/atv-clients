@@ -48,7 +48,9 @@ from src.pagos_cuotas import (
     ESTADOS_CON_SALDO,
     ESTADOS_CUOTA_PAGOS,
     absorber_cuota_en_destino,
+    actualizar_imputacion,
     cuota_saldos_dict,
+    eliminar_imputacion,
     historial_cliente,
     mover_imputacion_a_cuota,
     mover_saldo_a_cuota,
@@ -545,11 +547,19 @@ def _comprobantes_de_pago(cuota: Cuota, pago_id: int, pagos_orden: list) -> list
         if len(por_fecha) == 1:
             return [_comprobante_to_dict(por_fecha[0])]
 
-    # Fallback: si ninguno tiene pago_id, repartir 1 a 1 por orden.
-    if comps and all(getattr(c, "pago", None) is None for c in comps):
-        idx = next((i for i, p in enumerate(pagos_orden) if p.pago and p.pago.id == pago_id), None)
-        if idx is not None and idx < len(comps):
-            return [_comprobante_to_dict(comps[idx])]
+    # Fallback: repartir comprobantes sin pago_id 1 a 1 entre pagos sin comprobante propio.
+    if unlinked:
+        pagos_sin_comp = [
+            p.pago.id
+            for p in pagos_orden
+            if p.pago and not any(c.pago and c.pago.id == p.pago.id for c in comps)
+        ]
+        try:
+            idx = pagos_sin_comp.index(pago_id)
+        except ValueError:
+            return []
+        if idx < len(unlinked):
+            return [_comprobante_to_dict(unlinked[idx])]
     return []
 
 
@@ -1903,6 +1913,67 @@ class ClientesServices:
             _marcar_cambio_caja()
             return result
 
+    def actualizar_imputacion_cliente(
+        self,
+        cliente_id: int,
+        imputacion_id: int,
+        *,
+        monto_usd: Decimal | None = None,
+        fecha: date | None = None,
+    ) -> dict | None:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+            try:
+                result = actualizar_imputacion(
+                    cliente,
+                    imputacion_id,
+                    monto_usd=monto_usd,
+                    fecha=fecha,
+                    hoy=_today(),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+            pagado = Decimal("0")
+            adeudado = Decimal("0")
+            for c in cliente.cuotas:
+                saldos = cuota_saldos_dict(c)
+                pagado += saldos["monto_pagado_usd"]
+                adeudado += saldos["saldo_pendiente_usd"]
+            cliente.total_pagado_usd = pagado
+            cliente.total_adeudado_usd = adeudado
+            cliente.updated_at = datetime.utcnow()
+            _marcar_cambio_caja()
+            cuota = next((c for c in cliente.cuotas if c.id == result["cuota_id"]), None)
+            return {
+                "imputacion": result,
+                "cuota": _cuota_to_dict(cuota, list(cliente.cuotas)) if cuota else None,
+            }
+
+    def eliminar_imputacion_cliente(self, cliente_id: int, imputacion_id: int) -> dict | None:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+            try:
+                result = eliminar_imputacion(cliente, imputacion_id, hoy=_today())
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+            pagado = Decimal("0")
+            adeudado = Decimal("0")
+            for c in cliente.cuotas:
+                saldos = cuota_saldos_dict(c)
+                pagado += saldos["monto_pagado_usd"]
+                adeudado += saldos["saldo_pendiente_usd"]
+            cliente.total_pagado_usd = pagado
+            cliente.total_adeudado_usd = adeudado
+            cliente.updated_at = datetime.utcnow()
+            _marcar_cambio_caja()
+            return result
+
     def historial_pagos_cliente(self, cliente_id: int) -> dict | None:
         with db_session:
             cliente = Cliente.get(id=cliente_id)
@@ -1991,6 +2062,7 @@ class ClientesServices:
         cliente_id: int,
         cuota_id: int,
         file: UploadFile,
+        pago_id: int | None = None,
     ) -> dict | None:
         filename = (file.filename or "").strip()
         ext = _comprobante_ext(filename, file.content_type)
@@ -2005,6 +2077,18 @@ class ClientesServices:
             if not cliente or not cuota:
                 return None
 
+            pago = None
+            if pago_id is not None:
+                pago = Pago.get(id=pago_id)
+                if not pago or pago.cliente.id != cliente.id:
+                    raise HTTPException(status_code=404, detail="Pago no encontrado.")
+                # El pago debe estar imputado a esta cuota.
+                if not any(i.cuota.id == cuota.id for i in pago.imputaciones):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="El pago no pertenece a esta cuota.",
+                    )
+
             target_dir = _comprobantes_dir(cliente_id)
             target_dir.mkdir(parents=True, exist_ok=True)
             filename_disk = f"{cuota_id}-{uuid.uuid4().hex}{ext}"
@@ -2016,6 +2100,7 @@ class ClientesServices:
 
             CuotaComprobante(
                 cuota=cuota,
+                pago=pago,
                 filepath=stored_path,
                 nombre=Path(filename).name[:255] if filename else filename_disk,
             )

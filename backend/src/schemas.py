@@ -82,6 +82,11 @@ class MoverImputacionRequest(BaseModel):
     cuota_destino_id: int
 
 
+class ImputacionPatch(BaseModel):
+    monto_usd: Decimal | None = Field(default=None, gt=0)
+    fecha: date | None = None
+
+
 class CuotaEventoResponse(BaseModel):
     id: int
     cliente_id: int

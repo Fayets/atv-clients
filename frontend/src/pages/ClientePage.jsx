@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, Fragment } from 'react'
-import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, fetchPagosHistorial, generarPlanCuotas, moverImputacion, moverSaldoCuota, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, registrarPago, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
+import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, deleteImputacion, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, fetchPagosHistorial, generarPlanCuotas, moverImputacion, moverSaldoCuota, patchCliente, patchCuota, patchImputacion, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, registrarPago, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
 import { navigate } from '../utils/navigation'
 import { getSession } from '../api/auth'
 import InlineField from '../components/InlineField'
@@ -329,6 +329,8 @@ export default function ClientePage({ clienteId }) {
   const [addingCuota, setAddingCuota] = useState(false)
   const [newCuota, setNewCuota] = useState(() => emptyNewCuota())
   const [editingCuotaId, setEditingCuotaId] = useState(null)
+  const [editingSubpagoId, setEditingSubpagoId] = useState(null)
+  const [editSubpago, setEditSubpago] = useState({ monto_usd: '', fecha: '', cuotaId: null })
   const [editCuota, setEditCuota] = useState({
     monto_usd: '',
     fecha_vence: '',
@@ -342,6 +344,7 @@ export default function ClientePage({ clienteId }) {
   const [pagoSaving, setPagoSaving] = useState(false)
   const [pagoOpen, setPagoOpen] = useState(false)
   const [dragCuotaId, setDragCuotaId] = useState(null)
+  const [dragSubpagoId, setDragSubpagoId] = useState(null)
   const [dropCuotaId, setDropCuotaId] = useState(null)
   const [dragPreview, setDragPreview] = useState(null)
   const [moviendoSaldo, setMoviendoSaldo] = useState(false)
@@ -362,7 +365,7 @@ export default function ClientePage({ clienteId }) {
   const [comprobanteSaving, setComprobanteSaving] = useState(false)
   const [comprobanteImgError, setComprobanteImgError] = useState(false)
   const comprobanteInputRef = useRef(null)
-  const comprobanteTargetIdRef = useRef(null)
+  const comprobanteTargetRef = useRef(null)
   const [arregloCloserOpen, setArregloCloserOpen] = useState(false)
   const [arregloCloserDraft, setArregloCloserDraft] = useState('')
   const [arregloCloserSaving, setArregloCloserSaving] = useState(false)
@@ -603,6 +606,7 @@ export default function ClientePage({ clienteId }) {
 
   const startEditCuota = (cuota) => {
     setAddingCuota(false)
+    resetEditSubpago()
     setCuotaError('')
     setEditingCuotaId(cuota.id)
     setEditCuota({
@@ -746,16 +750,14 @@ export default function ClientePage({ clienteId }) {
       setCuotaError(err.message || 'No se pudo absorber la cuota.')
     } finally {
       setMoviendoSaldo(false)
-      setDragCuotaId(null)
-      setDropCuotaId(null)
-      setDragPreview(null)
-      dragSessionRef.current = null
+      resetDragCuota()
     }
   }
 
   const resetDragCuota = () => {
     dragSessionRef.current = null
     setDragCuotaId(null)
+    setDragSubpagoId(null)
     setDropCuotaId(null)
     setDragPreview(null)
   }
@@ -768,6 +770,7 @@ export default function ClientePage({ clienteId }) {
     const row = event.currentTarget
     const rect = row.getBoundingClientRect()
     dragSessionRef.current = {
+      kind: 'cuota',
       origenId: cuota.id,
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -785,6 +788,39 @@ export default function ClientePage({ clienteId }) {
       ),
     }
     setDragCuotaId(cuota.id)
+    setDragSubpagoId(null)
+    setDropCuotaId(null)
+    try {
+      row.setPointerCapture(event.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const startDragSubpago = (event, cuota, pago) => {
+    if (moviendoSaldo || editingSubpagoId) return
+    if (event.button != null && event.button !== 0) return
+    if (event.target.closest('button, a, input, select, label, .iconBtn')) return
+    event.preventDefault()
+    const row = event.currentTarget
+    const rect = row.getBoundingClientRect()
+    dragSessionRef.current = {
+      kind: 'subpago',
+      imputacionId: pago.id,
+      cuotaOrigenId: cuota.id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      width: Math.min(rect.width, 280),
+      moved: false,
+      dropId: null,
+      label: 'Subpago',
+      monto: formatUsd(pago.monto_usd),
+    }
+    setDragCuotaId(null)
+    setDragSubpagoId(pago.id)
     setDropCuotaId(null)
     try {
       row.setPointerCapture(event.pointerId)
@@ -795,7 +831,7 @@ export default function ClientePage({ clienteId }) {
 
   const moveDragCuota = (event) => {
     const session = dragSessionRef.current
-    if (!session || session.origenId == null) return
+    if (!session) return
     const dx = event.clientX - session.startX
     const dy = event.clientY - session.startY
     if (!session.moved && Math.hypot(dx, dy) < 5) return
@@ -804,7 +840,8 @@ export default function ClientePage({ clienteId }) {
     const x = event.clientX - session.offsetX
     const y = event.clientY - session.offsetY
     setDragPreview({
-      id: session.origenId,
+      id: session.kind === 'subpago' ? session.imputacionId : session.origenId,
+      kind: session.kind,
       label: session.label,
       monto: session.monto,
       x,
@@ -812,7 +849,7 @@ export default function ClientePage({ clienteId }) {
       width: session.width,
     })
 
-    const prev = session.origenId
+    const excludeId = session.kind === 'subpago' ? session.cuotaOrigenId : session.origenId
     const under = document.elementsFromPoint(event.clientX, event.clientY)
     let nextDrop = null
     for (const node of under) {
@@ -820,7 +857,7 @@ export default function ClientePage({ clienteId }) {
       const host = node.closest('[data-cuota-drop]')
       if (!host) continue
       const id = Number(host.getAttribute('data-cuota-drop'))
-      if (id && id !== prev) {
+      if (id && id !== excludeId) {
         nextDrop = id
         break
       }
@@ -832,16 +869,23 @@ export default function ClientePage({ clienteId }) {
   const endDragCuota = (event) => {
     const session = dragSessionRef.current
     if (!session) return
-    const origenId = session.origenId
+    const kind = session.kind || 'cuota'
     const moved = session.moved
     const destinoId = session.dropId
+    const origenId = session.origenId
+    const imputacionId = session.imputacionId
     try {
       event.currentTarget.releasePointerCapture?.(session.pointerId)
     } catch {
       /* ignore */
     }
     resetDragCuota()
-    if (moved && origenId && destinoId && origenId !== destinoId) {
+    if (!moved || !destinoId) return
+    if (kind === 'subpago' && imputacionId) {
+      moverPagoACuota(imputacionId, destinoId)
+      return
+    }
+    if (kind === 'cuota' && origenId && origenId !== destinoId) {
       moverSaldoEntreCuotas(origenId, destinoId)
     }
   }
@@ -905,6 +949,57 @@ export default function ClientePage({ clienteId }) {
       await refreshFinanciero()
     } catch (err) {
       setCuotaError(err.message || 'No se pudo mover el pago.')
+    }
+  }
+
+  const startEditSubpago = (cuota, pago) => {
+    setEditingCuotaId(null)
+    setEditingSubpagoId(pago.id)
+    setEditSubpago({
+      monto_usd: String(pago.monto_usd ?? ''),
+      fecha: (pago.fecha || '').slice(0, 10),
+      cuotaId: cuota.id,
+    })
+    setCuotaError('')
+  }
+
+  const resetEditSubpago = () => {
+    setEditingSubpagoId(null)
+    setEditSubpago({ monto_usd: '', fecha: '', cuotaId: null })
+  }
+
+  const guardarEditSubpago = async (imputacionId) => {
+    const monto = Number(editSubpago.monto_usd)
+    if (!monto || Number.isNaN(monto) || monto <= 0) {
+      setCuotaError('Indicá un monto válido para el subpago.')
+      return
+    }
+    if (editSubpago.fecha && !isValidDateISO(editSubpago.fecha)) {
+      setCuotaError(CUOTA_FECHA_INVALIDA)
+      return
+    }
+    setCuotaError('')
+    try {
+      await patchImputacion(clienteId, imputacionId, {
+        monto_usd: monto,
+        fecha: editSubpago.fecha || undefined,
+      })
+      resetEditSubpago()
+      await refreshFinanciero()
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo actualizar el subpago.')
+    }
+  }
+
+  const eliminarSubpago = async (imputacionId) => {
+    if (!confirm('¿Eliminar este subpago?')) return
+    setCuotaError('')
+    try {
+      await deleteImputacion(clienteId, imputacionId)
+      if (editingSubpagoId === imputacionId) resetEditSubpago()
+      await refreshFinanciero()
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo eliminar el subpago.')
     }
   }
 
@@ -992,8 +1087,8 @@ export default function ClientePage({ clienteId }) {
     }
   }
 
-  const abrirSelectorComprobante = (cuotaId) => {
-    comprobanteTargetIdRef.current = cuotaId
+  const abrirSelectorComprobante = (cuotaId, pagoId = null) => {
+    comprobanteTargetRef.current = { cuotaId, pagoId }
     comprobanteInputRef.current?.click()
   }
 
@@ -1003,14 +1098,17 @@ export default function ClientePage({ clienteId }) {
       cuotaId: cuota.id,
       index: options.index || 0,
       ids: options.ids || null,
+      pagoId: options.pagoId ?? null,
     })
   }
 
   const onComprobanteSeleccionado = async (event) => {
     const files = Array.from(event.target.files || [])
     event.target.value = ''
-    const cuotaId = comprobanteTargetIdRef.current
-    comprobanteTargetIdRef.current = null
+    const target = comprobanteTargetRef.current
+    comprobanteTargetRef.current = null
+    const cuotaId = target?.cuotaId
+    const pagoId = target?.pagoId ?? null
     if (!files.length || !cuotaId) return
     setCuotaError('')
     setComprobanteSaving(true)
@@ -1018,15 +1116,25 @@ export default function ClientePage({ clienteId }) {
       for (const file of files) {
         const formData = new FormData()
         formData.append('file', file)
-        await uploadCuotaComprobante(clienteId, cuotaId, formData)
+        await uploadCuotaComprobante(clienteId, cuotaId, formData, pagoId)
       }
       setComprobanteNonce((n) => n + 1)
       const data = await refreshFinanciero()
       const actualizada = data.cuotas?.find((c) => c.id === cuotaId)
-      const total = actualizada?.comprobantes?.length || 0
+      if (!actualizada) return
+      if (pagoId != null) {
+        const pago = (actualizada.pagos || []).find((p) => p.pago_id === pagoId)
+        const ids = (pago?.comprobantes || []).map((c) => c.id)
+        if (ids.length) {
+          setComprobanteImgError(false)
+          setComprobanteView({ cuotaId, index: ids.length - 1, ids, pagoId })
+        }
+        return
+      }
+      const total = actualizada.comprobantes?.length || 0
       if (total) {
         setComprobanteImgError(false)
-        setComprobanteView({ cuotaId, index: total - 1, ids: null })
+        setComprobanteView({ cuotaId, index: total - 1, ids: null, pagoId: null })
       }
     } catch (err) {
       setCuotaError(err.message || 'No se pudo subir el comprobante.')
@@ -1060,7 +1168,7 @@ export default function ClientePage({ clienteId }) {
     }
   }
 
-  const renderComprobanteCell = (cuota, { comprobantes, soloLectura = false } = {}) => {
+  const renderComprobanteCell = (cuota, { comprobantes, soloLectura = false, pagoId = null } = {}) => {
     const lista = Array.isArray(comprobantes) ? comprobantes : (cuota.comprobantes || [])
     const cantidad = lista.length
     const ids = lista.map((c) => c.id)
@@ -1073,7 +1181,7 @@ export default function ClientePage({ clienteId }) {
               className={`${styles.iconBtn} ${styles.iconBtnHasFile} ${styles.comprobanteBadgeBtn}`}
               aria-label={`Ver comprobantes (${cantidad})`}
               title={cantidad === 1 ? 'Ver comprobante' : `Ver ${cantidad} comprobantes`}
-              onClick={() => abrirComprobantes(cuota, { ids })}
+              onClick={() => abrirComprobantes(cuota, { ids, pagoId })}
             >
               <i className="ti ti-photo" />
               {cantidad > 1 ? <span className={styles.comprobanteCount}>{cantidad}</span> : null}
@@ -1085,7 +1193,7 @@ export default function ClientePage({ clienteId }) {
               className={styles.iconBtn}
               aria-label="Agregar comprobante"
               title="Agregar comprobante"
-              onClick={() => abrirSelectorComprobante(cuota.id)}
+              onClick={() => abrirSelectorComprobante(cuota.id, pagoId)}
               disabled={comprobanteSaving}
             >
               <i className="ti ti-paperclip" />
@@ -2716,29 +2824,126 @@ export default function ClientePage({ clienteId }) {
                           </td>
                         </tr>
                         {subpagosParaMostrar(cuota).map((pago) => (
-                          <tr key={`pago-${cuota.id}-${pago.id}`} className={styles.cuotaSub}>
-                            <td data-label="Cuota" className={styles.cuotaIdCell}>
-                              <span className={styles.cuotaSubIndent}>
-                                <span className={styles.cuotaSubLabel}>Subpago</span>
-                              </span>
-                            </td>
-                            <td data-label="Monto" className={styles.cuotaMonto}>
-                              {formatUsd(pago.monto_usd)}
-                            </td>
-                            <td data-label="Fecha" className={styles.cuotaVence} />
-                            <td data-label="Pago" className={styles.cuotaPago}>{formatDate(pago.fecha)}</td>
-                            <td data-label="Estado" className={styles.cuotaEstado}>
-                              <span className={styles.cuotaEstadoBadge} data-estado="pagado">
-                                Pagado
-                              </span>
-                            </td>
-                            <td data-label="Tipo" className={styles.cuotaTipo} />
-                            {renderComprobanteCell(cuota, {
-                              comprobantes: pago.comprobantes || [],
-                              soloLectura: true,
-                            })}
-                            <td data-label="Acciones" />
-                          </tr>
+                          editingSubpagoId === pago.id ? (
+                            <tr
+                              key={`pago-edit-${cuota.id}-${pago.id}`}
+                              className={`${styles.cuotaSub} ${styles.cuotaRowEdit}`}
+                              onKeyDown={(event) => handleCuotaRowKeyDown(
+                                event,
+                                () => guardarEditSubpago(pago.id),
+                                resetEditSubpago,
+                              )}
+                            >
+                              <td data-label="Cuota" className={styles.cuotaIdCell}>
+                                <span className={styles.cuotaSubIndent} aria-hidden="true" />
+                              </td>
+                              <td data-label="Monto" className={styles.cuotaMonto}>
+                                <input
+                                  type="number"
+                                  className={styles.tableInput}
+                                  value={editSubpago.monto_usd}
+                                  onChange={(e) => setEditSubpago((prev) => ({
+                                    ...prev,
+                                    monto_usd: e.target.value,
+                                  }))}
+                                />
+                              </td>
+                              <td data-label="Fecha" className={styles.cuotaVence} />
+                              <td data-label="Pago" className={styles.cuotaPago}>
+                                <input
+                                  type="date"
+                                  className={styles.tableInput}
+                                  value={editSubpago.fecha}
+                                  onChange={(e) => setEditSubpago((prev) => ({
+                                    ...prev,
+                                    fecha: e.target.value,
+                                  }))}
+                                />
+                              </td>
+                              <td data-label="Estado" className={styles.cuotaEstado}>
+                                <span className={styles.cuotaEstadoBadge} data-estado="pagado">
+                                  Pagado
+                                </span>
+                              </td>
+                              <td data-label="Tipo" className={styles.cuotaTipo} />
+                              {renderComprobanteCell(cuota, {
+                                comprobantes: pago.comprobantes || [],
+                                pagoId: pago.pago_id || null,
+                              })}
+                              <td data-label="Acciones" className={styles.cuotaAcciones}>
+                                <div className={styles.cuotaActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.saveBtn}
+                                    onClick={() => guardarEditSubpago(pago.id)}
+                                  >
+                                    Guardar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.cancelBtn}
+                                    onClick={resetEditSubpago}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            <tr
+                              key={`pago-${cuota.id}-${pago.id}`}
+                              className={[
+                                styles.cuotaSub,
+                                styles.cuotaDraggable,
+                                dragSubpagoId === pago.id ? styles.cuotaSelected : '',
+                                dragSubpagoId === pago.id && dragPreview ? styles.cuotaDraggingSource : '',
+                              ].filter(Boolean).join(' ')}
+                              onPointerDown={(event) => startDragSubpago(event, cuota, pago)}
+                              onPointerMove={moveDragCuota}
+                              onPointerUp={endDragCuota}
+                              onPointerCancel={resetDragCuota}
+                              title="Arrastrá este pago sobre otra cuota para moverlo"
+                            >
+                              <td data-label="Cuota" className={styles.cuotaIdCell}>
+                                <span className={styles.cuotaSubIndent} aria-hidden="true" />
+                              </td>
+                              <td data-label="Monto" className={styles.cuotaMonto}>
+                                {formatUsd(pago.monto_usd)}
+                              </td>
+                              <td data-label="Fecha" className={styles.cuotaVence} />
+                              <td data-label="Pago" className={styles.cuotaPago}>{formatDate(pago.fecha)}</td>
+                              <td data-label="Estado" className={styles.cuotaEstado}>
+                                <span className={styles.cuotaEstadoBadge} data-estado="pagado">
+                                  Pagado
+                                </span>
+                              </td>
+                              <td data-label="Tipo" className={styles.cuotaTipo} />
+                              {renderComprobanteCell(cuota, {
+                                comprobantes: pago.comprobantes || [],
+                                pagoId: pago.pago_id || null,
+                              })}
+                              <td data-label="Acciones" className={styles.cuotaAcciones}>
+                                <div className={styles.cuotaActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.iconBtn}
+                                    aria-label="Editar subpago"
+                                    onClick={() => startEditSubpago(cuota, pago)}
+                                  >
+                                    <i className="ti ti-pencil" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.iconBtn}
+                                    aria-label="Eliminar subpago"
+                                    onClick={() => eliminarSubpago(pago.id)}
+                                  >
+                                    <i className="ti ti-trash" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
                         ))}
                         {Number(cuota.arrastre_usd) > 0 ? (
                           <tr key={`arrastre-${cuota.id}`} className={styles.cuotaSub}>
@@ -3346,7 +3551,10 @@ export default function ClientePage({ clienteId }) {
               <button
                 type="button"
                 className={styles.saveBtn}
-                onClick={() => abrirSelectorComprobante(comprobanteView.cuotaId)}
+                onClick={() => abrirSelectorComprobante(
+                  comprobanteView.cuotaId,
+                  comprobanteView.pagoId ?? comprobanteActual?.pago_id ?? null,
+                )}
                 disabled={comprobanteSaving}
               >
                 Agregar otro

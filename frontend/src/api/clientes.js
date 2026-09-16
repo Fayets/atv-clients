@@ -124,6 +124,19 @@ export function moverImputacion(clienteId, imputacionId, cuotaDestinoId) {
   })
 }
 
+export function patchImputacion(clienteId, imputacionId, data) {
+  return request(`/api/clientes/${clienteId}/imputaciones/${imputacionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteImputacion(clienteId, imputacionId) {
+  return request(`/api/clientes/${clienteId}/imputaciones/${imputacionId}`, {
+    method: 'DELETE',
+  })
+}
+
 export function fetchPagosHistorial(clienteId) {
   return request(`/api/clientes/${clienteId}/pagos/historial`)
 }
@@ -258,7 +271,10 @@ async function uploadRequest(path, formData) {
   return res.json()
 }
 
-export function uploadCuotaComprobante(clienteId, cuotaId, formData) {
+export function uploadCuotaComprobante(clienteId, cuotaId, formData, pagoId = null) {
+  if (pagoId != null) {
+    formData.append('pago_id', String(pagoId))
+  }
   return uploadRequest(`/api/clientes/${clienteId}/cuotas/${cuotaId}/comprobantes`, formData)
 }
 
