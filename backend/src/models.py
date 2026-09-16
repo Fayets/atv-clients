@@ -31,6 +31,8 @@ class Cliente(db.Entity):
     fecha_baja = Optional(datetime)
     updated_at = Optional(datetime, default=lambda: datetime.utcnow())
     cuotas = Set("Cuota")
+    pagos = Set("Pago")
+    cuota_eventos = Set("CuotaEvento")
     registros_observacion = Set("Observacion")
     miro_boards = Set("MiroBoard")
     fathom_boards = Set("FathomBoard")
@@ -110,12 +112,19 @@ class Cuota(db.Entity):
 
     id = PrimaryKey(int, auto=True)
     cliente = Required("Cliente", column="cliente_id")
+    # Plan original pactado — no se muta por pagos parciales ni acumulaciones.
     monto_usd = Required(Decimal, 10, 2)
     fecha_vence = Required(date)
     fecha_pago = Optional(date)
     estado = Required(str, 20, default="pendiente")
     notas = Optional(str, sql_type="TEXT")
+    # Ledger encima del plan: saldo heredado / transferido a la siguiente.
+    arrastre_usd = Optional(Decimal, 10, 2, default=0)
+    transferido_usd = Optional(Decimal, 10, 2, default=0)
     comprobantes = Set("CuotaComprobante", cascade_delete=True)
+    imputaciones = Set("PagoImputacion")
+    eventos_origen = Set("CuotaEvento", reverse="cuota")
+    eventos_destino = Set("CuotaEvento", reverse="cuota_destino")
     created_at = Optional(datetime, default=lambda: datetime.utcnow())
 
 
@@ -126,6 +135,43 @@ class CuotaComprobante(db.Entity):
     cuota = Required("Cuota", column="cuota_id")
     filepath = Required(str, sql_type="TEXT")
     nombre = Required(str, 255)
+    created_at = Optional(datetime, default=lambda: datetime.utcnow())
+
+
+class Pago(db.Entity):
+    _table_ = ("clients", "pagos")
+
+    id = PrimaryKey(int, auto=True)
+    cliente = Required("Cliente", column="cliente_id")
+    monto_usd = Required(Decimal, 10, 2)
+    fecha = Required(date)
+    origen = Optional(str, 40, default="manual")
+    notas = Optional(str, sql_type="TEXT")
+    created_at = Optional(datetime, default=lambda: datetime.utcnow())
+    imputaciones = Set("PagoImputacion", cascade_delete=True)
+
+
+class PagoImputacion(db.Entity):
+    _table_ = ("clients", "pago_imputaciones")
+
+    id = PrimaryKey(int, auto=True)
+    pago = Required("Pago", column="pago_id")
+    cuota = Required("Cuota", column="cuota_id")
+    monto_usd = Required(Decimal, 10, 2)
+    created_at = Optional(datetime, default=lambda: datetime.utcnow())
+
+
+class CuotaEvento(db.Entity):
+    _table_ = ("clients", "cuota_eventos")
+
+    id = PrimaryKey(int, auto=True)
+    cliente = Required("Cliente", column="cliente_id")
+    cuota = Optional("Cuota", column="cuota_id", reverse="eventos_origen")
+    cuota_destino = Optional("Cuota", column="cuota_destino_id", reverse="eventos_destino")
+    tipo = Required(str, 40)
+    monto_usd = Required(Decimal, 10, 2)
+    detalle = Optional(str, sql_type="TEXT")
+    fecha = Required(date)
     created_at = Optional(datetime, default=lambda: datetime.utcnow())
 
 

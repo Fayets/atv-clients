@@ -292,6 +292,11 @@
   color: var(--badge-vigente-text);
 }
 
+.cuotaEstadoBadge[data-estado='parcialmente_pagada'] {
+  background: var(--badge-proximo-bg);
+  color: var(--badge-proximo-text);
+}
+
 .cuotaEstadoBadge[data-estado='vencido'] {
   background: var(--badge-vencido-bg);
   color: var(--badge-vencido-text);
@@ -375,6 +380,111 @@
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pagoParcialBar {
+  display: none;
+}
+
+.cuotaPrincipal {
+  background: color-mix(in srgb, #16a34a 10%, var(--surface));
+}
+
+.cuotaPrincipal td {
+  font-weight: 600;
+  border-top: 1px solid color-mix(in srgb, #16a34a 28%, var(--border));
+}
+
+.cuotaMontoStack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cuotaMeta {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.cuotaSub {
+  background: color-mix(in srgb, var(--surface2) 92%, #cbd5e1);
+}
+
+.cuotaSub td {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.cuotaSubLabel {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+  background: color-mix(in srgb, #3b82f6 16%, transparent);
+}
+
+.cuotaSubBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+  background: color-mix(in srgb, #64748b 14%, transparent);
+}
+
+.historialBlock {
+  max-height: 360px;
+  overflow: auto;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.historialBlock h4 {
+  margin: 10px 0 4px;
+  font-size: 13px;
+}
+
+.planFormGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin: 12px 0 16px;
+}
+
+.planFormGrid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.planFormGrid .tableInput {
+  max-width: none;
+  width: 100%;
+}
+
+.planFormFull {
+  grid-column: 1 / -1;
 }
 
 .financieroTile {

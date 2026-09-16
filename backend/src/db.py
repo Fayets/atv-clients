@@ -269,6 +269,46 @@ MIGRATIONS = [
     )
     WHERE NOT EXISTS (SELECT 1 FROM clients.caja_meta WHERE id = 1);
     """,
+    "ALTER TABLE clients.cuotas ADD COLUMN IF NOT EXISTS arrastre_usd NUMERIC(10, 2) NOT NULL DEFAULT 0;",
+    "ALTER TABLE clients.cuotas ADD COLUMN IF NOT EXISTS transferido_usd NUMERIC(10, 2) NOT NULL DEFAULT 0;",
+    """
+    CREATE TABLE IF NOT EXISTS clients.pagos (
+        id SERIAL PRIMARY KEY,
+        cliente_id INTEGER NOT NULL REFERENCES clients.clientes(id) ON DELETE CASCADE,
+        monto_usd NUMERIC(10, 2) NOT NULL,
+        fecha DATE NOT NULL,
+        origen VARCHAR(40) DEFAULT 'manual',
+        notas TEXT,
+        created_at TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'utc')
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_pagos_cliente_id ON clients.pagos(cliente_id);",
+    "CREATE INDEX IF NOT EXISTS idx_pagos_cliente_fecha ON clients.pagos(cliente_id, fecha DESC);",
+    """
+    CREATE TABLE IF NOT EXISTS clients.pago_imputaciones (
+        id SERIAL PRIMARY KEY,
+        pago_id INTEGER NOT NULL REFERENCES clients.pagos(id) ON DELETE CASCADE,
+        cuota_id INTEGER NOT NULL REFERENCES clients.cuotas(id) ON DELETE CASCADE,
+        monto_usd NUMERIC(10, 2) NOT NULL,
+        created_at TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'utc')
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_pago_imputaciones_pago_id ON clients.pago_imputaciones(pago_id);",
+    "CREATE INDEX IF NOT EXISTS idx_pago_imputaciones_cuota_id ON clients.pago_imputaciones(cuota_id);",
+    """
+    CREATE TABLE IF NOT EXISTS clients.cuota_eventos (
+        id SERIAL PRIMARY KEY,
+        cliente_id INTEGER NOT NULL REFERENCES clients.clientes(id) ON DELETE CASCADE,
+        cuota_id INTEGER REFERENCES clients.cuotas(id) ON DELETE SET NULL,
+        cuota_destino_id INTEGER REFERENCES clients.cuotas(id) ON DELETE SET NULL,
+        tipo VARCHAR(40) NOT NULL,
+        monto_usd NUMERIC(10, 2) NOT NULL,
+        detalle TEXT,
+        fecha DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'utc')
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_cuota_eventos_cliente_id ON clients.cuota_eventos(cliente_id);",
 ]
 
 
@@ -280,6 +320,40 @@ def _migrar_catalogo_tipos_cuota(cur) -> None:
         nuevo = canonicalizar_valor_notas(notas)
         if nuevo != notas:
             cur.execute("UPDATE clients.cuotas SET notas = %s WHERE id = %s", (nuevo, cuota_id))
+
+
+def _migrar_pagos_desde_cuotas_pagadas(cur) -> None:
+    """Una fila de pago + imputación por cada cuota legacy ya marcada pagada."""
+    cur.execute(
+        """
+        SELECT c.id, c.cliente_id, c.monto_usd,
+               COALESCE(c.fecha_pago, c.fecha_vence, CURRENT_DATE)
+        FROM clients.cuotas c
+        WHERE c.estado = 'pagado'
+          AND NOT EXISTS (
+            SELECT 1 FROM clients.pago_imputaciones i WHERE i.cuota_id = c.id
+          )
+        ORDER BY c.id
+        """
+    )
+    rows = cur.fetchall()
+    for cuota_id, cliente_id, monto, fecha in rows:
+        cur.execute(
+            """
+            INSERT INTO clients.pagos (cliente_id, monto_usd, fecha, origen, notas)
+            VALUES (%s, %s, %s, 'migracion', 'migracion desde cuota pagada legacy')
+            RETURNING id
+            """,
+            (cliente_id, monto, fecha),
+        )
+        pago_id = cur.fetchone()[0]
+        cur.execute(
+            """
+            INSERT INTO clients.pago_imputaciones (pago_id, cuota_id, monto_usd)
+            VALUES (%s, %s, %s)
+            """,
+            (pago_id, cuota_id, monto),
+        )
 
 
 def run_migrations() -> None:
@@ -297,6 +371,10 @@ def run_migrations() -> None:
                     pass
             try:
                 _migrar_catalogo_tipos_cuota(cur)
+            except Exception:
+                pass
+            try:
+                _migrar_pagos_desde_cuotas_pagadas(cur)
             except Exception:
                 pass
     finally:

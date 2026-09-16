@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
+import { useEffect, useRef, useState, Fragment } from 'react'
+import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, fetchPagosHistorial, generarPlanCuotas, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, registrarPago, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
 import { navigate } from '../utils/navigation'
 import { getSession } from '../api/auth'
 import InlineField from '../components/InlineField'
@@ -25,6 +25,22 @@ import styles from './ClientePage.module.css'
 
 const CUOTA_FECHA_INVALIDA = 'La fecha no es válida. Revisá día y mes (ej. septiembre tiene 30 días).'
 const COMPROBANTE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif'
+
+const ESTADO_CUOTA_LABEL = {
+  pendiente: 'Pendiente',
+  parcialmente_pagada: 'Parcial',
+  pagado: 'Pagada',
+  vencido: 'Vencida',
+}
+
+function labelEstadoCuota(estado) {
+  return ESTADO_CUOTA_LABEL[estado] || estado
+}
+
+function formatMontoCuota(cuota) {
+  const plan = Number(cuota.monto_plan_usd ?? cuota.monto_usd) || 0
+  return formatUsd(plan)
+}
 
 function validateCuotaFields(monto, fechaVence, dateInput, { requiereVence = true } = {}) {
   if (!monto || Number.isNaN(Number(monto)) || Number(monto) <= 0) {
@@ -270,6 +286,20 @@ export default function ClientePage({ clienteId }) {
   const [editingCuotaId, setEditingCuotaId] = useState(null)
   const [editCuota, setEditCuota] = useState({ monto_usd: '', fecha_vence: '', fecha_pago: '', notas: '' })
   const [cuotaError, setCuotaError] = useState('')
+  const [pagoDraft, setPagoDraft] = useState({ monto_usd: '', fecha: '', cuota_id: null, saldo: 0 })
+  const [pagoSaving, setPagoSaving] = useState(false)
+  const [pagoOpen, setPagoOpen] = useState(false)
+  const [historialOpen, setHistorialOpen] = useState(false)
+  const [historial, setHistorial] = useState(null)
+  const [planGenerating, setPlanGenerating] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
+  const [planDraft, setPlanDraft] = useState({
+    total_usd: '',
+    cantidad_cuotas: '3',
+    monto_cuota_usd: '',
+    fecha_inicio: '',
+    sena_usd: '',
+  })
   const [comprobanteView, setComprobanteView] = useState(null)
   const [comprobanteNonce, setComprobanteNonce] = useState(0)
   const [comprobanteSaving, setComprobanteSaving] = useState(false)
@@ -593,7 +623,6 @@ export default function ClientePage({ clienteId }) {
       return
     }
     const fechaPago = editCuota.fecha_pago || null
-    const cuotaActual = cliente?.cuotas?.find((c) => c.id === cuotaId)
     const payload = {
       monto_usd: Number(editCuota.monto_usd),
       fecha_vence: fechaVence,
@@ -602,8 +631,6 @@ export default function ClientePage({ clienteId }) {
     }
     if (fechaPago) {
       payload.estado = 'pagado'
-    } else if (cuotaActual?.estado === 'pagado') {
-      payload.estado = 'pendiente'
     }
     try {
       await patchCuota(clienteId, cuotaId, payload)
@@ -621,6 +648,121 @@ export default function ClientePage({ clienteId }) {
       await refreshFinanciero()
     } catch (err) {
       setCuotaError(err.message || 'No se pudo marcar la cuota como pagada.')
+    }
+  }
+
+  const openRegistrarPago = (cuota = null) => {
+    const hoy = todayInputDate()
+    setPagoDraft({
+      monto_usd: '',
+      fecha: hoy,
+      cuota_id: cuota?.id || null,
+      saldo: cuota ? Number(cuota.saldo_pendiente_usd) || 0 : 0,
+    })
+    setCuotaError('')
+    setPagoOpen(true)
+  }
+
+  const registrarPagoParcial = async () => {
+    const monto = Number(pagoDraft.monto_usd)
+    if (!monto || Number.isNaN(monto) || monto <= 0) {
+      setCuotaError('Ingresá un monto de subpago válido.')
+      return
+    }
+    if (pagoDraft.saldo > 0 && monto >= pagoDraft.saldo) {
+      setCuotaError('Para el total usá “Marcar pagado”. El subpago debe ser menor al saldo.')
+      return
+    }
+    if (pagoDraft.fecha && !isValidDateISO(pagoDraft.fecha)) {
+      setCuotaError(CUOTA_FECHA_INVALIDA)
+      return
+    }
+    setCuotaError('')
+    setPagoSaving(true)
+    try {
+      await registrarPago(clienteId, {
+        monto_usd: monto,
+        fecha: pagoDraft.fecha || undefined,
+      })
+      setPagoDraft({ monto_usd: '', fecha: '', cuota_id: null, saldo: 0 })
+      setPagoOpen(false)
+      await refreshFinanciero()
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo registrar el subpago.')
+    } finally {
+      setPagoSaving(false)
+    }
+  }
+
+  const abrirHistorialPagos = async () => {
+    setCuotaError('')
+    try {
+      const data = await fetchPagosHistorial(clienteId)
+      setHistorial(data)
+      setHistorialOpen(true)
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo cargar el historial.')
+    }
+  }
+
+  const openGenerarPlan = () => {
+    const hoy = todayInputDate()
+    setPlanDraft({
+      total_usd: '',
+      cantidad_cuotas: '3',
+      monto_cuota_usd: '',
+      fecha_inicio: cliente?.fecha_inicio || hoy,
+      sena_usd: '',
+    })
+    setCuotaError('')
+    setPlanOpen(true)
+  }
+
+  const generarPlanDesdeArreglo = async () => {
+    const total = Number(planDraft.total_usd)
+    const cantidad = Number(planDraft.cantidad_cuotas)
+    const montoCuota = Number(planDraft.monto_cuota_usd)
+    const sena = Number(planDraft.sena_usd || 0)
+    if (!total || total <= 0) {
+      setCuotaError('Ingresá el precio total.')
+      return
+    }
+    if (!cantidad || cantidad < 1) {
+      setCuotaError('Ingresá la cantidad de cuotas.')
+      return
+    }
+    if (!montoCuota || montoCuota <= 0) {
+      setCuotaError('Ingresá el monto por cuota.')
+      return
+    }
+    if (!planDraft.fecha_inicio || !isValidDateISO(planDraft.fecha_inicio)) {
+      setCuotaError('Ingresá la fecha de inicio.')
+      return
+    }
+    if (Number.isNaN(sena) || sena < 0) {
+      setCuotaError('Ingresá la seña (puede ser 0).')
+      return
+    }
+    setCuotaError('')
+    setPlanGenerating(true)
+    try {
+      const result = await generarPlanCuotas(clienteId, {
+        total_usd: total,
+        cantidad_cuotas: cantidad,
+        monto_cuota_usd: montoCuota,
+        fecha_inicio: planDraft.fecha_inicio,
+        sena_usd: sena,
+      })
+      if (!result.generado) {
+        setCuotaError(result.mensaje || `Faltan: ${(result.faltantes || []).join(', ')}`)
+      } else {
+        setPlanOpen(false)
+        await refreshFinanciero()
+      }
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo generar el plan.')
+    } finally {
+      setPlanGenerating(false)
     }
   }
 
@@ -1864,6 +2006,21 @@ export default function ClientePage({ clienteId }) {
                 </button>
                 <button
                   type="button"
+                  className={styles.arregloCloserBtn}
+                  onClick={openGenerarPlan}
+                  disabled={planGenerating}
+                >
+                  Generar plan
+                </button>
+                <button
+                  type="button"
+                  className={styles.arregloCloserBtn}
+                  onClick={abrirHistorialPagos}
+                >
+                  Historial pagos
+                </button>
+                <button
+                  type="button"
                   className={styles.payBtn}
                   onClick={() => {
                     resetEditCuota()
@@ -1876,6 +2033,140 @@ export default function ClientePage({ clienteId }) {
               </div>
             </div>
 
+            {planOpen ? (
+              <div className={styles.arregloCloserOverlay} onClick={() => setPlanOpen(false)}>
+                <div
+                  className={styles.arregloCloserPanel}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <h3 className={styles.arregloCloserTitle}>Generar plan de cuotas</h3>
+                  <p className={styles.arregloCloserHint}>
+                    Crea la seña y las cuotas de venta (las “cuotas grandes”) del cliente.
+                  </p>
+                  <div className={styles.planFormGrid}>
+                    <label>
+                      Precio total USD
+                      <input
+                        type="number"
+                        className={styles.tableInput}
+                        value={planDraft.total_usd}
+                        onChange={(e) => setPlanDraft((prev) => ({ ...prev, total_usd: e.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Cantidad de cuotas
+                      <input
+                        type="number"
+                        className={styles.tableInput}
+                        value={planDraft.cantidad_cuotas}
+                        onChange={(e) => setPlanDraft((prev) => ({ ...prev, cantidad_cuotas: e.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Monto por cuota USD
+                      <input
+                        type="number"
+                        className={styles.tableInput}
+                        value={planDraft.monto_cuota_usd}
+                        onChange={(e) => setPlanDraft((prev) => ({ ...prev, monto_cuota_usd: e.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Seña / primer pago USD
+                      <input
+                        type="number"
+                        className={styles.tableInput}
+                        value={planDraft.sena_usd}
+                        onChange={(e) => setPlanDraft((prev) => ({ ...prev, sena_usd: e.target.value }))}
+                      />
+                    </label>
+                    <label className={styles.planFormFull}>
+                      Fecha de inicio
+                      <input
+                        type="date"
+                        className={styles.tableInput}
+                        value={planDraft.fecha_inicio}
+                        onChange={(e) => setPlanDraft((prev) => ({ ...prev, fecha_inicio: e.target.value }))}
+                      />
+                    </label>
+                  </div>
+                  <div className={styles.cuotaActions}>
+                    <button
+                      type="button"
+                      className={styles.saveBtn}
+                      onClick={generarPlanDesdeArreglo}
+                      disabled={planGenerating}
+                    >
+                      {planGenerating ? 'Generando…' : 'Crear cuotas'}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.cancelBtn}
+                      onClick={() => setPlanOpen(false)}
+                      disabled={planGenerating}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {pagoOpen ? (
+              <div className={styles.arregloCloserOverlay} onClick={() => setPagoOpen(false)}>
+                <div
+                  className={styles.arregloCloserPanel}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <h3 className={styles.arregloCloserTitle}>Generar subpago</h3>
+                  <p className={styles.arregloCloserHint}>
+                    Para cuando paga menos del total. Queda como fila debajo de la cuota
+                    {pagoDraft.saldo > 0 ? ` (saldo actual ${formatUsd(pagoDraft.saldo)})` : ''}.
+                  </p>
+                  <div className={styles.planFormGrid}>
+                    <label>
+                      Monto del subpago USD
+                      <input
+                        type="number"
+                        className={styles.tableInput}
+                        value={pagoDraft.monto_usd}
+                        placeholder={pagoDraft.saldo > 0 ? `Menos de ${pagoDraft.saldo}` : 'Monto'}
+                        onChange={(e) => setPagoDraft((prev) => ({ ...prev, monto_usd: e.target.value }))}
+                        autoFocus
+                      />
+                    </label>
+                    <label>
+                      Fecha
+                      <input
+                        type="date"
+                        className={styles.tableInput}
+                        value={pagoDraft.fecha}
+                        onChange={(e) => setPagoDraft((prev) => ({ ...prev, fecha: e.target.value }))}
+                      />
+                    </label>
+                  </div>
+                  <div className={styles.cuotaActions}>
+                    <button
+                      type="button"
+                      className={styles.saveBtn}
+                      onClick={registrarPagoParcial}
+                      disabled={pagoSaving}
+                    >
+                      {pagoSaving ? 'Guardando…' : 'Crear subpago'}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.cancelBtn}
+                      onClick={() => setPagoOpen(false)}
+                      disabled={pagoSaving}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             {arregloCloserOpen ? (
               <div className={styles.arregloCloserOverlay} onClick={closeArregloCloser}>
                 <div
@@ -1884,7 +2175,8 @@ export default function ClientePage({ clienteId }) {
                 >
                   <h3 className={styles.arregloCloserTitle}>Arreglo closer</h3>
                   <p className={styles.arregloCloserHint}>
-                    Lo que pactó el closer en llamada. El VA usa esto para armar el plan de cuotas.
+                    Lo que pactó el closer en llamada. Debe incluir: precio total, cantidad de cuotas,
+                    monto por cuota, fecha de inicio y seña/primer pago. Con eso se puede generar el plan.
                   </p>
                   <textarea
                     className={styles.arregloCloserTextarea}
@@ -1909,6 +2201,50 @@ export default function ClientePage({ clienteId }) {
                 </div>
               </div>
             ) : null}
+
+            {historialOpen ? (
+              <div className={styles.arregloCloserOverlay} onClick={() => setHistorialOpen(false)}>
+                <div
+                  className={styles.arregloCloserPanel}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <h3 className={styles.arregloCloserTitle}>Historial de pagos</h3>
+                  <p className={styles.arregloCloserHint}>
+                    Plan original + pagos imputados + acumulaciones por vencimiento.
+                  </p>
+                  <div className={styles.historialBlock}>
+                    <h4>Plan</h4>
+                    {(historial?.plan || []).map((item) => (
+                      <p key={item.cuota_id} className={styles.muted}>
+                        #{item.cuota_id} · plan {formatUsd(item.monto_plan_usd)}
+                        {Number(item.arrastre_usd) > 0 ? ` + arrastre ${formatUsd(item.arrastre_usd)}` : ''}
+                        {' · '}debe {formatUsd(item.saldo_pendiente_usd)} · {labelEstadoCuota(item.estado)}
+                      </p>
+                    ))}
+                    <h4>Pagos</h4>
+                    {(historial?.pagos || []).length ? historial.pagos.map((pago) => (
+                      <p key={pago.id} className={styles.muted}>
+                        {formatDate(pago.fecha)} · {formatUsd(pago.monto_usd)}
+                        {(pago.imputaciones || []).map((imp) => (
+                          ` → cuota #${imp.cuota_id} ${formatUsd(imp.monto_usd)}`
+                        )).join('')}
+                      </p>
+                    )) : <p className={styles.muted}>Sin pagos.</p>}
+                    <h4>Eventos</h4>
+                    {(historial?.eventos || []).length ? historial.eventos.map((ev) => (
+                      <p key={ev.id} className={styles.muted}>
+                        {formatDate(ev.fecha)} · {ev.tipo} · {formatUsd(ev.monto_usd)}
+                        {ev.detalle ? ` · ${ev.detalle}` : ''}
+                      </p>
+                    )) : <p className={styles.muted}>Sin acumulaciones.</p>}
+                  </div>
+                  <button type="button" className={styles.cancelBtn} onClick={() => setHistorialOpen(false)}>
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className={styles.tileGrid}>
               <div>
                 <span className={styles.label}>Total pagado USD</span>
@@ -1980,7 +2316,9 @@ export default function ClientePage({ clienteId }) {
                           />
                         </td>
                         <td data-label="Estado" className={styles.cuotaEstado}>
-                          <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>{cuota.estado}</span>
+                          <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>
+                            {labelEstadoCuota(cuota.estado)}
+                          </span>
                         </td>
                         <td data-label="Tipo" className={styles.cuotaTipo}>
                           <select
@@ -2006,45 +2344,107 @@ export default function ClientePage({ clienteId }) {
                         </td>
                       </tr>
                     ) : (
-                      <tr key={cuota.id}>
-                        <td data-label="Monto" className={styles.cuotaMonto}>{formatUsd(cuota.monto_usd)}</td>
-                        <td data-label={labelColumnaVence(canonicalTipoCuota(cuota.notas))} className={styles.cuotaVence}>
-                          {TIPOS_SIN_VENCIMIENTO.has(canonicalTipoCuota(cuota.notas))
-                            ? diasEnEstadoLabel(cuota.created_at)
-                            : formatDate(cuota.fecha_vence)}
-                        </td>
-                        <td data-label="Pago" className={styles.cuotaPago}>{formatDate(cuota.fecha_pago)}</td>
-                        <td data-label="Estado" className={styles.cuotaEstado}>
-                          <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>{cuota.estado}</span>
-                        </td>
-                        <td data-label="Tipo" className={styles.cuotaTipo}>{labelTipoCuotaNota(cuota.notas, cuota.nota_label)}</td>
-                        {renderComprobanteCell(cuota)}
-                        <td data-label="Acciones" className={styles.cuotaAcciones}>
-                          <div className={styles.cuotaActions}>
-                            {cuota.estado !== 'pagado' ? (
-                              <button type="button" className={styles.payBtn} onClick={() => marcarPagado(cuota.id)}>
-                                Marcar pagado
+                      <Fragment key={cuota.id}>
+                        <tr className={styles.cuotaPrincipal}>
+                          <td data-label="Monto" className={styles.cuotaMonto}>
+                            <div className={styles.cuotaMontoStack}>
+                              <strong>{formatMontoCuota(cuota)}</strong>
+                              {Number(cuota.arrastre_usd) > 0 ? (
+                                <span className={styles.cuotaMeta}>+ {formatUsd(cuota.arrastre_usd)} arrastre</span>
+                              ) : null}
+                              {Number(cuota.saldo_pendiente_usd) > 0
+                                && Number(cuota.saldo_pendiente_usd) !== Number(cuota.monto_exigido_usd ?? cuota.monto_usd) ? (
+                                <span className={styles.cuotaMeta}>Debe {formatUsd(cuota.saldo_pendiente_usd)}</span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td data-label={labelColumnaVence(canonicalTipoCuota(cuota.notas))} className={styles.cuotaVence}>
+                            {TIPOS_SIN_VENCIMIENTO.has(canonicalTipoCuota(cuota.notas))
+                              ? diasEnEstadoLabel(cuota.created_at)
+                              : formatDate(cuota.fecha_vence)}
+                          </td>
+                          <td data-label="Pago" className={styles.cuotaPago}>
+                            {Number(cuota.monto_pagado_usd) > 0
+                              ? formatUsd(cuota.monto_pagado_usd)
+                              : '—'}
+                          </td>
+                          <td data-label="Estado" className={styles.cuotaEstado}>
+                            <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>
+                              {labelEstadoCuota(cuota.estado)}
+                            </span>
+                          </td>
+                          <td data-label="Tipo" className={styles.cuotaTipo}>{labelTipoCuotaNota(cuota.notas, cuota.nota_label)}</td>
+                          {renderComprobanteCell(cuota)}
+                          <td data-label="Acciones" className={styles.cuotaAcciones}>
+                            <div className={styles.cuotaActions}>
+                              {cuota.estado !== 'pagado' ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={styles.saveBtn}
+                                    onClick={() => openRegistrarPago(cuota)}
+                                  >
+                                    Generar subpago
+                                  </button>
+                                  <button type="button" className={styles.payBtn} onClick={() => marcarPagado(cuota.id)}>
+                                    Marcar pagado
+                                  </button>
+                                </>
+                              ) : null}
+                              <button
+                                type="button"
+                                className={styles.iconBtn}
+                                aria-label="Editar cuota"
+                                onClick={() => startEditCuota(cuota)}
+                              >
+                                <i className="ti ti-pencil" />
                               </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className={styles.iconBtn}
-                              aria-label="Editar cuota"
-                              onClick={() => startEditCuota(cuota)}
-                            >
-                              <i className="ti ti-pencil" />
-                            </button>
-                            <button
-                              type="button"
-                              className={styles.iconBtn}
-                              aria-label="Eliminar cuota"
-                              onClick={() => eliminarCuota(cuota.id)}
-                            >
-                              <i className="ti ti-trash" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                              <button
+                                type="button"
+                                className={styles.iconBtn}
+                                aria-label="Eliminar cuota"
+                                onClick={() => eliminarCuota(cuota.id)}
+                              >
+                                <i className="ti ti-trash" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {(cuota.pagos || []).map((pago) => (
+                          <tr key={`pago-${cuota.id}-${pago.id}`} className={styles.cuotaSub}>
+                            <td data-label="Monto" className={styles.cuotaMonto}>
+                              <span className={styles.cuotaSubLabel}>Subpago</span>
+                              {' '}
+                              {formatUsd(pago.monto_usd)}
+                            </td>
+                            <td data-label="Fecha" className={styles.cuotaVence}>{formatDate(pago.fecha)}</td>
+                            <td data-label="Pago" className={styles.cuotaPago}>{formatUsd(pago.monto_usd)}</td>
+                            <td data-label="Estado" className={styles.cuotaEstado}>
+                              <span className={styles.cuotaSubBadge}>Imputado</span>
+                            </td>
+                            <td data-label="Tipo" className={styles.cuotaTipo}>—</td>
+                            <td data-label="Comprobante">—</td>
+                            <td data-label="Acciones">—</td>
+                          </tr>
+                        ))}
+                        {Number(cuota.arrastre_usd) > 0 ? (
+                          <tr key={`arrastre-${cuota.id}`} className={styles.cuotaSub}>
+                            <td data-label="Monto" className={styles.cuotaMonto}>
+                              <span className={styles.cuotaSubLabel}>Arrastre</span>
+                              {' '}
+                              {formatUsd(cuota.arrastre_usd)}
+                            </td>
+                            <td data-label="Vence" className={styles.cuotaVence}>—</td>
+                            <td data-label="Pago" className={styles.cuotaPago}>—</td>
+                            <td data-label="Estado" className={styles.cuotaEstado}>
+                              <span className={styles.cuotaSubBadge}>Acumulado</span>
+                            </td>
+                            <td data-label="Tipo" className={styles.cuotaTipo}>—</td>
+                            <td data-label="Comprobante">—</td>
+                            <td data-label="Acciones">—</td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
                     )
                   )) : !addingCuota ? (
                     <tr>

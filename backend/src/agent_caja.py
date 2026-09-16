@@ -15,6 +15,7 @@ from src.services.clientes_services import (
     _es_caja_2,
     calcular_estado_efectivo,
 )
+from src.pagos_cuotas import saldo_pendiente
 
 AR = pytz.timezone("America/Argentina/Buenos_Aires")
 MONTH_RE = re.compile(r"^(\d{4})-(\d{2})$")
@@ -70,10 +71,11 @@ def _filtrar_cuotas_cobros(
 def build_cobros_item(cuota: Cuota, mes_consulta_inicio: date, clientes: dict[int, Cliente]) -> dict:
     fv = cuota.fecha_vence
     cliente = clientes[cuota.cliente.id]
+    saldo = saldo_pendiente(cuota)
     return {
         "cliente_id": cliente.id,
         "cliente_nombre": cliente.nombre,
-        "monto_usd": monto_usd_redondeado(cuota.monto_usd),
+        "monto_usd": monto_usd_redondeado(saldo),
         "fecha_vence": fv,
         "mes_vencimiento": f"{fv.year:04d}-{fv.month:02d}",
         "es_arrastre": fv < mes_consulta_inicio,
@@ -87,7 +89,7 @@ def build_proyeccion_item(cuota: Cuota, clientes: dict[int, Cliente]) -> dict:
     return {
         "cliente_id": cliente.id,
         "cliente_nombre": cliente.nombre,
-        "monto_usd": monto_usd_redondeado(cuota.monto_usd),
+        "monto_usd": monto_usd_redondeado(saldo_pendiente(cuota)),
         "fecha_vence": cuota.fecha_vence,
         "estado": cuota.estado,
     }

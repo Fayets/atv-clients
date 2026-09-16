@@ -10,13 +10,18 @@ from src.schemas import (
     ClientePatch,
     ClienteResponse,
     ClienteListItem,
+    ClientePagosHistorialResponse,
     CobranzaItem,
     DashboardResponse,
     CuotaCreate,
     CuotaPatch,
     CuotaResponse,
+    GenerarPlanRequest,
+    GenerarPlanResponse,
     ObservacionCreate,
     ObservacionResponse,
+    PagoCreate,
+    PagoResponse,
     ProximosPasosCreate,
     ProximosPasosPatch,
     ProximosPasosResponse,
@@ -541,6 +546,70 @@ def pagar_cuota(
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error al marcar la cuota como pagada.")
+
+
+@router.post("/{cliente_id}/pagos", response_model=PagoResponse, status_code=201)
+def registrar_pago(
+    cliente_id: int,
+    body: PagoCreate,
+    _: str = Depends(get_current_user),
+):
+    try:
+        pago = service.registrar_pago_cliente(
+            cliente_id,
+            monto_usd=body.monto_usd,
+            fecha=body.fecha,
+            notas=body.notas,
+        )
+        if not pago:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+        return pago
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al registrar el pago.")
+
+
+@router.get("/{cliente_id}/pagos/historial", response_model=ClientePagosHistorialResponse)
+def historial_pagos(
+    cliente_id: int,
+    _: str = Depends(get_current_user),
+):
+    try:
+        data = service.historial_pagos_cliente(cliente_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+        return data
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al obtener el historial de pagos.")
+
+
+@router.post("/{cliente_id}/cuotas/generar-plan", response_model=GenerarPlanResponse)
+def generar_plan_cuotas(
+    cliente_id: int,
+    body: GenerarPlanRequest,
+    _: str = Depends(get_current_user),
+):
+    try:
+        data = service.generar_plan_desde_arreglo(
+            cliente_id,
+            {
+                "total_usd": body.total_usd,
+                "cantidad_cuotas": body.cantidad_cuotas,
+                "monto_cuota_usd": body.monto_cuota_usd,
+                "fecha_inicio": body.fecha_inicio,
+                "sena_usd": body.sena_usd,
+            },
+        )
+        if not data:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+        return data
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al generar el plan de cuotas.")
 
 
 @router.post("/{cliente_id}/cuotas/{cuota_id}/comprobantes", response_model=CuotaResponse, status_code=201)

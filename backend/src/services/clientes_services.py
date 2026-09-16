@@ -40,8 +40,20 @@ from src.models import (
     FathomBoard,
     MiroBoard,
     Observacion,
+    Pago,
     ProximosPasos,
 )
+from src.pagos_cuotas import (
+    ESTADOS_CON_SALDO,
+    ESTADOS_CUOTA_PAGOS,
+    cuota_saldos_dict,
+    historial_cliente,
+    pago_to_dict,
+    recalcular_cuotas_cliente,
+    registrar_pago,
+    saldo_pendiente,
+)
+from src.plan_venta import build_plan_cuotas, parse_mensaje_venta
 from src.schemas import (
     ClienteCreate,
     ClientePatch,
@@ -89,7 +101,7 @@ MESES_ES = (
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 )
-ESTADOS_CUOTA_VALIDOS = frozenset({"pendiente", "pagado", "vencido"})
+ESTADOS_CUOTA_VALIDOS = ESTADOS_CUOTA_PAGOS
 UPLOAD_DIR = Path(config("UPLOAD_DIR", default="uploads"))
 MAX_DISCORD_TXT_BYTES = 5 * 1024 * 1024
 MAX_COMPROBANTE_BYTES = 8 * 1024 * 1024
@@ -171,14 +183,14 @@ def _ultima_actualizacion_caja() -> datetime | None:
 
 
 def _recalcular_totales_cliente(cliente: Cliente) -> None:
+    hoy = _today()
+    recalcular_cuotas_cliente(cliente, hoy)
     pagado = Decimal("0")
     adeudado = Decimal("0")
     for cuota in cliente.cuotas:
-        monto = _decimal(cuota.monto_usd)
-        if cuota.estado == "pagado":
-            pagado += monto
-        elif cuota.estado in {"pendiente", "vencido"}:
-            adeudado += monto
+        saldos = cuota_saldos_dict(cuota)
+        pagado += saldos["monto_pagado_usd"]
+        adeudado += saldos["saldo_pendiente_usd"]
     cliente.total_pagado_usd = pagado
     cliente.total_adeudado_usd = adeudado
     cliente.updated_at = datetime.utcnow()
@@ -499,10 +511,21 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
     nota = normalizar_nota_cuota(cuota.notas)
     tipo = nota or TIPO_DEFAULT
     cuotas_ref = cuotas_cliente if cuotas_cliente is not None else list(cuota.cliente.cuotas)
+    saldos = cuota_saldos_dict(cuota)
+    pagos = sorted(
+        list(cuota.imputaciones),
+        key=lambda i: ((i.pago.fecha if i.pago else date.min), i.id or 0),
+    )
     return {
         "id": cuota.id,
         "cliente_id": cuota.cliente.id,
-        "monto_usd": _decimal(cuota.monto_usd),
+        "monto_usd": saldos["monto_plan_usd"],
+        "monto_plan_usd": saldos["monto_plan_usd"],
+        "arrastre_usd": saldos["arrastre_usd"],
+        "transferido_usd": saldos["transferido_usd"],
+        "monto_exigido_usd": saldos["monto_exigido_usd"],
+        "monto_pagado_usd": saldos["monto_pagado_usd"],
+        "saldo_pendiente_usd": saldos["saldo_pendiente_usd"],
         "fecha_vence": cuota.fecha_vence,
         "fecha_pago": cuota.fecha_pago,
         "estado": cuota.estado,
@@ -510,6 +533,15 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
         "notas": tipo,
         "nota_label": etiqueta_cuota_auto(cuota, cuotas_ref),
         "comprobantes": [_comprobante_to_dict(c) for c in _sorted_comprobantes(cuota)],
+        "pagos": [
+            {
+                "id": item.id,
+                "pago_id": item.pago.id if item.pago else 0,
+                "monto_usd": _decimal(item.monto_usd),
+                "fecha": item.pago.fecha if item.pago else None,
+            }
+            for item in pagos
+        ],
         "created_at": cuota.created_at,
     }
 
@@ -555,16 +587,17 @@ def _proxima_cuota_pendiente(
 ) -> dict | None:
     cuotas = cache.cuotas.get(cliente.id, []) if cache else list(cliente.cuotas)
     pendientes = sorted(
-        [c for c in cuotas if c.estado in {"pendiente", "vencido"}],
-        key=lambda c: c.fecha_vence,
+        [c for c in cuotas if c.estado in ESTADOS_CON_SALDO and saldo_pendiente(c) > 0],
+        key=lambda c: (c.fecha_vence or date.max, c.id),
     )
     if not pendientes:
         return None
     cuota = pendientes[0]
     nota = normalizar_nota_cuota(cuota.notas) or TIPO_DEFAULT
+    saldos = cuota_saldos_dict(cuota)
     return {
         "id": cuota.id,
-        "monto_usd": _decimal(cuota.monto_usd),
+        "monto_usd": saldos["saldo_pendiente_usd"],
         "fecha_vence": cuota.fecha_vence,
         "estado": cuota.estado,
         "tipo": nota,
@@ -653,7 +686,9 @@ def _es_caja_2(tipo: str) -> bool:
 
 def _cuota_pendiente_del_mes(cuota: Cuota, ref: date) -> bool:
     """Cuotas del mes + barrido de vencidas de meses anteriores (sigue pendiente)."""
-    if cuota.estado not in {"pendiente", "vencido"}:
+    if cuota.estado not in ESTADOS_CON_SALDO:
+        return False
+    if saldo_pendiente(cuota) <= 0:
         return False
     # Posibilidad de upsell: oportunidad abierta, visible en cualquier mes hasta cerrar/pagar.
     if es_nota_sin_vencimiento(cuota.notas):
@@ -684,14 +719,21 @@ def _sumar_cobrado_cajas(
     caja_1 = Decimal("0")
     caja_2 = Decimal("0")
     for cuota in cuotas:
-        if _fecha_cobro(cuota, solo_fecha_pago=solo_fecha_pago) != fecha:
-            continue
-        monto = _decimal(cuota.monto_usd)
         tipo = normalizar_nota_cuota(cuota.notas) or TIPO_DEFAULT
-        if _es_caja_2(tipo):
-            caja_2 += monto
-        else:
-            caja_1 += monto
+        for imp in list(cuota.imputaciones):
+            pago = imp.pago
+            fp = pago.fecha if pago else None
+            if solo_fecha_pago:
+                if fp != fecha:
+                    continue
+            else:
+                if (fp or cuota.fecha_vence) != fecha:
+                    continue
+            monto = _decimal(imp.monto_usd)
+            if _es_caja_2(tipo):
+                caja_2 += monto
+            else:
+                caja_1 += monto
     return caja_1, caja_2
 
 
@@ -715,7 +757,7 @@ def _semana_vacia(lunes: date) -> dict[date, dict]:
 
 
 def _cuotas_impagas(cuotas: list[Cuota]) -> list[Cuota]:
-    return [c for c in cuotas if c.estado in {"pendiente", "vencido"}]
+    return [c for c in cuotas if c.estado in ESTADOS_CON_SALDO and saldo_pendiente(c) > 0]
 
 
 def _detalle_item(
@@ -1065,75 +1107,80 @@ class ClientesServices:
             recompra_pendiente = Decimal("0")
 
             for cliente in clientes:
+                recalcular_cuotas_cliente(cliente, hoy)
                 base = _cliente_base_dict(cliente, cache)
-                cuotas = cache.cuotas.get(cliente.id, [])
+                cuotas = cache.cuotas.get(cliente.id, []) or list(cliente.cuotas)
                 estado = base["estado_efectivo"]
+
+                # Cobrado = imputaciones de pagos (soporta parciales).
+                for pago in list(cliente.pagos):
+                    fp = pago.fecha
+                    if not fp:
+                        continue
+                    for imp in list(pago.imputaciones):
+                        cuota = imp.cuota
+                        monto = _decimal(imp.monto_usd)
+                        if monto <= 0:
+                            continue
+                        tipo = normalizar_nota_cuota(cuota.notas) or TIPO_DEFAULT
+                        caja_2_cobrado_total_usd += monto
+                        if lunes <= fp <= domingo:
+                            dia_semana = dias_semana[fp]
+                            dia_semana["cobrado_usd"] += monto
+                            if _es_caja_2(tipo):
+                                dia_semana["caja2_usd"] += monto
+                                origen_semana = "recompra" if tipo == "cuota_recompra" else "upsell"
+                            elif es_venta_nueva(cuota, cuotas):
+                                dia_semana["caja1_usd"] += monto
+                                origen_semana = "venta_nueva"
+                            else:
+                                dia_semana["caja1_usd"] += monto
+                                origen_semana = "cuota_venta"
+                            detalles_semana.append(_detalle_item(
+                                cliente_id=cliente.id,
+                                nombre=base["nombre"],
+                                plan=base["plan_actual"],
+                                monto=monto,
+                                subtitulo=f"{etiqueta_cuota_auto(cuota, cuotas)} · pagó {format_fecha_ar(fp)}",
+                                estado=base["estado_efectivo"],
+                                tipo=tipo,
+                                fecha=fp,
+                                origen=origen_semana,
+                            ))
+                        if fp.year == ref.year and fp.month == ref.month:
+                            caja_2_cobrado_usd += monto
+                            if tipo in {"cuota_upsell", "posibilidad_upsell"}:
+                                upsell_cobrado += monto
+                                origen = "upsell"
+                            elif tipo == "cuota_recompra":
+                                recompra_cobrado += monto
+                                origen = "recompra"
+                            elif es_venta_nueva(cuota, cuotas):
+                                venta_cobrado += monto
+                                venta_nueva_cobrado += monto
+                                origen = "venta_nueva"
+                            else:
+                                venta_cobrado += monto
+                                cuota_venta_cobrado += monto
+                                origen = "cuota_venta"
+                            detalles_cobrado.append(_detalle_item(
+                                cliente_id=cliente.id,
+                                nombre=base["nombre"],
+                                plan=base["plan_actual"],
+                                monto=monto,
+                                subtitulo=f"{etiqueta_cuota_auto(cuota, cuotas)} · pagó {format_fecha_ar(fp)}",
+                                estado=base["estado_efectivo"],
+                                tipo=tipo,
+                                fecha=fp,
+                                origen=origen,
+                            ))
+
                 for cuota in cuotas:
-                    monto = _decimal(cuota.monto_usd)
                     tipo = normalizar_nota_cuota(cuota.notas) or TIPO_DEFAULT
                     fv = cuota.fecha_vence
+                    monto = saldo_pendiente(cuota)
 
-                    if cuota.estado == "pagado":
-                        fp = cuota.fecha_pago or fv
-                        if fp:
-                            caja_2_cobrado_total_usd += monto
-                            if lunes <= fp <= domingo:
-                                dia_semana = dias_semana[fp]
-                                dia_semana["cobrado_usd"] += monto
-                                if _es_caja_2(tipo):
-                                    dia_semana["caja2_usd"] += monto
-                                    if tipo == "cuota_recompra":
-                                        origen_semana = "recompra"
-                                    else:
-                                        origen_semana = "upsell"
-                                elif es_venta_nueva(cuota, cuotas):
-                                    dia_semana["caja1_usd"] += monto
-                                    origen_semana = "venta_nueva"
-                                else:
-                                    dia_semana["caja1_usd"] += monto
-                                    origen_semana = "cuota_venta"
-                                detalles_semana.append(_detalle_item(
-                                    cliente_id=cliente.id,
-                                    nombre=base["nombre"],
-                                    plan=base["plan_actual"],
-                                    monto=monto,
-                                    subtitulo=f"{etiqueta_cuota_auto(cuota, cuotas)} · pagó {format_fecha_ar(fp)}",
-                                    estado=base["estado_efectivo"],
-                                    tipo=tipo,
-                                    fecha=fp,
-                                    origen=origen_semana,
-                                ))
-                            if fp.year == ref.year and fp.month == ref.month:
-                                caja_2_cobrado_usd += monto
-                                if tipo in {"cuota_upsell", "posibilidad_upsell"}:
-                                    upsell_cobrado += monto
-                                    origen = "upsell"
-                                elif tipo == "cuota_recompra":
-                                    recompra_cobrado += monto
-                                    origen = "recompra"
-                                elif es_venta_nueva(cuota, cuotas):
-                                    venta_cobrado += monto
-                                    venta_nueva_cobrado += monto
-                                    origen = "venta_nueva"
-                                else:
-                                    venta_cobrado += monto
-                                    cuota_venta_cobrado += monto
-                                    origen = "cuota_venta"
-                                nota_label = etiqueta_cuota_auto(cuota, cuotas)
-                                detalles_cobrado.append(_detalle_item(
-                                    cliente_id=cliente.id,
-                                    nombre=base["nombre"],
-                                    plan=base["plan_actual"],
-                                    monto=monto,
-                                    subtitulo=f"{nota_label} · pagó {format_fecha_ar(fp)}",
-                                    estado=base["estado_efectivo"],
-                                    tipo=tipo,
-                                    fecha=fp,
-                                    origen=origen,
-                                ))
-                        continue
-
-                    if cuota.estado not in {"pendiente", "vencido"}:
+                    if cuota.estado not in ESTADOS_CON_SALDO or monto <= 0:
                         continue
                     # Inactivos: no suman cuotas pendientes ni proyección.
                     if estado == "inactivo":
@@ -1322,9 +1369,10 @@ class ClientesServices:
             if not cliente:
                 return None
 
+            recalcular_cuotas_cliente(cliente, _today())
             cache = _load_relations_cache(include_detail=True)
             cid = cliente.id
-            cuotas = sorted(cache.cuotas.get(cid, []), key=lambda c: c.fecha_vence)
+            cuotas = sorted(list(cliente.cuotas), key=lambda c: c.fecha_vence or date.max)
             observaciones = sorted(
                 cache.observaciones.get(cid, []),
                 key=lambda o: o.created_at or datetime.min,
@@ -1570,12 +1618,27 @@ class ClientesServices:
             if not cliente or not cuota:
                 return None
 
-            if payload.get("estado") == "pagado" and "fecha_pago" not in payload:
-                payload["fecha_pago"] = _today()
+            # "pagado" vía patch = registrar pago del saldo (FIFO); el estado se recalcula.
+            estado_in = payload.pop("estado", None)
+            fecha_pago_patch = payload.pop("fecha_pago", None) if "fecha_pago" in payload else None
+            marcar_pagado = estado_in == "pagado" or (
+                fecha_pago_patch is not None and cuota.estado != "pagado"
+            )
 
             for field, value in payload.items():
                 setattr(cuota, field, value)
 
+            if marcar_pagado:
+                saldo = saldo_pendiente(cuota)
+                if saldo > 0:
+                    registrar_pago(
+                        cliente,
+                        monto=saldo,
+                        fecha=fecha_pago_patch or _today(),
+                        origen="manual",
+                        notas=f"cierre cuota #{cuota.id}",
+                        hoy=_today(),
+                    )
             _recalcular_totales_cliente(cliente)
             cuotas = list(cliente.cuotas)
             return _cuota_to_dict(cuota, cuotas)
@@ -1601,11 +1664,154 @@ class ClientesServices:
             if not cliente or not cuota:
                 return None
 
-            cuota.estado = "pagado"
-            cuota.fecha_pago = _today()
-            _recalcular_totales_cliente(cliente)
+            recalcular_cuotas_cliente(cliente, _today())
+            saldo = saldo_pendiente(cuota)
+            if saldo > 0:
+                registrar_pago(
+                    cliente,
+                    monto=saldo,
+                    fecha=_today(),
+                    origen="manual",
+                    notas=f"marcar pagada cuota #{cuota.id}",
+                    hoy=_today(),
+                )
+            pagado = Decimal("0")
+            adeudado = Decimal("0")
+            for c in cliente.cuotas:
+                saldos = cuota_saldos_dict(c)
+                pagado += saldos["monto_pagado_usd"]
+                adeudado += saldos["saldo_pendiente_usd"]
+            cliente.total_pagado_usd = pagado
+            cliente.total_adeudado_usd = adeudado
+            cliente.updated_at = datetime.utcnow()
+            _marcar_cambio_caja()
             cuotas = list(cliente.cuotas)
             return _cuota_to_dict(cuota, cuotas)
+
+    def registrar_pago_cliente(
+        self,
+        cliente_id: int,
+        *,
+        monto_usd: Decimal,
+        fecha: date | None = None,
+        notas: str | None = None,
+        origen: str = "manual",
+    ) -> dict | None:
+        if monto_usd <= 0:
+            raise HTTPException(status_code=400, detail="El monto debe ser mayor a cero.")
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+            fecha_pago = fecha or _today()
+            try:
+                pago, imputaciones = registrar_pago(
+                    cliente,
+                    monto=monto_usd,
+                    fecha=fecha_pago,
+                    origen=origen,
+                    notas=notas,
+                    hoy=_today(),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+            pagado = Decimal("0")
+            adeudado = Decimal("0")
+            for c in cliente.cuotas:
+                saldos = cuota_saldos_dict(c)
+                pagado += saldos["monto_pagado_usd"]
+                adeudado += saldos["saldo_pendiente_usd"]
+            cliente.total_pagado_usd = pagado
+            cliente.total_adeudado_usd = adeudado
+            cliente.updated_at = datetime.utcnow()
+            _marcar_cambio_caja()
+            flush()
+            data = pago_to_dict(pago)
+            data["imputaciones_resumen"] = imputaciones
+            return data
+
+    def historial_pagos_cliente(self, cliente_id: int) -> dict | None:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+            recalcular_cuotas_cliente(cliente, _today())
+            return historial_cliente(cliente)
+
+    def generar_plan_desde_arreglo(
+        self,
+        cliente_id: int,
+        data: dict | None = None,
+    ) -> dict | None:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+
+            if data:
+                parsed = build_plan_cuotas(
+                    total_usd=data["total_usd"],
+                    cantidad_cuotas=data["cantidad_cuotas"],
+                    monto_cuota_usd=data["monto_cuota_usd"],
+                    fecha_inicio=data["fecha_inicio"],
+                    sena_usd=data.get("sena_usd") or Decimal("0"),
+                )
+            else:
+                parsed = parse_mensaje_venta(cliente.arreglo_closer)
+
+            if not parsed.ok:
+                return {
+                    "generado": False,
+                    "faltantes": parsed.faltantes,
+                    "cuotas": [],
+                    "mensaje": (
+                        "Faltan datos para el plan: "
+                        + ", ".join(parsed.faltantes)
+                    ),
+                }
+
+            # No duplicar plan de venta si ya hay cuotas de venta/seña.
+            existentes = [
+                c for c in cliente.cuotas
+                if (normalizar_nota_cuota(c.notas) or TIPO_DEFAULT) in {"sena", "cuota_venta"}
+            ]
+            if existentes:
+                return {
+                    "generado": False,
+                    "faltantes": [],
+                    "cuotas": [],
+                    "mensaje": (
+                        "Ya hay cuotas de venta/seña. Borralas antes de regenerar el plan."
+                    ),
+                }
+
+            creadas = []
+            for item in parsed.cuotas:
+                cuota = Cuota(
+                    cliente=cliente,
+                    monto_usd=item["monto_usd"],
+                    fecha_vence=item["fecha_vence"],
+                    estado="pendiente",
+                    notas=item["notas"],
+                    arrastre_usd=Decimal("0"),
+                    transferido_usd=Decimal("0"),
+                )
+                creadas.append(cuota)
+            if not cliente.fecha_inicio:
+                cliente.fecha_inicio = parsed.fecha_inicio
+            _recalcular_totales_cliente(cliente)
+            flush()
+            cuotas = list(cliente.cuotas)
+            return {
+                "generado": True,
+                "faltantes": [],
+                "cuotas": [_cuota_to_dict(c, cuotas) for c in creadas],
+                "mensaje": (
+                    f"Plan generado: seña {parsed.sena_usd} + "
+                    f"{parsed.cantidad_cuotas} cuotas de {parsed.monto_cuota_usd}"
+                ),
+            }
 
     async def subir_comprobante_cuota(
         self,

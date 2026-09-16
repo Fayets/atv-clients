@@ -30,7 +30,7 @@ PlanActual = Literal["mentoria", "boost", "advantage"]
 Oportunidad = Literal["upsell_boost", "upsell_advantage", "recompra", "consultar"]
 PrioridadCobro = Literal["alta", "media", "baja"]
 Responsable = Literal["lucas", "juampi", "juan", "ale"]
-EstadoCuota = Literal["pendiente", "pagado", "vencido"]
+EstadoCuota = Literal["pendiente", "parcialmente_pagada", "pagado", "vencido"]
 CuotaNotaTipo = Literal["cuota_venta", "cuota_upsell", "cuota_recompra", "sena", "posibilidad_upsell"]
 OrdenListado = Literal["venc_asc", "venc_desc", "alta_asc", "alta_desc"]
 
@@ -43,12 +43,95 @@ class CuotaComprobanteResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class PagoImputacionResponse(BaseModel):
+    id: int
+    cuota_id: int
+    monto_usd: Decimal
+    fecha_vence: date | None = None
+    nota_label: str | None = None
+
+
+class PagoResponse(BaseModel):
+    id: int
+    cliente_id: int
+    monto_usd: Decimal
+    fecha: date
+    origen: str | None = None
+    notas: str | None = None
+    created_at: datetime | None = None
+    imputaciones: list[PagoImputacionResponse] = Field(default_factory=list)
+
+
+class PagoCreate(BaseModel):
+    monto_usd: Decimal
+    fecha: date | None = None
+    notas: str | None = None
+
+
+class CuotaEventoResponse(BaseModel):
+    id: int
+    cliente_id: int
+    cuota_id: int | None = None
+    cuota_destino_id: int | None = None
+    tipo: str
+    monto_usd: Decimal
+    detalle: str | None = None
+    fecha: date
+    created_at: datetime | None = None
+
+
+class CuotaHistorialPlanItem(BaseModel):
+    cuota_id: int
+    monto_plan_usd: Decimal
+    fecha_vence: date | None = None
+    tipo: CuotaNotaTipo
+    estado: EstadoCuota
+    arrastre_usd: Decimal = Decimal("0")
+    transferido_usd: Decimal = Decimal("0")
+    monto_exigido_usd: Decimal = Decimal("0")
+    monto_pagado_usd: Decimal = Decimal("0")
+    saldo_pendiente_usd: Decimal = Decimal("0")
+
+
+class ClientePagosHistorialResponse(BaseModel):
+    plan: list[CuotaHistorialPlanItem] = Field(default_factory=list)
+    pagos: list[PagoResponse] = Field(default_factory=list)
+    eventos: list[CuotaEventoResponse] = Field(default_factory=list)
+
+class GenerarPlanRequest(BaseModel):
+    total_usd: Decimal
+    cantidad_cuotas: int = Field(ge=1, le=36)
+    monto_cuota_usd: Decimal
+    fecha_inicio: date
+    sena_usd: Decimal = Decimal("0")
+
+
+class GenerarPlanResponse(BaseModel):
+    generado: bool
+    faltantes: list[str] = Field(default_factory=list)
+    cuotas: list["CuotaResponse"] = Field(default_factory=list)
+    mensaje: str | None = None
+
+
+class CuotaPagoItem(BaseModel):
+    id: int
+    pago_id: int
+    monto_usd: Decimal
+    fecha: date | None = None
+
+
 class CuotaResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     cliente_id: int
     monto_usd: Decimal
+    monto_plan_usd: Decimal | None = None
+    arrastre_usd: Decimal = Decimal("0")
+    transferido_usd: Decimal = Decimal("0")
+    monto_exigido_usd: Decimal | None = None
+    monto_pagado_usd: Decimal = Decimal("0")
+    saldo_pendiente_usd: Decimal | None = None
     fecha_vence: date
     fecha_pago: date | None = None
     estado: EstadoCuota
@@ -56,6 +139,7 @@ class CuotaResponse(BaseModel):
     notas: str | None = None
     nota_label: str | None = None
     comprobantes: list[CuotaComprobanteResponse] = Field(default_factory=list)
+    pagos: list[CuotaPagoItem] = Field(default_factory=list)
     created_at: datetime | None = None
 
 

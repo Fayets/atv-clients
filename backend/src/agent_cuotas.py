@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from fastapi import HTTPException
 from pony.orm import db_session
 
@@ -7,7 +9,8 @@ from src.agent_caja import monto_usd_redondeado, today_ar
 from src.cuota_notas import normalizar_nota_cuota
 from src.format_fechas import format_fecha_ar
 from src.models import Cliente, Cuota
-from src.services.clientes_services import _recalcular_totales_cliente
+from src.pagos_cuotas import cuota_saldos_dict, recalcular_cuotas_cliente, registrar_pago, saldo_pendiente
+from src.services.clientes_services import _marcar_cambio_caja, _recalcular_totales_cliente
 
 
 def _tipo_from_notas(notas: str | None) -> str:
@@ -34,10 +37,12 @@ def _cuota_agente_resumen(
     cliente_nombre: str,
     mensaje: str | None = None,
 ) -> dict:
+    saldos = cuota_saldos_dict(cuota)
     payload = {
         "cuota_id": cuota.id,
         "cliente_nombre": cliente_nombre,
-        "monto_usd": monto_usd_redondeado(cuota.monto_usd),
+        "monto_usd": monto_usd_redondeado(saldos["monto_plan_usd"]),
+        "saldo_pendiente_usd": monto_usd_redondeado(saldos["saldo_pendiente_usd"]),
         "estado": cuota.estado,
         "fecha_pago": cuota.fecha_pago,
     }
@@ -47,10 +52,12 @@ def _cuota_agente_resumen(
 
 
 def _cuota_buscar_item(cuota: Cuota, cliente: Cliente) -> dict:
+    saldos = cuota_saldos_dict(cuota)
     return {
         "cuota_id": cuota.id,
         "cliente_nombre": cliente.nombre,
-        "monto_usd": monto_usd_redondeado(cuota.monto_usd),
+        "monto_usd": monto_usd_redondeado(saldos["monto_plan_usd"]),
+        "saldo_pendiente_usd": monto_usd_redondeado(saldos["saldo_pendiente_usd"]),
         "fecha_vence": cuota.fecha_vence,
         "estado": cuota.estado,
         "tipo": _tipo_from_notas(cuota.notas),
@@ -78,6 +85,7 @@ def _buscar_cuotas_por_cliente_db(cliente: str | None) -> dict:
         cliente_row = clientes_por_id.get(cuota.cliente.id)
         if not cliente_row:
             continue
+        recalcular_cuotas_cliente(cliente_row, today_ar())
         cuotas.append(_cuota_buscar_item(cuota, cliente_row))
 
     return {"cuotas": cuotas}
@@ -95,12 +103,20 @@ def _marcar_cuota_pagada_agente_db(cuota_id: int) -> dict:
 
     cliente = cuota.cliente
     cliente_nombre = cliente.nombre
-    if cuota.estado == "pagado":
+    hoy = today_ar()
+    recalcular_cuotas_cliente(cliente, hoy)
+    if cuota.estado == "pagado" or saldo_pendiente(cuota) <= 0:
         return _cuota_agente_resumen(cuota, cliente_nombre=cliente_nombre, mensaje="ya estaba pagada")
 
-    hoy = today_ar()
-    cuota.estado = "pagado"
-    cuota.fecha_pago = hoy
+    saldo = saldo_pendiente(cuota)
+    registrar_pago(
+        cliente,
+        monto=saldo,
+        fecha=hoy,
+        origen="agente",
+        notas=f"marcada pagada vía agente cuota #{cuota.id}",
+        hoy=hoy,
+    )
     _append_nota_agente(cuota, "marcada pagada vía agente")
     _recalcular_totales_cliente(cliente)
     return _cuota_agente_resumen(cuota, cliente_nombre=cliente_nombre)
@@ -112,17 +128,33 @@ def revertir_pago_cuota_agente(cuota_id: int) -> dict:
 
 @db_session
 def _revertir_pago_cuota_agente_db(cuota_id: int) -> dict:
+    """Elimina imputaciones de la cuota y pagos huérfanos; recalcula estados."""
     cuota = Cuota.get(id=cuota_id)
     if not cuota:
         raise HTTPException(status_code=404, detail="Cuota no encontrada.")
 
     cliente = cuota.cliente
     cliente_nombre = cliente.nombre
-    if cuota.estado != "pagado":
+    hoy = today_ar()
+    recalcular_cuotas_cliente(cliente, hoy)
+    if saldo_pendiente(cuota) >= cuota_saldos_dict(cuota)["monto_exigido_usd"] and cuota.estado != "pagado":
         return _cuota_agente_resumen(cuota, cliente_nombre=cliente_nombre, mensaje="ya estaba pendiente")
 
-    cuota.estado = "pendiente"
+    pagos_tocados = set()
+    for imp in list(cuota.imputaciones):
+        pagos_tocados.add(imp.pago)
+        imp.delete()
+
+    for pago in pagos_tocados:
+        restantes = list(pago.imputaciones)
+        if not restantes:
+            pago.delete()
+        else:
+            pago.monto_usd = sum((i.monto_usd for i in restantes), Decimal("0"))
+
+    # No deshacemos acumulaciones automáticamente (quedan en el ledger de eventos).
     cuota.fecha_pago = None
     _append_nota_agente(cuota, "revertida vía agente")
     _recalcular_totales_cliente(cliente)
+    _marcar_cambio_caja()
     return _cuota_agente_resumen(cuota, cliente_nombre=cliente_nombre)

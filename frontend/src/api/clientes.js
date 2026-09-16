@@ -110,6 +110,24 @@ export function pagarCuota(clienteId, cuotaId) {
   })
 }
 
+export function registrarPago(clienteId, data) {
+  return request(`/api/clientes/${clienteId}/pagos`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function fetchPagosHistorial(clienteId) {
+  return request(`/api/clientes/${clienteId}/pagos/historial`)
+}
+
+export function generarPlanCuotas(clienteId, data) {
+  return request(`/api/clientes/${clienteId}/cuotas/generar-plan`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 export function createCuota(clienteId, data) {
   return request(`/api/clientes/${clienteId}/cuotas`, {
     method: 'POST',
