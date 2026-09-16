@@ -135,6 +135,7 @@ class CuotaComprobante(db.Entity):
 
     id = PrimaryKey(int, auto=True)
     cuota = Required("Cuota", column="cuota_id")
+    pago = Optional("Pago", column="pago_id", reverse="comprobantes")
     filepath = Required(str, sql_type="TEXT")
     nombre = Required(str, 255)
     created_at = Optional(datetime, default=lambda: datetime.utcnow())
@@ -151,6 +152,7 @@ class Pago(db.Entity):
     notas = Optional(str, sql_type="TEXT")
     created_at = Optional(datetime, default=lambda: datetime.utcnow())
     imputaciones = Set("PagoImputacion", cascade_delete=True)
+    comprobantes = Set("CuotaComprobante")
 
 
 class PagoImputacion(db.Entity):

@@ -997,9 +997,13 @@ export default function ClientePage({ clienteId }) {
     comprobanteInputRef.current?.click()
   }
 
-  const abrirComprobantes = (cuota) => {
+  const abrirComprobantes = (cuota, options = {}) => {
     setComprobanteImgError(false)
-    setComprobanteView({ cuotaId: cuota.id, index: 0 })
+    setComprobanteView({
+      cuotaId: cuota.id,
+      index: options.index || 0,
+      ids: options.ids || null,
+    })
   }
 
   const onComprobanteSeleccionado = async (event) => {
@@ -1022,7 +1026,7 @@ export default function ClientePage({ clienteId }) {
       const total = actualizada?.comprobantes?.length || 0
       if (total) {
         setComprobanteImgError(false)
-        setComprobanteView({ cuotaId, index: total - 1 })
+        setComprobanteView({ cuotaId, index: total - 1, ids: null })
       }
     } catch (err) {
       setCuotaError(err.message || 'No se pudo subir el comprobante.')
@@ -1046,6 +1050,7 @@ export default function ClientePage({ clienteId }) {
         setComprobanteView((prev) => ({
           cuotaId,
           index: Math.min(prev?.index || 0, restantes.length - 1),
+          ids: prev?.ids || null,
         }))
       }
     } catch (err) {
@@ -1055,8 +1060,10 @@ export default function ClientePage({ clienteId }) {
     }
   }
 
-  const renderComprobanteCell = (cuota) => {
-    const cantidad = cuota.comprobantes?.length || 0
+  const renderComprobanteCell = (cuota, { comprobantes, soloLectura = false } = {}) => {
+    const lista = Array.isArray(comprobantes) ? comprobantes : (cuota.comprobantes || [])
+    const cantidad = lista.length
+    const ids = lista.map((c) => c.id)
     return (
       <td data-label="Comprobante" className={styles.cuotaFiles}>
         <div className={styles.cuotaActions}>
@@ -1066,22 +1073,24 @@ export default function ClientePage({ clienteId }) {
               className={`${styles.iconBtn} ${styles.iconBtnHasFile} ${styles.comprobanteBadgeBtn}`}
               aria-label={`Ver comprobantes (${cantidad})`}
               title={cantidad === 1 ? 'Ver comprobante' : `Ver ${cantidad} comprobantes`}
-              onClick={() => abrirComprobantes(cuota)}
+              onClick={() => abrirComprobantes(cuota, { ids })}
             >
               <i className="ti ti-photo" />
               {cantidad > 1 ? <span className={styles.comprobanteCount}>{cantidad}</span> : null}
             </button>
           ) : null}
-          <button
-            type="button"
-            className={styles.iconBtn}
-            aria-label="Agregar comprobante"
-            title="Agregar comprobante"
-            onClick={() => abrirSelectorComprobante(cuota.id)}
-            disabled={comprobanteSaving}
-          >
-            <i className="ti ti-paperclip" />
-          </button>
+          {!soloLectura ? (
+            <button
+              type="button"
+              className={styles.iconBtn}
+              aria-label="Agregar comprobante"
+              title="Agregar comprobante"
+              onClick={() => abrirSelectorComprobante(cuota.id)}
+              disabled={comprobanteSaving}
+            >
+              <i className="ti ti-paperclip" />
+            </button>
+          ) : null}
         </div>
       </td>
     )
@@ -1661,7 +1670,12 @@ export default function ClientePage({ clienteId }) {
   const comprobanteCuota = comprobanteView
     ? cliente.cuotas?.find((c) => c.id === comprobanteView.cuotaId)
     : null
-  const comprobantesVisibles = comprobanteCuota?.comprobantes || []
+  const comprobantesVisibles = (() => {
+    const all = comprobanteCuota?.comprobantes || []
+    if (!comprobanteView?.ids?.length) return all
+    const allowed = new Set(comprobanteView.ids)
+    return all.filter((c) => allowed.has(c.id))
+  })()
   const comprobanteIndex = comprobantesVisibles.length
     ? Math.min(Math.max(comprobanteView?.index || 0, 0), comprobantesVisibles.length - 1)
     : 0
@@ -2483,18 +2497,6 @@ export default function ClientePage({ clienteId }) {
               </div>
             </div>
 
-            {(() => {
-              const vencidas = (cliente.cuotas || []).filter(cuotaSePuedeArrastrar)
-              if (!vencidas.length) return null
-              const total = vencidas.reduce((acc, c) => acc + (Number(c.saldo_pendiente_usd) || 0), 0)
-              return (
-                <div className={styles.arrastreHint}>
-                  <strong>Tip:</strong> mantené apretada una cuota chica (pagada o con saldo) y llevála
-                  sobre la cuota principal para completar su monto. Ej.: 3k + 500 + 500 + 1k → Cuota 2.
-                </div>
-              )
-            })()}
-
             {cuotaError ? <p className={styles.error}>{cuotaError}</p> : null}
 
             {dragPreview ? (
@@ -2646,9 +2648,6 @@ export default function ClientePage({ clienteId }) {
                         >
                           <td data-label="Cuota" className={styles.cuotaIdCell}>
                             {labelCuotaColumna(cuota)}
-                            {cuotaSePuedeArrastrar(cuota) ? (
-                              <span className={styles.cuotaDragHint}>mantener y llevar</span>
-                            ) : null}
                           </td>
                           <td data-label="Monto" className={styles.cuotaMonto}>
                             <div className={styles.cuotaMontoStack}>
@@ -2716,13 +2715,7 @@ export default function ClientePage({ clienteId }) {
                             </div>
                           </td>
                         </tr>
-                        {subpagosParaMostrar(cuota).map((pago) => {
-                          const destinos = (cliente.cuotas || []).filter((c) => (
-                            c.id !== cuota.id
-                            && Number(c.saldo_pendiente_usd) >= Number(pago.monto_usd)
-                            && c.estado !== 'pagado'
-                          ))
-                          return (
+                        {subpagosParaMostrar(cuota).map((pago) => (
                           <tr key={`pago-${cuota.id}-${pago.id}`} className={styles.cuotaSub}>
                             <td data-label="Cuota" className={styles.cuotaIdCell}>
                               <span className={styles.cuotaSubIndent}>
@@ -2735,34 +2728,18 @@ export default function ClientePage({ clienteId }) {
                             <td data-label="Fecha" className={styles.cuotaVence} />
                             <td data-label="Pago" className={styles.cuotaPago}>{formatDate(pago.fecha)}</td>
                             <td data-label="Estado" className={styles.cuotaEstado}>
-                              <span className={styles.muted}>parcial</span>
+                              <span className={styles.cuotaEstadoBadge} data-estado="pagado">
+                                Pagado
+                              </span>
                             </td>
                             <td data-label="Tipo" className={styles.cuotaTipo} />
-                            <td data-label="Comprobante" />
-                            <td data-label="Acciones" className={styles.cuotaAcciones}>
-                              {destinos.length ? (
-                                <select
-                                  className={styles.tableInput}
-                                  defaultValue=""
-                                  aria-label="Mover pago a otra cuota"
-                                  onChange={(e) => {
-                                    const dest = e.target.value
-                                    e.target.value = ''
-                                    if (dest) moverPagoACuota(pago.id, dest)
-                                  }}
-                                >
-                                  <option value="">Mover a…</option>
-                                  {destinos.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                      {labelCuotaColumna(c)} · debe {formatUsd(c.saldo_pendiente_usd)}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : null}
-                            </td>
+                            {renderComprobanteCell(cuota, {
+                              comprobantes: pago.comprobantes || [],
+                              soloLectura: true,
+                            })}
+                            <td data-label="Acciones" />
                           </tr>
-                          )
-                        })}
+                        ))}
                         {Number(cuota.arrastre_usd) > 0 ? (
                           <tr key={`arrastre-${cuota.id}`} className={styles.cuotaSub}>
                             <td data-label="Cuota" className={styles.cuotaIdCell}>
@@ -2776,7 +2753,9 @@ export default function ClientePage({ clienteId }) {
                             <td data-label="Vence" className={styles.cuotaVence} />
                             <td data-label="Pago" className={styles.cuotaPago} />
                             <td data-label="Estado" className={styles.cuotaEstado}>
-                              <span className={styles.muted}>de cuota anterior</span>
+                              <span className={styles.cuotaEstadoBadge} data-estado="parcialmente_pagada">
+                                Arrastre
+                              </span>
                             </td>
                             <td data-label="Tipo" className={styles.cuotaTipo} />
                             <td data-label="Comprobante" />

@@ -184,6 +184,7 @@ def absorber_cuota_en_destino(cliente, origen: Cuota, destino: Cuota, hoy: date 
         raise ValueError("No hay nada para absorber en la cuota destino.")
 
     movido_pagos = ZERO
+    pagos_para_comps: list = []
     for imputacion in list(origen.imputaciones):
         room = saldo_pendiente(destino)
         if room <= ZERO:
@@ -193,11 +194,15 @@ def absorber_cuota_en_destino(cliente, origen: Cuota, destino: Cuota, hoy: date 
             continue
         aplicar = min(monto_imp, room)
         if aplicar >= monto_imp:
+            if imputacion.pago is not None:
+                pagos_para_comps.append(imputacion.pago)
             imputacion.cuota = destino
             movido_pagos += aplicar
         else:
             imputacion.monto_usd = monto_imp - aplicar
             PagoImputacion(pago=imputacion.pago, cuota=destino, monto_usd=aplicar)
+            if imputacion.pago is not None:
+                pagos_para_comps.append(imputacion.pago)
             movido_pagos += aplicar
         _recalcular_estado_cuota(destino, ref)
 
@@ -214,17 +219,19 @@ def absorber_cuota_en_destino(cliente, origen: Cuota, destino: Cuota, hoy: date 
     convertido = ZERO
     room = saldo_pendiente(destino)
     unpaid = saldo_pendiente(origen)
+    pago_conversion = None
     if room > ZERO and unpaid > ZERO:
         take = min(room, unpaid)
         fecha_pago = origen.fecha_vence or origen.fecha_pago or ref
-        pago = Pago(
+        pago_conversion = Pago(
             cliente=cliente,
             monto_usd=take,
             fecha=fecha_pago,
             origen="absorcion",
             notas=f"absorción cuota #{origen.id} → #{destino.id}",
         )
-        PagoImputacion(pago=pago, cuota=destino, monto_usd=take)
+        PagoImputacion(pago=pago_conversion, cuota=destino, monto_usd=take)
+        pagos_para_comps.append(pago_conversion)
         convertido = take
         nuevo_plan = monto_plan(origen) - take
         origen.monto_usd = nuevo_plan if nuevo_plan > ZERO else ZERO
@@ -248,6 +255,15 @@ def absorber_cuota_en_destino(cliente, origen: Cuota, destino: Cuota, hoy: date 
         ),
         fecha=ref,
     )
+
+    # Conservar comprobantes en el destino, vinculados al pago absorbido.
+    comps = list(origen.comprobantes)
+    for idx, comp in enumerate(comps):
+        comp.cuota = destino
+        if getattr(comp, "pago", None) is None and idx < len(pagos_para_comps):
+            comp.pago = pagos_para_comps[idx]
+        elif getattr(comp, "pago", None) is None and pagos_para_comps:
+            comp.pago = pagos_para_comps[-1]
 
     origen_eliminada = False
     recalcular_cuotas_cliente(cliente, ref)

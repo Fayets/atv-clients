@@ -520,12 +520,37 @@ def _comprobante_to_dict(item: CuotaComprobante) -> dict:
     return {
         "id": item.id,
         "nombre": item.nombre,
+        "pago_id": item.pago.id if getattr(item, "pago", None) is not None else None,
         "created_at": item.created_at,
     }
 
 
 def _sorted_comprobantes(cuota: Cuota) -> list[CuotaComprobante]:
     return sorted(cuota.comprobantes, key=lambda c: (c.created_at or datetime.min, c.id))
+
+
+def _comprobantes_de_pago(cuota: Cuota, pago_id: int, pagos_orden: list) -> list[dict]:
+    comps = _sorted_comprobantes(cuota)
+    linked = [_comprobante_to_dict(c) for c in comps if c.pago and c.pago.id == pago_id]
+    if linked:
+        return linked
+
+    pago = next((p.pago for p in pagos_orden if p.pago and p.pago.id == pago_id), None)
+    unlinked = [c for c in comps if getattr(c, "pago", None) is None]
+    if unlinked and pago and pago.fecha:
+        por_fecha = [
+            c for c in unlinked
+            if c.created_at and c.created_at.date() == pago.fecha
+        ]
+        if len(por_fecha) == 1:
+            return [_comprobante_to_dict(por_fecha[0])]
+
+    # Fallback: si ninguno tiene pago_id, repartir 1 a 1 por orden.
+    if comps and all(getattr(c, "pago", None) is None for c in comps):
+        idx = next((i for i, p in enumerate(pagos_orden) if p.pago and p.pago.id == pago_id), None)
+        if idx is not None and idx < len(comps):
+            return [_comprobante_to_dict(comps[idx])]
+    return []
 
 
 def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> dict:
@@ -570,6 +595,7 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
                 "pago_id": item.pago.id if item.pago else 0,
                 "monto_usd": _decimal(item.monto_usd),
                 "fecha": item.pago.fecha if item.pago else None,
+                "comprobantes": _comprobantes_de_pago(cuota, item.pago.id, pagos) if item.pago else [],
             }
             for item in pagos
         ],

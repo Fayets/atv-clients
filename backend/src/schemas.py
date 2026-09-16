@@ -40,6 +40,7 @@ class CuotaComprobanteResponse(BaseModel):
 
     id: int
     nombre: str
+    pago_id: int | None = None
     created_at: datetime | None = None
 
 
@@ -60,6 +61,14 @@ class PagoResponse(BaseModel):
     notas: str | None = None
     created_at: datetime | None = None
     imputaciones: list[PagoImputacionResponse] = Field(default_factory=list)
+
+
+class CuotaPagoItem(BaseModel):
+    id: int
+    pago_id: int
+    monto_usd: Decimal
+    fecha: date | None = None
+    comprobantes: list[CuotaComprobanteResponse] = Field(default_factory=list)
 
 
 class PagoCreate(BaseModel):
@@ -116,13 +125,6 @@ class GenerarPlanResponse(BaseModel):
     faltantes: list[str] = Field(default_factory=list)
     cuotas: list["CuotaResponse"] = Field(default_factory=list)
     mensaje: str | None = None
-
-
-class CuotaPagoItem(BaseModel):
-    id: int
-    pago_id: int
-    monto_usd: Decimal
-    fecha: date | None = None
 
 
 class CuotaResponse(BaseModel):
