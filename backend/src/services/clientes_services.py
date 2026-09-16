@@ -53,7 +53,9 @@ from src.pagos_cuotas import (
     pago_to_dict,
     recalcular_cuotas_cliente,
     registrar_pago,
+    revertir_transferencias_salientes,
     saldo_pendiente,
+    transferido_saliente,
 )
 from src.plan_venta import build_plan_cuotas, parse_mensaje_venta
 from src.schemas import (
@@ -182,6 +184,21 @@ def _ultima_actualizacion_caja() -> datetime | None:
     fechas = [c.created_at for c in Cuota.select() if c.created_at]
     fechas.extend(c.created_at for c in CuotaComprobante.select() if c.created_at)
     return max(fechas) if fechas else None
+
+
+def _limpiar_imputaciones_cuota(cuota: Cuota) -> None:
+    """Quita pagos imputados a la cuota (para poder volver a pendiente/vencida)."""
+    imputaciones = list(cuota.imputaciones)
+    pagos_tocados = []
+    for item in imputaciones:
+        pago = item.pago
+        if pago:
+            pagos_tocados.append(pago)
+        item.delete()
+    for pago in pagos_tocados:
+        if pago and not list(pago.imputaciones):
+            pago.delete()
+    cuota.fecha_pago = None
 
 
 def _recalcular_totales_cliente(cliente: Cliente) -> None:
@@ -518,13 +535,10 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
         list(cuota.imputaciones),
         key=lambda i: ((i.pago.fecha if i.pago else date.min), i.id or 0),
     )
-    hoy = _today()
-    fv = cuota.fecha_vence
     sugiere_mover = (
         not es_nota_sin_vencimiento(cuota.notas)
-        and fv is not None
-        and fv < hoy
         and saldos["saldo_pendiente_usd"] > 0
+        and cuota.estado in ("pendiente", "parcialmente_pagada", "vencido")
     )
     return {
         "id": cuota.id,
@@ -1655,17 +1669,20 @@ class ClientesServices:
             if not cliente or not cuota:
                 return None
 
-            # "pagado" vía patch = registrar pago del saldo (FIFO); el estado se recalcula.
+            # "pagado" = registrar pago del saldo. pendiente/vencido = limpiar imputaciones.
             estado_in = payload.pop("estado", None)
-            fecha_pago_patch = payload.pop("fecha_pago", None) if "fecha_pago" in payload else None
-            marcar_pagado = estado_in == "pagado" or (
-                fecha_pago_patch is not None and cuota.estado != "pagado"
-            )
+            tiene_fecha_pago = "fecha_pago" in payload
+            fecha_pago_patch = payload.pop("fecha_pago", None) if tiene_fecha_pago else None
 
             for field, value in payload.items():
                 setattr(cuota, field, value)
 
-            if marcar_pagado:
+            if estado_in == "pagado" or (
+                estado_in is None
+                and tiene_fecha_pago
+                and fecha_pago_patch
+                and cuota.estado != "pagado"
+            ):
                 saldo = saldo_pendiente(cuota)
                 if saldo > 0:
                     registrar_pago(
@@ -1676,7 +1693,24 @@ class ClientesServices:
                         notas=f"cierre cuota #{cuota.id}",
                         hoy=_today(),
                     )
+            elif estado_in in ("pendiente", "vencido"):
+                if transferido_saliente(cuota) > 0:
+                    revertir_transferencias_salientes(cuota, hoy=_today())
+                if list(cuota.imputaciones):
+                    _limpiar_imputaciones_cuota(cuota)
+                else:
+                    cuota.fecha_pago = None
+            elif tiene_fecha_pago and estado_in is None:
+                cuota.fecha_pago = fecha_pago_patch or None
+
             _recalcular_totales_cliente(cliente)
+
+            if estado_in in ("pendiente", "vencido"):
+                cuota.estado = estado_in
+                cuota.fecha_pago = None
+            elif estado_in == "parcialmente_pagada" and cuota.estado != "pagado":
+                cuota.estado = "parcialmente_pagada"
+
             cuotas = list(cliente.cuotas)
             return _cuota_to_dict(cuota, cuotas)
 

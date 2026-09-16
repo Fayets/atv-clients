@@ -33,22 +33,22 @@ const ESTADO_CUOTA_LABEL = {
   vencido: 'Vencida',
 }
 
-function labelEstadoCuota(estado, cuota = null) {
-  if (
-    cuota
-    && estado === 'pagado'
-    && Number(cuota.transferido_usd) > 0
-    && Number(cuota.monto_pagado_usd) <= 0
-  ) {
-    return 'Movida'
-  }
+const ESTADOS_CUOTA_EDIT = [
+  { value: 'pendiente', label: 'Pendiente' },
+  { value: 'parcialmente_pagada', label: 'Parcial' },
+  { value: 'pagado', label: 'Pagada' },
+  { value: 'vencido', label: 'Vencida' },
+]
+
+function labelEstadoCuota(estado) {
   return ESTADO_CUOTA_LABEL[estado] || estado
 }
 
 function cuotaSePuedeArrastrar(cuota) {
-  return Boolean(cuota?.sugiere_mover) || (
-    cuota?.estado === 'vencido' && Number(cuota?.saldo_pendiente_usd) > 0
-  )
+  if (!cuota) return false
+  if (Number(cuota.saldo_pendiente_usd) <= 0) return false
+  if (cuota.estado === 'pagado') return false
+  return Boolean(cuota.sugiere_mover) || ['pendiente', 'parcialmente_pagada', 'vencido'].includes(cuota.estado)
 }
 
 function formatMontoCuota(cuota) {
@@ -333,6 +333,7 @@ export default function ClientePage({ clienteId }) {
     fecha_pago: '',
     notas: '',
     numero_cuota: '',
+    estado: 'pendiente',
   })
   const [cuotaError, setCuotaError] = useState('')
   const [pagoDraft, setPagoDraft] = useState({ monto_usd: '', fecha: '', cuota_id: null, saldo: 0 })
@@ -594,7 +595,7 @@ export default function ClientePage({ clienteId }) {
 
   const resetEditCuota = () => {
     setEditingCuotaId(null)
-    setEditCuota({ monto_usd: '', fecha_vence: '', fecha_pago: '', notas: '', numero_cuota: '' })
+    setEditCuota({ monto_usd: '', fecha_vence: '', fecha_pago: '', notas: '', numero_cuota: '', estado: 'pendiente' })
     setCuotaError('')
   }
 
@@ -608,6 +609,7 @@ export default function ClientePage({ clienteId }) {
       fecha_pago: (cuota.fecha_pago || '').slice(0, 10),
       notas: canonicalTipoCuota(cuota.notas),
       numero_cuota: numeroDesdeCuota(cuota),
+      estado: cuota.estado || 'pendiente',
     })
   }
 
@@ -686,7 +688,8 @@ export default function ClientePage({ clienteId }) {
       monto_usd: Number(editCuota.monto_usd),
       fecha_vence: fechaVence,
       notas: editCuota.notas.trim() || 'cuota_venta',
-      fecha_pago: fechaPago,
+      fecha_pago: editCuota.estado === 'pagado' ? (fechaPago || todayInputDate()) : null,
+      estado: editCuota.estado || 'pendiente',
     }
     if (!TIPOS_SIN_VENCIMIENTO.has(editCuota.notas) && editCuota.notas !== 'sena'
       && editCuota.notas !== 'cuota_upsell' && editCuota.notas !== 'cuota_recompra') {
@@ -696,9 +699,6 @@ export default function ClientePage({ clienteId }) {
         return
       }
       payload.numero_cuota = n
-    }
-    if (fechaPago) {
-      payload.estado = 'pagado'
     }
     try {
       await patchCuota(clienteId, cuotaId, payload)
@@ -2454,9 +2454,9 @@ export default function ClientePage({ clienteId }) {
               const total = vencidas.reduce((acc, c) => acc + (Number(c.saldo_pendiente_usd) || 0), 0)
               return (
                 <div className={styles.arrastreHint}>
-                  <strong>Hay {vencidas.length} cuota{vencidas.length === 1 ? '' : 's'} vencida{vencidas.length === 1 ? '' : 's'}</strong>
-                  {' '}con saldo ({formatUsd(total)}). El sistema no las mueve solo: mantené apretada la fila
-                  vencida y llevála sobre la cuota a la que quieras sumar ese saldo.
+                  <strong>Hay {vencidas.length} cuota{vencidas.length === 1 ? '' : 's'}</strong>
+                  {' '}con saldo por mover ({formatUsd(total)}). Mantené apretada la fila y llevála
+                  sobre otra cuota principal para sumar ese saldo.
                 </div>
               )
             })()}
@@ -2554,9 +2554,24 @@ export default function ClientePage({ clienteId }) {
                           />
                         </td>
                         <td data-label="Estado" className={styles.cuotaEstado}>
-                          <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>
-                            {labelEstadoCuota(cuota.estado)}
-                          </span>
+                          <select
+                            className={styles.tableInput}
+                            value={editCuota.estado}
+                            onChange={(e) => {
+                              const estado = e.target.value
+                              setEditCuota((prev) => ({
+                                ...prev,
+                                estado,
+                                fecha_pago: estado === 'pagado'
+                                  ? (prev.fecha_pago || todayInputDate())
+                                  : '',
+                              }))
+                            }}
+                          >
+                            {ESTADOS_CUOTA_EDIT.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
                         </td>
                         <td data-label="Tipo" className={styles.cuotaTipo}>
                           <select
@@ -2631,17 +2646,8 @@ export default function ClientePage({ clienteId }) {
                               : '—'}
                           </td>
                           <td data-label="Estado" className={styles.cuotaEstado}>
-                            <span
-                              className={styles.cuotaEstadoBadge}
-                              data-estado={
-                                Number(cuota.transferido_usd) > 0
-                                && Number(cuota.monto_pagado_usd) <= 0
-                                && cuota.estado === 'pagado'
-                                  ? 'movida'
-                                  : cuota.estado
-                              }
-                            >
-                              {labelEstadoCuota(cuota.estado, cuota)}
+                            <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>
+                              {labelEstadoCuota(cuota.estado)}
                             </span>
                           </td>
                           <td data-label="Tipo" className={styles.cuotaTipo}>

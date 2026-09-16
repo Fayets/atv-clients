@@ -165,9 +165,80 @@ def mover_saldo_a_cuota(cliente, origen: Cuota, destino: Cuota, hoy: date | None
     }
 
 
+def revertir_transferencias_salientes(cuota, hoy: date | None = None) -> Decimal:
+    """Devuelve el saldo transferido a la cuota origen (deshace arrastres salientes)."""
+    ref = hoy or date.today()
+    transferido = transferido_saliente(cuota)
+    if transferido <= ZERO:
+        return ZERO
+
+    resto = transferido
+    eventos = sorted(
+        [
+            e
+            for e in list(getattr(cuota, "eventos_origen", []) or [])
+            if getattr(e, "tipo", None) in ("acumulacion_manual", "acumulacion_vencimiento")
+            and e.cuota_destino is not None
+        ],
+        key=lambda e: (e.fecha or date.min, e.id or 0),
+        reverse=True,
+    )
+    for ev in eventos:
+        if resto <= ZERO:
+            break
+        monto = min(_dec(ev.monto_usd), resto)
+        destino = ev.cuota_destino
+        if destino is not None:
+            destino.arrastre_usd = max(ZERO, arrastre_entrante(destino) - monto)
+            _recalcular_estado_cuota(destino, ref)
+        resto -= monto
+        # El evento deja de contar: el movimiento fue deshecho.
+        ev.delete()
+
+    if resto > ZERO:
+        cliente = cuota.cliente
+        for destino in cuotas_orden_fifo(list(cliente.cuotas)):
+            if destino.id == cuota.id:
+                continue
+            arr = arrastre_entrante(destino)
+            if arr <= ZERO:
+                continue
+            take = min(arr, resto)
+            destino.arrastre_usd = arr - take
+            _recalcular_estado_cuota(destino, ref)
+            resto -= take
+            if resto <= ZERO:
+                break
+
+    cuota.transferido_usd = ZERO
+    _recalcular_estado_cuota(cuota, ref)
+    return transferido
+
+
+def limpiar_arrastres_huerfanos(cliente) -> None:
+    """Anula arrastres/transferidos que no vienen de un movimiento manual vigente."""
+    manual_por_origen: dict[int, Decimal] = {}
+    manual_por_destino: dict[int, Decimal] = {}
+    for ev in list(getattr(cliente, "cuota_eventos", []) or []):
+        if getattr(ev, "tipo", None) != "acumulacion_manual":
+            continue
+        origen = ev.cuota
+        destino = ev.cuota_destino
+        monto = _dec(ev.monto_usd)
+        if origen is not None:
+            manual_por_origen[origen.id] = manual_por_origen.get(origen.id, ZERO) + monto
+        if destino is not None:
+            manual_por_destino[destino.id] = manual_por_destino.get(destino.id, ZERO) + monto
+
+    for cuota in list(cliente.cuotas):
+        cuota.transferido_usd = manual_por_origen.get(cuota.id, ZERO)
+        cuota.arrastre_usd = manual_por_destino.get(cuota.id, ZERO)
+
+
 def recalcular_cuotas_cliente(cliente, hoy: date | None = None) -> None:
     """Recalcula estados. No mueve saldos vencidos automáticamente."""
     ref = hoy or date.today()
+    limpiar_arrastres_huerfanos(cliente)
     for cuota in cliente.cuotas:
         _recalcular_estado_cuota(cuota, ref)
 
