@@ -491,6 +491,106 @@
   position: relative;
 }
 
+.financieroTile .tableWrap {
+  overflow-x: hidden;
+}
+
+.financieroTile .table {
+  table-layout: fixed;
+  width: 100%;
+  font-size: 12px;
+}
+
+.financieroTile .table th,
+.financieroTile .table td {
+  padding: 6px 6px;
+  vertical-align: middle;
+}
+
+.financieroTile .table th:nth-child(1),
+.financieroTile .table td:nth-child(1) {
+  width: 12%;
+}
+
+.financieroTile .table th:nth-child(2),
+.financieroTile .table td:nth-child(2) {
+  width: 16%;
+}
+
+.financieroTile .table th:nth-child(3),
+.financieroTile .table td:nth-child(3),
+.financieroTile .table th:nth-child(4),
+.financieroTile .table td:nth-child(4) {
+  width: 11%;
+}
+
+.financieroTile .table th:nth-child(5),
+.financieroTile .table td:nth-child(5) {
+  width: 12%;
+}
+
+.financieroTile .table th:nth-child(6),
+.financieroTile .table td:nth-child(6) {
+  width: 8%;
+}
+
+.financieroTile .table th:nth-child(7),
+.financieroTile .table td:nth-child(7) {
+  width: 30%;
+  white-space: normal;
+}
+
+.financieroTile .cuotaPrincipal td {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.financieroTile .cuotaIdCell {
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.financieroTile .cuotaMonto strong {
+  font-size: 12px;
+}
+
+.financieroTile .cuotaMeta {
+  font-size: 10px;
+}
+
+.financieroTile .cuotaEstadoBadge {
+  font-size: 9px;
+  padding: 2px 6px;
+}
+
+.financieroTile .cuotaActions {
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.financieroTile .saveBtn,
+.financieroTile .payBtn,
+.financieroTile .cancelBtn {
+  font-size: 11px;
+  padding: 4px 7px;
+}
+
+.financieroTile .iconBtn {
+  font-size: 14px;
+  padding: 4px;
+}
+
+.financieroTile .tableInput {
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.financieroTile .cuotaSub td {
+  font-size: 11px;
+}
+
 .arregloCloserOverlay {
   position: absolute;
   inset: 0;

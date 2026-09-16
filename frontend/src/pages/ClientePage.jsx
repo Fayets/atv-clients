@@ -2272,6 +2272,7 @@ export default function ClientePage({ clienteId }) {
               <table className={styles.table}>
                 <thead>
                   <tr>
+                    <th>Cuota</th>
                     <th>Monto</th>
                     <th>
                       {headerColumnaVence({
@@ -2284,8 +2285,7 @@ export default function ClientePage({ clienteId }) {
                     </th>
                     <th>Pago</th>
                     <th>Estado</th>
-                    <th>Tipo</th>
-                    <th>Comprobante</th>
+                    <th>Comp.</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -2297,6 +2297,17 @@ export default function ClientePage({ clienteId }) {
                         className={styles.cuotaRowEdit}
                         onKeyDown={(event) => handleCuotaRowKeyDown(event, () => guardarEditCuota(cuota.id), resetEditCuota)}
                       >
+                        <td data-label="Cuota" className={styles.cuotaTipo}>
+                          <select
+                            className={styles.tableInput}
+                            value={editCuota.notas}
+                            onChange={(e) => setEditCuota((prev) => ({ ...prev, notas: e.target.value }))}
+                          >
+                            {TIPOS_CUOTA_NOTA.map((opt) => (
+                              <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </td>
                         <td data-label="Monto" className={styles.cuotaMonto}>
                           <input
                             type="number"
@@ -2330,17 +2341,6 @@ export default function ClientePage({ clienteId }) {
                             {labelEstadoCuota(cuota.estado)}
                           </span>
                         </td>
-                        <td data-label="Tipo" className={styles.cuotaTipo}>
-                          <select
-                            className={styles.tableInput}
-                            value={editCuota.notas}
-                            onChange={(e) => setEditCuota((prev) => ({ ...prev, notas: e.target.value }))}
-                          >
-                            {TIPOS_CUOTA_NOTA.map((opt) => (
-                              <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
-                        </td>
                         {renderComprobanteCell(cuota)}
                         <td data-label="Acciones" className={styles.cuotaAcciones}>
                           <div className={styles.cuotaActions}>
@@ -2356,6 +2356,9 @@ export default function ClientePage({ clienteId }) {
                     ) : (
                       <Fragment key={cuota.id}>
                         <tr className={styles.cuotaPrincipal}>
+                          <td data-label="Cuota" className={styles.cuotaIdCell}>
+                            {cuota.nota_label || labelTipoCuotaNota(cuota.notas)}
+                          </td>
                           <td data-label="Monto" className={styles.cuotaMonto}>
                             <div className={styles.cuotaMontoStack}>
                               <strong>{formatMontoCuota(cuota)}</strong>
@@ -2383,7 +2386,6 @@ export default function ClientePage({ clienteId }) {
                               {labelEstadoCuota(cuota.estado)}
                             </span>
                           </td>
-                          <td data-label="Tipo" className={styles.cuotaTipo}>{labelTipoCuotaNota(cuota.notas, cuota.nota_label)}</td>
                           {renderComprobanteCell(cuota)}
                           <td data-label="Acciones" className={styles.cuotaAcciones}>
                             <div className={styles.cuotaActions}>
@@ -2394,10 +2396,10 @@ export default function ClientePage({ clienteId }) {
                                     className={styles.saveBtn}
                                     onClick={() => openRegistrarPago(cuota)}
                                   >
-                                    Generar subpago
+                                    Subpago
                                   </button>
                                   <button type="button" className={styles.payBtn} onClick={() => marcarPagado(cuota.id)}>
-                                    Marcar pagado
+                                    Pagado
                                   </button>
                                 </>
                               ) : null}
@@ -2422,6 +2424,7 @@ export default function ClientePage({ clienteId }) {
                         </tr>
                         {(cuota.pagos || []).map((pago) => (
                           <tr key={`pago-${cuota.id}-${pago.id}`} className={styles.cuotaSub}>
+                            <td data-label="Cuota" className={styles.cuotaIdCell}>—</td>
                             <td data-label="Monto" className={styles.cuotaMonto}>
                               <span className={styles.cuotaSubLabel}>Subpago</span>
                               {' '}
@@ -2432,13 +2435,13 @@ export default function ClientePage({ clienteId }) {
                             <td data-label="Estado" className={styles.cuotaEstado}>
                               <span className={styles.cuotaSubBadge}>Imputado</span>
                             </td>
-                            <td data-label="Tipo" className={styles.cuotaTipo}>—</td>
                             <td data-label="Comprobante">—</td>
                             <td data-label="Acciones">—</td>
                           </tr>
                         ))}
                         {Number(cuota.arrastre_usd) > 0 ? (
                           <tr key={`arrastre-${cuota.id}`} className={styles.cuotaSub}>
+                            <td data-label="Cuota" className={styles.cuotaIdCell}>—</td>
                             <td data-label="Monto" className={styles.cuotaMonto}>
                               <span className={styles.cuotaSubLabel}>Arrastre</span>
                               {' '}
@@ -2449,7 +2452,6 @@ export default function ClientePage({ clienteId }) {
                             <td data-label="Estado" className={styles.cuotaEstado}>
                               <span className={styles.cuotaSubBadge}>Acumulado</span>
                             </td>
-                            <td data-label="Tipo" className={styles.cuotaTipo}>—</td>
                             <td data-label="Comprobante">—</td>
                             <td data-label="Acciones">—</td>
                           </tr>
@@ -2467,6 +2469,29 @@ export default function ClientePage({ clienteId }) {
                       className={styles.cuotaRowEdit}
                       onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}
                     >
+                      <td data-label="Cuota" className={styles.cuotaTipo}>
+                        <select
+                          className={styles.tableInput}
+                          value={newCuota.notas}
+                          onChange={(e) => {
+                            const notas = e.target.value
+                            setNewCuota((prev) => ({
+                              ...prev,
+                              notas,
+                              fecha_vence: TIPOS_SIN_VENCIMIENTO.has(notas)
+                                ? (prev.fecha_vence || todayInputDate())
+                                : prev.fecha_vence,
+                              fecha_inicio: prev.fecha_inicio || todayInputDate(),
+                              duracion_meses: prev.duracion_meses || defaultDuracionMeses(cliente),
+                              renovarPrograma: TIPOS_RENOVACION.has(notas) ? null : prev.renovarPrograma,
+                            }))
+                          }}
+                        >
+                          {TIPOS_CUOTA_NOTA.map((opt) => (
+                            <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td data-label="Monto" className={styles.cuotaMonto}>
                         <input
                           type="number"
@@ -2491,29 +2516,6 @@ export default function ClientePage({ clienteId }) {
                       <td data-label="Pago" className={styles.cuotaPago}>—</td>
                       <td data-label="Estado" className={styles.cuotaEstado}>
                         <span className={styles.cuotaEstadoBadge} data-estado="pendiente">pendiente</span>
-                      </td>
-                      <td data-label="Tipo" className={styles.cuotaTipo}>
-                        <select
-                          className={styles.tableInput}
-                          value={newCuota.notas}
-                          onChange={(e) => {
-                            const notas = e.target.value
-                            setNewCuota((prev) => ({
-                              ...prev,
-                              notas,
-                              fecha_vence: TIPOS_SIN_VENCIMIENTO.has(notas)
-                                ? (prev.fecha_vence || todayInputDate())
-                                : prev.fecha_vence,
-                              fecha_inicio: prev.fecha_inicio || todayInputDate(),
-                              duracion_meses: prev.duracion_meses || defaultDuracionMeses(cliente),
-                              renovarPrograma: TIPOS_RENOVACION.has(notas) ? null : prev.renovarPrograma,
-                            }))
-                          }}
-                        >
-                          {TIPOS_CUOTA_NOTA.map((opt) => (
-                            <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
                       </td>
                       <td data-label="Comprobante">—</td>
                       <td data-label="Acciones" className={styles.cuotaAcciones}>
