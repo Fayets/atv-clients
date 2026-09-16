@@ -498,6 +498,7 @@ export default function ClientePage({ clienteId }) {
       'fecha_inicio',
       'duracion_dias',
       'fecha_vencimiento',
+      'fecha_recompra',
     ]
     if (reloadFields.includes(field)) {
       await load()
@@ -1537,6 +1538,15 @@ export default function ClientePage({ clienteId }) {
                 value={cliente.fecha_vencimiento || ''}
                 displayValue={formatDate(cliente.fecha_vencimiento)}
                 onSave={(value) => updateField('fecha_vencimiento', value || null)}
+              />
+            </div>
+            <div>
+              <span className={styles.label}>Fecha recompra</span>
+              <InlineField
+                type="date"
+                value={cliente.fecha_recompra || ''}
+                displayValue={formatDate(cliente.fecha_recompra)}
+                onSave={(value) => updateField('fecha_recompra', value || null)}
               />
             </div>
             <div>

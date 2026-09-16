@@ -618,6 +618,7 @@ class ClienteResponse(ClienteListItem):
     session_id: int | None = None
     fecha_inicio: date | None = None
     duracion_dias: int | None = None
+    fecha_recompra: date | None = None
     fathoms_url: str | None = None
     arreglo_closer: str | None = None
     miros: list[MiroBoardResponse] = Field(default_factory=list)
@@ -637,6 +638,7 @@ class AgentClienteResponse(ClienteListItem):
     session_id: int | None = None
     fecha_inicio: date | None = None
     duracion_dias: int | None = None
+    fecha_recompra: date | None = None
     fathoms_url: str | None = None
     arreglo_closer: str | None = None
     miros: list[MiroBoardResponse] = Field(default_factory=list)
@@ -660,6 +662,7 @@ class ClienteCreate(BaseModel):
     fecha_inicio: date | None = None
     duracion_dias: int | None = None
     fecha_vencimiento: date | None = None
+    fecha_recompra: date | None = None
     estado_cliente: EstadoCliente = "vigente"
     total_pagado_usd: Decimal = Decimal("0")
     total_adeudado_usd: Decimal = Decimal("0")
@@ -681,6 +684,7 @@ class ClientePatch(BaseModel):
     total_adeudado_usd: Decimal | None = None
     fecha_inicio: date | None = None
     fecha_vencimiento: date | None = None
+    fecha_recompra: date | None = None
     duracion_dias: int | None = None
 
 

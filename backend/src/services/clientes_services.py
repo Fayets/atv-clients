@@ -1395,6 +1395,7 @@ class ClientesServices:
                 "session_id": cliente.session_id,
                 "fecha_inicio": cliente.fecha_inicio,
                 "duracion_dias": cliente.duracion_dias,
+                "fecha_recompra": cliente.fecha_recompra,
                 "arreglo_closer": cliente.arreglo_closer,
                 "miros": [_miro_board_to_dict(m) for m in miros],
                 "fathoms": [_fathom_board_to_dict(f) for f in fathoms],
@@ -1513,6 +1514,7 @@ class ClientesServices:
             destino.fecha_inicio = origen.fecha_inicio
             destino.duracion_dias = origen.duracion_dias
             destino.fecha_vencimiento = origen.fecha_vencimiento
+            destino.fecha_recompra = origen.fecha_recompra
             destino.estado_cliente = origen.estado_cliente
             destino.oportunidad = origen.oportunidad
             destino.responsable = origen.responsable

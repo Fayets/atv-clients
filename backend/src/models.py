@@ -17,6 +17,7 @@ class Cliente(db.Entity):
     fecha_inicio = Optional(date)
     duracion_dias = Optional(int)
     fecha_vencimiento = Optional(date)
+    fecha_recompra = Optional(date)
     estado_cliente = Required(str, 50, default="vigente")
     oportunidad = Optional(str, 50, nullable=True)
     responsable = Optional(str, 20, nullable=True)
