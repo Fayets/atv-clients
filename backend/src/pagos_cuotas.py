@@ -388,8 +388,8 @@ def registrar_pago(
         cliente=cliente,
         monto_usd=monto,
         fecha=fecha,
-        origen=origen,
-        notas=notas,
+        origen=origen or "manual",
+        notas=notas or "",
     )
 
     orden: list = []

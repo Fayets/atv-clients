@@ -149,7 +149,7 @@ class Pago(db.Entity):
     monto_usd = Required(Decimal, 10, 2)
     fecha = Required(date)
     origen = Optional(str, 40, default="manual")
-    notas = Optional(str, sql_type="TEXT")
+    notas = Optional(str, nullable=True, sql_type="TEXT")
     created_at = Optional(datetime, default=lambda: datetime.utcnow())
     imputaciones = Set("PagoImputacion", cascade_delete=True)
     comprobantes = Set("CuotaComprobante")
