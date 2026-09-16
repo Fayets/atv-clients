@@ -66,6 +66,11 @@ class PagoCreate(BaseModel):
     monto_usd: Decimal
     fecha: date | None = None
     notas: str | None = None
+    cuota_id: int | None = None
+
+
+class MoverImputacionRequest(BaseModel):
+    cuota_destino_id: int
 
 
 class CuotaEventoResponse(BaseModel):

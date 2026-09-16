@@ -251,8 +251,9 @@ def registrar_pago(
     origen: str = "manual",
     notas: str | None = None,
     hoy: date | None = None,
+    cuota_id: int | None = None,
 ) -> tuple[Pago, list[dict]]:
-    """Imputa el pago a las cuotas más viejas con saldo (FIFO)."""
+    """Imputa el pago. Si viene cuota_id, va a esa cuota; si no, FIFO."""
     monto = _dec(monto)
     if monto <= ZERO:
         raise ValueError("El monto del pago debe ser mayor a cero.")
@@ -270,10 +271,25 @@ def registrar_pago(
         notas=notas,
     )
 
-    for cuota in cuotas_con_saldo(list(cliente.cuotas)):
+    orden: list = []
+    if cuota_id is not None:
+        destino = next((c for c in cliente.cuotas if c.id == cuota_id), None)
+        if destino is None:
+            raise ValueError("La cuota indicada no existe para este cliente.")
+        if saldo_pendiente(destino) <= ZERO:
+            raise ValueError("Esa cuota no tiene saldo pendiente para imputar.")
+        orden = [destino]
+        # El resto (si el pago supera el saldo) sigue en FIFO sobre las demás.
+        orden.extend(c for c in cuotas_con_saldo(list(cliente.cuotas)) if c.id != destino.id)
+    else:
+        orden = cuotas_con_saldo(list(cliente.cuotas))
+
+    for cuota in orden:
         if resto <= ZERO:
             break
         saldo = saldo_pendiente(cuota)
+        if saldo <= ZERO:
+            continue
         aplicar = min(saldo, resto)
         PagoImputacion(pago=pago, cuota=cuota, monto_usd=aplicar)
         imputaciones_data.append({
@@ -285,11 +301,45 @@ def registrar_pago(
 
     if resto > ZERO:
         # Sobrepago: se deja en el pago sin imputar (queda registrado el total).
-        # No inventamos cuota. El resto no reduce deuda.
         pass
 
     recalcular_cuotas_cliente(cliente, ref)
     return pago, imputaciones_data
+
+
+def mover_imputacion_a_cuota(cliente, imputacion_id: int, cuota_destino_id: int, hoy: date | None = None) -> dict:
+    """Reasigna un pago ya imputado a otra cuota del mismo cliente."""
+    ref = hoy or date.today()
+    imputacion = next(
+        (i for p in cliente.pagos for i in p.imputaciones if i.id == imputacion_id),
+        None,
+    )
+    if imputacion is None:
+        raise ValueError("Imputación no encontrada.")
+    destino = next((c for c in cliente.cuotas if c.id == cuota_destino_id), None)
+    if destino is None:
+        raise ValueError("Cuota destino no encontrada.")
+    origen = imputacion.cuota
+    if origen.id == destino.id:
+        raise ValueError("Origen y destino deben ser distintos.")
+
+    monto = _dec(imputacion.monto_usd)
+    saldo_dest = saldo_pendiente(destino)
+    if saldo_dest <= ZERO:
+        raise ValueError("La cuota destino no tiene saldo pendiente.")
+    if monto > saldo_dest:
+        raise ValueError(
+            f"El pago ({monto}) supera el saldo de la cuota destino ({saldo_dest})."
+        )
+
+    imputacion.cuota = destino
+    recalcular_cuotas_cliente(cliente, ref)
+    return {
+        "imputacion_id": imputacion.id,
+        "monto_usd": monto,
+        "cuota_origen_id": origen.id,
+        "cuota_destino_id": destino.id,
+    }
 
 
 def pago_to_dict(pago: Pago) -> dict:

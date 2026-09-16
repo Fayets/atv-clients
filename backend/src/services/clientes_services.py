@@ -49,6 +49,7 @@ from src.pagos_cuotas import (
     ESTADOS_CUOTA_PAGOS,
     cuota_saldos_dict,
     historial_cliente,
+    mover_imputacion_a_cuota,
     mover_saldo_a_cuota,
     pago_to_dict,
     recalcular_cuotas_cliente,
@@ -1802,6 +1803,7 @@ class ClientesServices:
         fecha: date | None = None,
         notas: str | None = None,
         origen: str = "manual",
+        cuota_id: int | None = None,
     ) -> dict | None:
         if monto_usd <= 0:
             raise HTTPException(status_code=400, detail="El monto debe ser mayor a cero.")
@@ -1818,6 +1820,7 @@ class ClientesServices:
                     origen=origen,
                     notas=notas,
                     hoy=_today(),
+                    cuota_id=cuota_id,
                 )
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1836,6 +1839,38 @@ class ClientesServices:
             data = pago_to_dict(pago)
             data["imputaciones_resumen"] = imputaciones
             return data
+
+    def mover_imputacion_cliente(
+        self,
+        cliente_id: int,
+        imputacion_id: int,
+        cuota_destino_id: int,
+    ) -> dict | None:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+            try:
+                result = mover_imputacion_a_cuota(
+                    cliente,
+                    imputacion_id,
+                    cuota_destino_id,
+                    hoy=_today(),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+            pagado = Decimal("0")
+            adeudado = Decimal("0")
+            for c in cliente.cuotas:
+                saldos = cuota_saldos_dict(c)
+                pagado += saldos["monto_pagado_usd"]
+                adeudado += saldos["saldo_pendiente_usd"]
+            cliente.total_pagado_usd = pagado
+            cliente.total_adeudado_usd = adeudado
+            cliente.updated_at = datetime.utcnow()
+            _marcar_cambio_caja()
+            return result
 
     def historial_pagos_cliente(self, cliente_id: int) -> dict | None:
         with db_session:

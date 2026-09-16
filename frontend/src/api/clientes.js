@@ -117,6 +117,13 @@ export function registrarPago(clienteId, data) {
   })
 }
 
+export function moverImputacion(clienteId, imputacionId, cuotaDestinoId) {
+  return request(`/api/clientes/${clienteId}/imputaciones/${imputacionId}/mover`, {
+    method: 'POST',
+    body: JSON.stringify({ cuota_destino_id: cuotaDestinoId }),
+  })
+}
+
 export function fetchPagosHistorial(clienteId) {
   return request(`/api/clientes/${clienteId}/pagos/historial`)
 }

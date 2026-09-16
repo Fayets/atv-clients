@@ -476,7 +476,7 @@
 "scalify": "boost",
 "sofia-valentina": "avanzados",
 "tomi-y-nico": "boost",
-"valentino-y-gaston": "boost",
+"valentino-y-gaston": "avanzados",
 "vicente-dicapore": "avanzados",
 "vicente-drop": "avanzados",
 "🕚┊updates": "updates"
@@ -513,6 +513,8 @@
 "1532896899152085052": "ATV Hub"
 },
 "usuarios": {
+"1127003667959136416": "Lucho Vicente",
+"1139637807514660865": "Gastón Martos",
 "1152437077154218064": "Emi",
 "1166437006637805569": "Maite",
 "1189272194228944947": "Gero Robles",
@@ -520,11 +522,16 @@
 "1413559710518349844": "Mario Hernandez",
 "1547357259376627904": "CRISTIAN ANDRES",
 "246054699407638529": "Diego Barreto",
+"289108738626027521": "Nazareno Gamero",
 "403924682891329537": "Walter Mauricio",
 "460499512134205440": "Fayet",
-"460646665808904192": "Juan",
+"460646665808904192": "juancarrizo",
 "515956832263602177": "Juan Pablo",
 "549002587333197840": "Alejandro Ramírez",
+"668266632891596810": "FedeGM",
+"715273010566922290": "Valentino Babino",
+"725490403410706482": "Lucas",
+"761381012398931979": "thiagoazcc",
 "959634902763065426": "Nick Xanderz"
 }
 }

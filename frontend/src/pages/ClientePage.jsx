@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, Fragment } from 'react'
-import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, fetchPagosHistorial, generarPlanCuotas, moverSaldoCuota, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, registrarPago, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
+import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, fetchPagosHistorial, generarPlanCuotas, moverImputacion, moverSaldoCuota, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, registrarPago, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
 import { navigate } from '../utils/navigation'
 import { getSession } from '../api/auth'
 import InlineField from '../components/InlineField'
@@ -868,10 +868,14 @@ export default function ClientePage({ clienteId }) {
     setCuotaError('')
     setPagoSaving(true)
     try {
-      await registrarPago(clienteId, {
+      const payload = {
         monto_usd: monto,
         fecha: pagoDraft.fecha || undefined,
-      })
+      }
+      if (pagoDraft.cuota_id) {
+        payload.cuota_id = pagoDraft.cuota_id
+      }
+      await registrarPago(clienteId, payload)
       setPagoDraft({ monto_usd: '', fecha: '', cuota_id: null, saldo: 0 })
       setPagoOpen(false)
       await refreshFinanciero()
@@ -879,6 +883,21 @@ export default function ClientePage({ clienteId }) {
       setCuotaError(err.message || 'No se pudo registrar el subpago.')
     } finally {
       setPagoSaving(false)
+    }
+  }
+
+  const moverPagoACuota = async (imputacionId, cuotaDestinoId) => {
+    if (!imputacionId || !cuotaDestinoId) return
+    const destino = cliente?.cuotas?.find((c) => c.id === Number(cuotaDestinoId))
+    if (!destino) return
+    const ok = confirm(`¿Mover este pago a ${labelCuotaColumna(destino)}?`)
+    if (!ok) return
+    setCuotaError('')
+    try {
+      await moverImputacion(clienteId, imputacionId, Number(cuotaDestinoId))
+      await refreshFinanciero()
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo mover el pago.')
     }
   }
 
@@ -2317,8 +2336,12 @@ export default function ClientePage({ clienteId }) {
                 >
                   <h3 className={styles.arregloCloserTitle}>Generar subpago</h3>
                   <p className={styles.arregloCloserHint}>
-                    Para cuando paga menos del total. Queda como fila debajo de la cuota
-                    {pagoDraft.saldo > 0 ? ` (saldo actual ${formatUsd(pagoDraft.saldo)})` : ''}.
+                    Se imputa a esta cuota
+                    {pagoDraft.cuota_id
+                      ? ` (${labelCuotaColumna(cliente?.cuotas?.find((c) => c.id === pagoDraft.cuota_id) || {})})`
+                      : ''}
+                    {pagoDraft.saldo > 0 ? ` · saldo ${formatUsd(pagoDraft.saldo)}` : ''}.
+                    Si el monto es el total, usá “Pagado”.
                   </p>
                   <div className={styles.planFormGrid}>
                     <label>
@@ -2687,7 +2710,13 @@ export default function ClientePage({ clienteId }) {
                             </div>
                           </td>
                         </tr>
-                        {subpagosParaMostrar(cuota).map((pago) => (
+                        {subpagosParaMostrar(cuota).map((pago) => {
+                          const destinos = (cliente.cuotas || []).filter((c) => (
+                            c.id !== cuota.id
+                            && Number(c.saldo_pendiente_usd) >= Number(pago.monto_usd)
+                            && c.estado !== 'pagado'
+                          ))
+                          return (
                           <tr key={`pago-${cuota.id}-${pago.id}`} className={styles.cuotaSub}>
                             <td data-label="Cuota" className={styles.cuotaIdCell}>
                               <span className={styles.cuotaSubIndent}>
@@ -2704,9 +2733,30 @@ export default function ClientePage({ clienteId }) {
                             </td>
                             <td data-label="Tipo" className={styles.cuotaTipo} />
                             <td data-label="Comprobante" />
-                            <td data-label="Acciones" />
+                            <td data-label="Acciones" className={styles.cuotaAcciones}>
+                              {destinos.length ? (
+                                <select
+                                  className={styles.tableInput}
+                                  defaultValue=""
+                                  aria-label="Mover pago a otra cuota"
+                                  onChange={(e) => {
+                                    const dest = e.target.value
+                                    e.target.value = ''
+                                    if (dest) moverPagoACuota(pago.id, dest)
+                                  }}
+                                >
+                                  <option value="">Mover a…</option>
+                                  {destinos.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {labelCuotaColumna(c)} · debe {formatUsd(c.saldo_pendiente_usd)}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : null}
+                            </td>
                           </tr>
-                        ))}
+                          )
+                        })}
                         {Number(cuota.arrastre_usd) > 0 ? (
                           <tr key={`arrastre-${cuota.id}`} className={styles.cuotaSub}>
                             <td data-label="Cuota" className={styles.cuotaIdCell}>

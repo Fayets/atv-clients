@@ -18,6 +18,7 @@ from src.schemas import (
     CuotaResponse,
     GenerarPlanRequest,
     GenerarPlanResponse,
+    MoverImputacionRequest,
     MoverSaldoCuotaRequest,
     ObservacionCreate,
     ObservacionResponse,
@@ -579,6 +580,7 @@ def registrar_pago(
             monto_usd=body.monto_usd,
             fecha=body.fecha,
             notas=body.notas,
+            cuota_id=body.cuota_id,
         )
         if not pago:
             raise HTTPException(status_code=404, detail="Cliente no encontrado.")
@@ -587,6 +589,28 @@ def registrar_pago(
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error al registrar el pago.")
+
+
+@router.post("/{cliente_id}/imputaciones/{imputacion_id}/mover")
+def mover_imputacion(
+    cliente_id: int,
+    imputacion_id: int,
+    body: MoverImputacionRequest,
+    _: str = Depends(get_current_user),
+):
+    try:
+        result = service.mover_imputacion_cliente(
+            cliente_id,
+            imputacion_id,
+            body.cuota_destino_id,
+        )
+        if not result:
+            raise HTTPException(status_code=404, detail="Cliente o imputación no encontrados.")
+        return result
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al mover el pago a otra cuota.")
 
 
 @router.get("/{cliente_id}/pagos/historial", response_model=ClientePagosHistorialResponse)
