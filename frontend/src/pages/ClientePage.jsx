@@ -691,14 +691,18 @@ export default function ClientePage({ clienteId }) {
       fecha_pago: editCuota.estado === 'pagado' ? (fechaPago || todayInputDate()) : null,
       estado: editCuota.estado || 'pendiente',
     }
-    if (!TIPOS_SIN_VENCIMIENTO.has(editCuota.notas) && editCuota.notas !== 'sena'
-      && editCuota.notas !== 'cuota_upsell' && editCuota.notas !== 'cuota_recompra') {
-      const n = Number(editCuota.numero_cuota)
+    const n = Number(editCuota.numero_cuota)
+    if (editCuota.numero_cuota !== '' && editCuota.numero_cuota != null) {
       if (!n || n < 1) {
-        setCuotaError('Indicá el número de cuota (1, 2, 3…).')
+        setCuotaError('Indicá un número de cuota válido (1, 2, 3…).')
         return
       }
       payload.numero_cuota = n
+    } else if (editCuota.notas === 'cuota_venta') {
+      setCuotaError('Indicá el número de cuota (1, 2, 3…).')
+      return
+    } else {
+      payload.numero_cuota = null
     }
     try {
       await patchCuota(clienteId, cuotaId, payload)
@@ -2509,21 +2513,14 @@ export default function ClientePage({ clienteId }) {
                         onKeyDown={(event) => handleCuotaRowKeyDown(event, () => guardarEditCuota(cuota.id), resetEditCuota)}
                       >
                         <td data-label="Cuota" className={styles.cuotaIdCell}>
-                          {TIPOS_SIN_VENCIMIENTO.has(editCuota.notas)
-                            || editCuota.notas === 'sena'
-                            || editCuota.notas === 'cuota_upsell'
-                            || editCuota.notas === 'cuota_recompra' ? (
-                            <span className={styles.muted}>—</span>
-                          ) : (
-                            <input
-                              type="number"
-                              min="1"
-                              className={styles.tableInput}
-                              value={editCuota.numero_cuota}
-                              placeholder="Nº"
-                              onChange={(e) => setEditCuota((prev) => ({ ...prev, numero_cuota: e.target.value }))}
-                            />
-                          )}
+                          <input
+                            type="number"
+                            min="1"
+                            className={styles.tableInput}
+                            value={editCuota.numero_cuota}
+                            placeholder="Nº"
+                            onChange={(e) => setEditCuota((prev) => ({ ...prev, numero_cuota: e.target.value }))}
+                          />
                         </td>
                         <td data-label="Monto" className={styles.cuotaMonto}>
                           <input
@@ -2743,21 +2740,14 @@ export default function ClientePage({ clienteId }) {
                       onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}
                     >
                       <td data-label="Cuota" className={styles.cuotaIdCell}>
-                        {TIPOS_SIN_VENCIMIENTO.has(newCuota.notas)
-                          || newCuota.notas === 'sena'
-                          || newCuota.notas === 'cuota_upsell'
-                          || newCuota.notas === 'cuota_recompra' ? (
-                          <span className={styles.muted}>—</span>
-                        ) : (
-                          <input
-                            type="number"
-                            min="1"
-                            className={styles.tableInput}
-                            value={newCuota.numero_cuota}
-                            placeholder="Nº"
-                            onChange={(e) => setNewCuota((prev) => ({ ...prev, numero_cuota: e.target.value }))}
-                          />
-                        )}
+                        <input
+                          type="number"
+                          min="1"
+                          className={styles.tableInput}
+                          value={newCuota.numero_cuota}
+                          placeholder="Nº"
+                          onChange={(e) => setNewCuota((prev) => ({ ...prev, numero_cuota: e.target.value }))}
+                        />
                       </td>
                       <td data-label="Monto" className={styles.cuotaMonto}>
                         <input
