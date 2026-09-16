@@ -11,6 +11,7 @@ import {
   calcFechaVencimiento,
   formatDate,
   formatDateTime,
+  formatTranscriptFechasAR,
   formatDuracionMeses,
   formatOportunidad,
   formatPrioridad,
@@ -3038,7 +3039,10 @@ export default function ClientePage({ clienteId }) {
                           type="button"
                           className={styles.arregloCloserBtn}
                           onClick={() => {
-                            const blob = new Blob([botTranscriptContenido], { type: 'text/plain' })
+                            const blob = new Blob(
+                              [formatTranscriptFechasAR(botTranscriptContenido)],
+                              { type: 'text/plain' },
+                            )
                             const url = URL.createObjectURL(blob)
                             const a = document.createElement('a')
                             a.href = url
@@ -3061,7 +3065,9 @@ export default function ClientePage({ clienteId }) {
                     {botTranscriptLoading ? (
                       <p className={styles.muted}>Cargando...</p>
                     ) : (
-                      <pre className={styles.botTranscriptPre}>{botTranscriptContenido}</pre>
+                      <pre className={styles.botTranscriptPre}>
+                        {formatTranscriptFechasAR(botTranscriptContenido)}
+                      </pre>
                     )}
                   </div>
                 ) : (

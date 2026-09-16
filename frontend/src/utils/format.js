@@ -128,6 +128,20 @@ export function formatDateTime(value) {
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
+/** Muestra fechas de transcripts Discord en dd/mm/aaaa (sin tocar el .txt). */
+export function formatTranscriptFechasAR(text) {
+  if (!text) return text
+  return String(text)
+    .replace(
+      /(Extraído:\s*)(\d{4})-(\d{2})-(\d{2})( \d{2}:\d{2})/g,
+      '$1$4/$3/$2$5',
+    )
+    .replace(
+      /\[(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})\]/g,
+      '[$3/$2/$1 $4]',
+    )
+}
+
 export function formatPlan(plan) {
   const labels = {
     mentoria: 'Mentoría',
