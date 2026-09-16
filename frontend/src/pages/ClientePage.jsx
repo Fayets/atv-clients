@@ -198,6 +198,17 @@ function saldoPendienteSubpago(cuota) {
   return { monto_usd: saldo }
 }
 
+/** Fecha en que se pagó (cierre o último subpago). */
+function fechaPagoCuota(cuota) {
+  if (cuota?.fecha_pago) return cuota.fecha_pago
+  const fechas = (cuota?.pagos || [])
+    .map((p) => p.fecha)
+    .filter(Boolean)
+    .map((f) => String(f).slice(0, 10))
+  if (!fechas.length) return null
+  return fechas.reduce((a, b) => (a > b ? a : b))
+}
+
 function buildProximosPasosDraft() {
   return {
     fecha_llamada: todayInputDate(),
@@ -2727,7 +2738,7 @@ export default function ClientePage({ clienteId }) {
                         cuotas: cliente.cuotas,
                       })}
                     </th>
-                    <th>Pago</th>
+                    <th>Pagó</th>
                     <th>Estado</th>
                     <th>Tipo</th>
                     <th>Comp.</th>
@@ -2860,10 +2871,8 @@ export default function ClientePage({ clienteId }) {
                               ? diasEnEstadoLabel(cuota.created_at)
                               : formatDate(cuota.fecha_vence)}
                           </td>
-                          <td data-label="Pago" className={styles.cuotaPago}>
-                            {Number(cuota.monto_pagado_usd) > 0
-                              ? formatUsd(cuota.monto_pagado_usd)
-                              : '—'}
+                          <td data-label="Pagó" className={styles.cuotaPago}>
+                            {formatDate(fechaPagoCuota(cuota))}
                           </td>
                           <td data-label="Estado" className={styles.cuotaEstado}>
                             <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>
