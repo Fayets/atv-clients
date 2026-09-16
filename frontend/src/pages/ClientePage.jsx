@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, Fragment } from 'react'
-import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, fetchPagosHistorial, generarPlanCuotas, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, registrarPago, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
+import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, fetchPagosHistorial, generarPlanCuotas, moverSaldoCuota, patchCliente, patchCuota, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, registrarPago, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
 import { navigate } from '../utils/navigation'
 import { getSession } from '../api/auth'
 import InlineField from '../components/InlineField'
@@ -33,8 +33,22 @@ const ESTADO_CUOTA_LABEL = {
   vencido: 'Vencida',
 }
 
-function labelEstadoCuota(estado) {
+function labelEstadoCuota(estado, cuota = null) {
+  if (
+    cuota
+    && estado === 'pagado'
+    && Number(cuota.transferido_usd) > 0
+    && Number(cuota.monto_pagado_usd) <= 0
+  ) {
+    return 'Movida'
+  }
   return ESTADO_CUOTA_LABEL[estado] || estado
+}
+
+function cuotaSePuedeArrastrar(cuota) {
+  return Boolean(cuota?.sugiere_mover) || (
+    cuota?.estado === 'vencido' && Number(cuota?.saldo_pendiente_usd) > 0
+  )
 }
 
 function formatMontoCuota(cuota) {
@@ -144,6 +158,28 @@ function numeroDesdeCuota(cuota) {
   if (cuota?.numero_cuota) return String(cuota.numero_cuota)
   const match = String(cuota?.nota_label || '').match(/cuota\s+(\d+)/i)
   return match ? match[1] : ''
+}
+
+/** Etiqueta corta para la columna Cuota (el tipo va en su propia columna). */
+function labelCuotaColumna(cuota) {
+  const n = numeroDesdeCuota(cuota)
+  if (n) return `Cuota ${n}`
+  const tipo = canonicalTipoCuota(cuota?.notas)
+  if (tipo === 'cuota_upsell') return 'Upsell'
+  if (tipo === 'cuota_recompra') return 'Recompra'
+  if (tipo === 'sena') return 'Seña'
+  if (tipo === 'posibilidad_upsell') return 'Posib.'
+  const label = String(cuota?.nota_label || '').trim()
+  if (label && !/^cuota\s+/i.test(label)) return label
+  return '—'
+}
+
+/** Subpagos que aportan detalle (ocultamos el único pago total si ya figura como Pagada). */
+function subpagosParaMostrar(cuota) {
+  const pagos = cuota?.pagos || []
+  if (!pagos.length) return []
+  if (cuota.estado === 'pagado' && pagos.length === 1) return []
+  return pagos
 }
 
 function buildProximosPasosDraft() {
@@ -302,6 +338,11 @@ export default function ClientePage({ clienteId }) {
   const [pagoDraft, setPagoDraft] = useState({ monto_usd: '', fecha: '', cuota_id: null, saldo: 0 })
   const [pagoSaving, setPagoSaving] = useState(false)
   const [pagoOpen, setPagoOpen] = useState(false)
+  const [dragCuotaId, setDragCuotaId] = useState(null)
+  const [dropCuotaId, setDropCuotaId] = useState(null)
+  const [dragPreview, setDragPreview] = useState(null)
+  const [moviendoSaldo, setMoviendoSaldo] = useState(false)
+  const dragSessionRef = useRef(null)
   const [historialOpen, setHistorialOpen] = useState(false)
   const [historial, setHistorial] = useState(null)
   const [planGenerating, setPlanGenerating] = useState(false)
@@ -675,6 +716,121 @@ export default function ClientePage({ clienteId }) {
       await refreshFinanciero()
     } catch (err) {
       setCuotaError(err.message || 'No se pudo marcar la cuota como pagada.')
+    }
+  }
+
+  const moverSaldoEntreCuotas = async (origenId, destinoId) => {
+    if (!origenId || !destinoId || origenId === destinoId || moviendoSaldo) return
+    const origen = cliente?.cuotas?.find((c) => c.id === origenId)
+    const destino = cliente?.cuotas?.find((c) => c.id === destinoId)
+    if (!origen || !destino) return
+    const saldo = Number(origen.saldo_pendiente_usd) || 0
+    const ok = confirm(
+      `¿Sumar ${formatUsd(saldo)} de ${labelCuotaColumna(origen)} a ${labelCuotaColumna(destino)}?`,
+    )
+    if (!ok) return
+    setMoviendoSaldo(true)
+    setCuotaError('')
+    try {
+      await moverSaldoCuota(clienteId, origenId, destinoId)
+      await refreshFinanciero()
+    } catch (err) {
+      setCuotaError(err.message || 'No se pudo mover el saldo.')
+    } finally {
+      setMoviendoSaldo(false)
+      setDragCuotaId(null)
+      setDropCuotaId(null)
+      setDragPreview(null)
+      dragSessionRef.current = null
+    }
+  }
+
+  const resetDragCuota = () => {
+    dragSessionRef.current = null
+    setDragCuotaId(null)
+    setDropCuotaId(null)
+    setDragPreview(null)
+  }
+
+  const startDragCuota = (event, cuota) => {
+    if (!cuotaSePuedeArrastrar(cuota) || moviendoSaldo) return
+    if (event.button != null && event.button !== 0) return
+    if (event.target.closest('button, a, input, select, label, .iconBtn')) return
+    event.preventDefault()
+    const row = event.currentTarget
+    const rect = row.getBoundingClientRect()
+    dragSessionRef.current = {
+      origenId: cuota.id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      width: Math.min(rect.width, 320),
+      moved: false,
+      dropId: null,
+      label: labelCuotaColumna(cuota),
+      monto: formatUsd(cuota.saldo_pendiente_usd || cuota.monto_usd),
+    }
+    setDragCuotaId(cuota.id)
+    setDropCuotaId(null)
+    try {
+      row.setPointerCapture(event.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const moveDragCuota = (event) => {
+    const session = dragSessionRef.current
+    if (!session || session.origenId == null) return
+    const dx = event.clientX - session.startX
+    const dy = event.clientY - session.startY
+    if (!session.moved && Math.hypot(dx, dy) < 5) return
+    session.moved = true
+
+    const x = event.clientX - session.offsetX
+    const y = event.clientY - session.offsetY
+    setDragPreview({
+      id: session.origenId,
+      label: session.label,
+      monto: session.monto,
+      x,
+      y,
+      width: session.width,
+    })
+
+    const prev = session.origenId
+    const under = document.elementsFromPoint(event.clientX, event.clientY)
+    let nextDrop = null
+    for (const node of under) {
+      if (!(node instanceof Element)) continue
+      const host = node.closest('[data-cuota-drop]')
+      if (!host) continue
+      const id = Number(host.getAttribute('data-cuota-drop'))
+      if (id && id !== prev) {
+        nextDrop = id
+        break
+      }
+    }
+    session.dropId = nextDrop
+    setDropCuotaId((curr) => (curr === nextDrop ? curr : nextDrop))
+  }
+
+  const endDragCuota = (event) => {
+    const session = dragSessionRef.current
+    if (!session) return
+    const origenId = session.origenId
+    const moved = session.moved
+    const destinoId = session.dropId
+    try {
+      event.currentTarget.releasePointerCapture?.(session.pointerId)
+    } catch {
+      /* ignore */
+    }
+    resetDragCuota()
+    if (moved && origenId && destinoId && origenId !== destinoId) {
+      moverSaldoEntreCuotas(origenId, destinoId)
     }
   }
 
@@ -2246,7 +2402,7 @@ export default function ClientePage({ clienteId }) {
                 >
                   <h3 className={styles.arregloCloserTitle}>Historial de pagos</h3>
                   <p className={styles.arregloCloserHint}>
-                    Plan original + pagos imputados + acumulaciones por vencimiento.
+                    Plan original + pagos + movimientos manuales de saldo entre cuotas.
                   </p>
                   <div className={styles.historialBlock}>
                     <h4>Plan</h4>
@@ -2292,7 +2448,35 @@ export default function ClientePage({ clienteId }) {
               </div>
             </div>
 
+            {(() => {
+              const vencidas = (cliente.cuotas || []).filter(cuotaSePuedeArrastrar)
+              if (!vencidas.length) return null
+              const total = vencidas.reduce((acc, c) => acc + (Number(c.saldo_pendiente_usd) || 0), 0)
+              return (
+                <div className={styles.arrastreHint}>
+                  <strong>Hay {vencidas.length} cuota{vencidas.length === 1 ? '' : 's'} vencida{vencidas.length === 1 ? '' : 's'}</strong>
+                  {' '}con saldo ({formatUsd(total)}). El sistema no las mueve solo: mantené apretada la fila
+                  vencida y llevála sobre la cuota a la que quieras sumar ese saldo.
+                </div>
+              )
+            })()}
+
             {cuotaError ? <p className={styles.error}>{cuotaError}</p> : null}
+
+            {dragPreview ? (
+              <div
+                className={styles.cuotaDragGhost}
+                style={{
+                  transform: `translate3d(${dragPreview.x}px, ${dragPreview.y}px, 0) rotate(1.5deg) scale(1.03)`,
+                  width: dragPreview.width,
+                }}
+                aria-hidden
+              >
+                <span className={styles.cuotaDragGhostLabel}>{dragPreview.label}</span>
+                <strong>{dragPreview.monto}</strong>
+                <span className={styles.cuotaDragGhostMeta}>Soltá sobre una cuota</span>
+              </div>
+            ) : null}
 
             <div className={styles.tableWrap}>
               <table className={styles.table}>
@@ -2399,15 +2583,36 @@ export default function ClientePage({ clienteId }) {
                       </tr>
                     ) : (
                       <Fragment key={cuota.id}>
-                        <tr className={styles.cuotaPrincipal}>
+                        <tr
+                          data-cuota-drop={cuota.id}
+                          className={[
+                            styles.cuotaPrincipal,
+                            cuotaSePuedeArrastrar(cuota) ? styles.cuotaDraggable : '',
+                            dragCuotaId === cuota.id ? styles.cuotaSelected : '',
+                            dragCuotaId === cuota.id && dragPreview ? styles.cuotaDraggingSource : '',
+                            dropCuotaId === cuota.id && dragCuotaId && dragCuotaId !== cuota.id
+                              ? styles.cuotaDropTarget
+                              : '',
+                          ].filter(Boolean).join(' ')}
+                          onPointerDown={(event) => startDragCuota(event, cuota)}
+                          onPointerMove={moveDragCuota}
+                          onPointerUp={endDragCuota}
+                          onPointerCancel={resetDragCuota}
+                          title={cuotaSePuedeArrastrar(cuota)
+                            ? 'Mantené apretado y llevá esta cuota vencida sobre otra para sumar el saldo'
+                            : undefined}
+                        >
                           <td data-label="Cuota" className={styles.cuotaIdCell}>
-                            {cuota.nota_label || labelTipoCuotaNota(cuota.notas)}
+                            {labelCuotaColumna(cuota)}
+                            {cuotaSePuedeArrastrar(cuota) ? (
+                              <span className={styles.cuotaDragHint}>mantener y llevar</span>
+                            ) : null}
                           </td>
                           <td data-label="Monto" className={styles.cuotaMonto}>
                             <div className={styles.cuotaMontoStack}>
                               <strong>{formatMontoCuota(cuota)}</strong>
                               {Number(cuota.arrastre_usd) > 0 ? (
-                                <span className={styles.cuotaMeta}>+ {formatUsd(cuota.arrastre_usd)} arrastre</span>
+                                <span className={styles.cuotaMeta}>+{formatUsd(cuota.arrastre_usd)} arr.</span>
                               ) : null}
                               {Number(cuota.saldo_pendiente_usd) > 0
                                 && Number(cuota.saldo_pendiente_usd) !== Number(cuota.monto_exigido_usd ?? cuota.monto_usd) ? (
@@ -2426,8 +2631,17 @@ export default function ClientePage({ clienteId }) {
                               : '—'}
                           </td>
                           <td data-label="Estado" className={styles.cuotaEstado}>
-                            <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>
-                              {labelEstadoCuota(cuota.estado)}
+                            <span
+                              className={styles.cuotaEstadoBadge}
+                              data-estado={
+                                Number(cuota.transferido_usd) > 0
+                                && Number(cuota.monto_pagado_usd) <= 0
+                                && cuota.estado === 'pagado'
+                                  ? 'movida'
+                                  : cuota.estado
+                              }
+                            >
+                              {labelEstadoCuota(cuota.estado, cuota)}
                             </span>
                           </td>
                           <td data-label="Tipo" className={styles.cuotaTipo}>
@@ -2469,40 +2683,44 @@ export default function ClientePage({ clienteId }) {
                             </div>
                           </td>
                         </tr>
-                        {(cuota.pagos || []).map((pago) => (
+                        {subpagosParaMostrar(cuota).map((pago) => (
                           <tr key={`pago-${cuota.id}-${pago.id}`} className={styles.cuotaSub}>
-                            <td data-label="Cuota" className={styles.cuotaIdCell}>—</td>
+                            <td data-label="Cuota" className={styles.cuotaIdCell}>
+                              <span className={styles.cuotaSubIndent}>
+                                <span className={styles.cuotaSubLabel}>Subpago</span>
+                              </span>
+                            </td>
                             <td data-label="Monto" className={styles.cuotaMonto}>
-                              <span className={styles.cuotaSubLabel}>Subpago</span>
-                              {' '}
                               {formatUsd(pago.monto_usd)}
                             </td>
-                            <td data-label="Fecha" className={styles.cuotaVence}>{formatDate(pago.fecha)}</td>
-                            <td data-label="Pago" className={styles.cuotaPago}>{formatUsd(pago.monto_usd)}</td>
+                            <td data-label="Fecha" className={styles.cuotaVence} />
+                            <td data-label="Pago" className={styles.cuotaPago}>{formatDate(pago.fecha)}</td>
                             <td data-label="Estado" className={styles.cuotaEstado}>
-                              <span className={styles.cuotaSubBadge}>Imputado</span>
+                              <span className={styles.muted}>parcial</span>
                             </td>
-                            <td data-label="Tipo" className={styles.cuotaTipo}>—</td>
-                            <td data-label="Comprobante">—</td>
-                            <td data-label="Acciones">—</td>
+                            <td data-label="Tipo" className={styles.cuotaTipo} />
+                            <td data-label="Comprobante" />
+                            <td data-label="Acciones" />
                           </tr>
                         ))}
                         {Number(cuota.arrastre_usd) > 0 ? (
                           <tr key={`arrastre-${cuota.id}`} className={styles.cuotaSub}>
-                            <td data-label="Cuota" className={styles.cuotaIdCell}>—</td>
+                            <td data-label="Cuota" className={styles.cuotaIdCell}>
+                              <span className={styles.cuotaSubIndent}>
+                                <span className={styles.cuotaSubLabel}>Arrastre</span>
+                              </span>
+                            </td>
                             <td data-label="Monto" className={styles.cuotaMonto}>
-                              <span className={styles.cuotaSubLabel}>Arrastre</span>
-                              {' '}
                               {formatUsd(cuota.arrastre_usd)}
                             </td>
-                            <td data-label="Vence" className={styles.cuotaVence}>—</td>
-                            <td data-label="Pago" className={styles.cuotaPago}>—</td>
+                            <td data-label="Vence" className={styles.cuotaVence} />
+                            <td data-label="Pago" className={styles.cuotaPago} />
                             <td data-label="Estado" className={styles.cuotaEstado}>
-                              <span className={styles.cuotaSubBadge}>Acumulado</span>
+                              <span className={styles.muted}>de cuota anterior</span>
                             </td>
-                            <td data-label="Tipo" className={styles.cuotaTipo}>—</td>
-                            <td data-label="Comprobante">—</td>
-                            <td data-label="Acciones">—</td>
+                            <td data-label="Tipo" className={styles.cuotaTipo} />
+                            <td data-label="Comprobante" />
+                            <td data-label="Acciones" />
                           </tr>
                         ) : null}
                       </Fragment>

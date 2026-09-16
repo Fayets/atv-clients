@@ -104,62 +104,70 @@ def _recalcular_estado_cuota(cuota: Cuota, hoy: date) -> None:
 
 
 def aplicar_acumulaciones(cliente, hoy: date) -> list[dict]:
-    """Si una cuota venció con saldo, lo mueve a la próxima del mismo 'track' de venta.
+    """DEPRECATED: la acumulación automática está desactivada.
 
-    No toca monto_usd (plan original). Registra CuotaEvento.
+    El saldo vencido queda en la cuota; el usuario lo mueve a mano.
+    Se mantiene la firma por compatibilidad con imports antiguos.
     """
-    eventos: list[dict] = []
-    cuotas = cuotas_orden_fifo(list(cliente.cuotas))
-    # Solo acumulan cuotas de cobranza con vencimiento (no posibilidad).
-    elegibles = [c for c in cuotas if not es_nota_sin_vencimiento(c.notas) and c.fecha_vence]
+    del cliente, hoy
+    return []
 
-    for idx, cuota in enumerate(elegibles):
-        if cuota.fecha_vence >= hoy:
-            continue
-        saldo = saldo_pendiente(cuota)
-        if saldo <= ZERO:
-            continue
-        # Próxima cuota del mismo cliente con vencimiento posterior.
-        destino = None
-        for siguiente in elegibles[idx + 1 :]:
-            if siguiente.fecha_vence and siguiente.fecha_vence > cuota.fecha_vence:
-                destino = siguiente
-                break
-        if destino is None:
-            _recalcular_estado_cuota(cuota, hoy)
-            continue
 
-        cuota.transferido_usd = transferido_saliente(cuota) + saldo
-        destino.arrastre_usd = arrastre_entrante(destino) + saldo
-        ev = CuotaEvento(
-            cliente=cliente,
-            cuota=cuota,
-            cuota_destino=destino,
-            tipo="acumulacion_vencimiento",
-            monto_usd=saldo,
-            detalle=(
-                f"Saldo {saldo} de cuota #{cuota.id} acumulado a cuota #{destino.id} "
-                f"por vencimiento {cuota.fecha_vence.isoformat()}"
-            ),
-            fecha=hoy,
-        )
-        eventos.append({
-            "id": ev.id,
-            "tipo": ev.tipo,
-            "monto_usd": saldo,
-            "cuota_id": cuota.id,
-            "cuota_destino_id": destino.id,
-            "fecha": hoy,
-        })
-        _recalcular_estado_cuota(cuota, hoy)
-        _recalcular_estado_cuota(destino, hoy)
+def cuotas_vencidas_con_saldo(cuotas: list, hoy: date | None = None) -> list:
+    """Cuotas vencidas que todavía tienen saldo (candidatas a mover manualmente)."""
+    ref = hoy or date.today()
+    out = []
+    for cuota in cuotas_orden_fifo(list(cuotas)):
+        if es_nota_sin_vencimiento(cuota.notas):
+            continue
+        fv = cuota.fecha_vence
+        if not fv or fv >= ref:
+            continue
+        if saldo_pendiente(cuota) > ZERO:
+            out.append(cuota)
+    return out
 
-    return eventos
+
+def mover_saldo_a_cuota(cliente, origen: Cuota, destino: Cuota, hoy: date | None = None) -> dict:
+    """Mueve el saldo pendiente de una cuota a otra (arrastre manual)."""
+    ref = hoy or date.today()
+    if origen.id == destino.id:
+        raise ValueError("Origen y destino deben ser cuotas distintas.")
+    if origen.cliente.id != cliente.id or destino.cliente.id != cliente.id:
+        raise ValueError("Las cuotas deben pertenecer al mismo cliente.")
+
+    saldo = saldo_pendiente(origen)
+    if saldo <= ZERO:
+        raise ValueError("La cuota origen no tiene saldo para mover.")
+
+    origen.transferido_usd = transferido_saliente(origen) + saldo
+    destino.arrastre_usd = arrastre_entrante(destino) + saldo
+    ev = CuotaEvento(
+        cliente=cliente,
+        cuota=origen,
+        cuota_destino=destino,
+        tipo="acumulacion_manual",
+        monto_usd=saldo,
+        detalle=(
+            f"Saldo {saldo} de cuota #{origen.id} movido manualmente a cuota #{destino.id}"
+        ),
+        fecha=ref,
+    )
+    _recalcular_estado_cuota(origen, ref)
+    _recalcular_estado_cuota(destino, ref)
+    return {
+        "id": ev.id,
+        "tipo": ev.tipo,
+        "monto_usd": saldo,
+        "cuota_id": origen.id,
+        "cuota_destino_id": destino.id,
+        "fecha": ref,
+    }
 
 
 def recalcular_cuotas_cliente(cliente, hoy: date | None = None) -> None:
+    """Recalcula estados. No mueve saldos vencidos automáticamente."""
     ref = hoy or date.today()
-    aplicar_acumulaciones(cliente, ref)
     for cuota in cliente.cuotas:
         _recalcular_estado_cuota(cuota, ref)
 

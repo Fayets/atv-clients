@@ -18,6 +18,7 @@ from src.schemas import (
     CuotaResponse,
     GenerarPlanRequest,
     GenerarPlanResponse,
+    MoverSaldoCuotaRequest,
     ObservacionCreate,
     ObservacionResponse,
     PagoCreate,
@@ -529,6 +530,24 @@ def eliminar_cuota(
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error al eliminar la cuota.")
+
+
+@router.post("/{cliente_id}/cuotas/{cuota_id}/mover", response_model=CuotaResponse)
+def mover_saldo_cuota(
+    cliente_id: int,
+    cuota_id: int,
+    body: MoverSaldoCuotaRequest,
+    _: str = Depends(get_current_user),
+):
+    try:
+        result = service.mover_saldo_cuota(cliente_id, cuota_id, body.cuota_destino_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Cliente o cuota no encontrados.")
+        return result["destino"]
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al mover el saldo de la cuota.")
 
 
 @router.post("/{cliente_id}/cuotas/{cuota_id}/pagar", response_model=CuotaResponse)

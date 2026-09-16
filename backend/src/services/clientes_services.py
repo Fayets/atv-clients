@@ -49,6 +49,7 @@ from src.pagos_cuotas import (
     ESTADOS_CUOTA_PAGOS,
     cuota_saldos_dict,
     historial_cliente,
+    mover_saldo_a_cuota,
     pago_to_dict,
     recalcular_cuotas_cliente,
     registrar_pago,
@@ -517,6 +518,14 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
         list(cuota.imputaciones),
         key=lambda i: ((i.pago.fecha if i.pago else date.min), i.id or 0),
     )
+    hoy = _today()
+    fv = cuota.fecha_vence
+    sugiere_mover = (
+        not es_nota_sin_vencimiento(cuota.notas)
+        and fv is not None
+        and fv < hoy
+        and saldos["saldo_pendiente_usd"] > 0
+    )
     return {
         "id": cuota.id,
         "cliente_id": cuota.cliente.id,
@@ -534,6 +543,7 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
         "numero_cuota": getattr(cuota, "numero_cuota", None),
         "notas": tipo,
         "nota_label": etiqueta_cuota_auto(cuota, cuotas_ref),
+        "sugiere_mover": sugiere_mover,
         "comprobantes": [_comprobante_to_dict(c) for c in _sorted_comprobantes(cuota)],
         "pagos": [
             {
@@ -1714,6 +1724,41 @@ class ClientesServices:
             _marcar_cambio_caja()
             cuotas = list(cliente.cuotas)
             return _cuota_to_dict(cuota, cuotas)
+
+    def mover_saldo_cuota(
+        self,
+        cliente_id: int,
+        cuota_origen_id: int,
+        cuota_destino_id: int,
+    ) -> dict | None:
+        with db_session:
+            cliente = Cliente.get(id=cliente_id)
+            if not cliente:
+                return None
+            origen = next((c for c in cliente.cuotas if c.id == cuota_origen_id), None)
+            destino = next((c for c in cliente.cuotas if c.id == cuota_destino_id), None)
+            if not origen or not destino:
+                return None
+            try:
+                mover_saldo_a_cuota(cliente, origen, destino, hoy=_today())
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+            pagado = Decimal("0")
+            adeudado = Decimal("0")
+            for c in cliente.cuotas:
+                saldos = cuota_saldos_dict(c)
+                pagado += saldos["monto_pagado_usd"]
+                adeudado += saldos["saldo_pendiente_usd"]
+            cliente.total_pagado_usd = pagado
+            cliente.total_adeudado_usd = adeudado
+            cliente.updated_at = datetime.utcnow()
+            _marcar_cambio_caja()
+            cuotas = list(cliente.cuotas)
+            return {
+                "origen": _cuota_to_dict(origen, cuotas),
+                "destino": _cuota_to_dict(destino, cuotas),
+            }
 
     def registrar_pago_cliente(
         self,

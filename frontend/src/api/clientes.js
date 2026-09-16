@@ -128,6 +128,13 @@ export function generarPlanCuotas(clienteId, data) {
   })
 }
 
+export function moverSaldoCuota(clienteId, cuotaOrigenId, cuotaDestinoId) {
+  return request(`/api/clientes/${clienteId}/cuotas/${cuotaOrigenId}/mover`, {
+    method: 'POST',
+    body: JSON.stringify({ cuota_destino_id: cuotaDestinoId }),
+  })
+}
+
 export function createCuota(clienteId, data) {
   return request(`/api/clientes/${clienteId}/cuotas`, {
     method: 'POST',

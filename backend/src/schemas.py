@@ -139,9 +139,14 @@ class CuotaResponse(BaseModel):
     numero_cuota: int | None = None
     notas: str | None = None
     nota_label: str | None = None
+    sugiere_mover: bool = False
     comprobantes: list[CuotaComprobanteResponse] = Field(default_factory=list)
     pagos: list[CuotaPagoItem] = Field(default_factory=list)
     created_at: datetime | None = None
+
+
+class MoverSaldoCuotaRequest(BaseModel):
+    cuota_destino_id: int
 
 
 class AgentCobrosCuotaItem(BaseModel):
