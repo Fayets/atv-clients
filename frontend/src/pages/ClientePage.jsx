@@ -641,10 +641,11 @@ export default function ClientePage({ clienteId }) {
     resetEditSubpago()
     setCuotaError('')
     setEditingCuotaId(cuota.id)
+    const fechaPago = fechaPagoCuota(cuota)
     setEditCuota({
       monto_usd: String(cuota.monto_usd),
       fecha_vence: cuota.fecha_vence || '',
-      fecha_pago: (cuota.fecha_pago || '').slice(0, 10),
+      fecha_pago: fechaPago ? String(fechaPago).slice(0, 10) : '',
       notas: canonicalTipoCuota(cuota.notas),
       numero_cuota: numeroDesdeCuota(cuota),
       estado: cuota.estado || 'pendiente',

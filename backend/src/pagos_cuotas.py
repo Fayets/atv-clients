@@ -89,9 +89,10 @@ def _recalcular_estado_cuota(cuota: Cuota, hoy: date) -> None:
     if fully:
         cuota.estado = "pagado"
         if pagado > ZERO:
-            # Última imputación define fecha de cierre si no hay.
-            fechas = [i.pago.fecha for i in cuota.imputaciones if i.pago and i.pago.fecha]
-            cuota.fecha_pago = max(fechas) if fechas else (cuota.fecha_pago or hoy)
+            # Conservar fecha_pago manual; si no hay, usar la del último pago.
+            if cuota.fecha_pago is None:
+                fechas = [i.pago.fecha for i in cuota.imputaciones if i.pago and i.pago.fecha]
+                cuota.fecha_pago = max(fechas) if fechas else hoy
         return
 
     cuota.fecha_pago = None

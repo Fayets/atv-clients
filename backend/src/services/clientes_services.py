@@ -1761,6 +1761,12 @@ class ClientesServices:
                         notas=f"cierre cuota #{cuota.id}",
                         hoy=_today(),
                     )
+                if tiene_fecha_pago:
+                    nueva_fecha = fecha_pago_patch or _today()
+                    cuota.fecha_pago = nueva_fecha
+                    for imp in list(cuota.imputaciones):
+                        if imp.pago is not None:
+                            imp.pago.fecha = nueva_fecha
             elif estado_in in ("pendiente", "vencido"):
                 if transferido_saliente(cuota) > 0:
                     revertir_transferencias_salientes(cuota, hoy=_today())
@@ -1768,7 +1774,7 @@ class ClientesServices:
                     _limpiar_imputaciones_cuota(cuota)
                 else:
                     cuota.fecha_pago = None
-            elif tiene_fecha_pago and estado_in is None:
+            elif tiene_fecha_pago:
                 cuota.fecha_pago = fecha_pago_patch or None
 
             _recalcular_totales_cliente(cliente)
