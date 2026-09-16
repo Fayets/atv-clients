@@ -920,8 +920,8 @@ export default function ClientePage({ clienteId }) {
       setCuotaError('Ingresá un monto de subpago válido.')
       return
     }
-    if (pagoDraft.saldo > 0 && monto >= pagoDraft.saldo) {
-      setCuotaError('Para el total usá “Marcar pagado”. El subpago debe ser menor al saldo.')
+    if (pagoDraft.saldo > 0 && monto > pagoDraft.saldo) {
+      setCuotaError(`El monto no puede superar el saldo (${formatUsd(pagoDraft.saldo)}).`)
       return
     }
     if (pagoDraft.fecha && !isValidDateISO(pagoDraft.fecha)) {
@@ -2514,7 +2514,6 @@ export default function ClientePage({ clienteId }) {
                       ? ` (${labelCuotaColumna(cliente?.cuotas?.find((c) => c.id === pagoDraft.cuota_id) || {})})`
                       : ''}
                     {pagoDraft.saldo > 0 ? ` · saldo ${formatUsd(pagoDraft.saldo)}` : ''}.
-                    Si el monto es el total, usá “Pagado”.
                   </p>
                   <div className={styles.planFormGrid}>
                     <label>
@@ -2523,7 +2522,7 @@ export default function ClientePage({ clienteId }) {
                         type="number"
                         className={styles.tableInput}
                         value={pagoDraft.monto_usd}
-                        placeholder={pagoDraft.saldo > 0 ? `Menos de ${pagoDraft.saldo}` : 'Monto'}
+                        placeholder={pagoDraft.saldo > 0 ? `Hasta ${pagoDraft.saldo}` : 'Monto'}
                         onChange={(e) => setPagoDraft((prev) => ({ ...prev, monto_usd: e.target.value }))}
                         autoFocus
                       />
