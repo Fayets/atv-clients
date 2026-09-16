@@ -47,6 +47,7 @@ from src.models import (
 from src.pagos_cuotas import (
     ESTADOS_CON_SALDO,
     ESTADOS_CUOTA_PAGOS,
+    absorber_cuota_en_destino,
     cuota_saldos_dict,
     historial_cliente,
     mover_imputacion_a_cuota,
@@ -538,8 +539,11 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
     )
     sugiere_mover = (
         not es_nota_sin_vencimiento(cuota.notas)
-        and saldos["saldo_pendiente_usd"] > 0
-        and cuota.estado in ("pendiente", "parcialmente_pagada", "vencido")
+        and (
+            saldos["saldo_pendiente_usd"] > 0
+            or saldos["monto_pagado_usd"] > 0
+        )
+        and cuota.estado in ("pendiente", "parcialmente_pagada", "vencido", "pagado")
     )
     return {
         "id": cuota.id,
@@ -1775,13 +1779,13 @@ class ClientesServices:
             if not origen or not destino:
                 return None
             try:
-                mover_saldo_a_cuota(cliente, origen, destino, hoy=_today())
+                result = absorber_cuota_en_destino(cliente, origen, destino, hoy=_today())
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
 
             pagado = Decimal("0")
             adeudado = Decimal("0")
-            for c in cliente.cuotas:
+            for c in list(cliente.cuotas):
                 saldos = cuota_saldos_dict(c)
                 pagado += saldos["monto_pagado_usd"]
                 adeudado += saldos["saldo_pendiente_usd"]
@@ -1790,9 +1794,10 @@ class ClientesServices:
             cliente.updated_at = datetime.utcnow()
             _marcar_cambio_caja()
             cuotas = list(cliente.cuotas)
+            destino_fresh = next((c for c in cuotas if c.id == cuota_destino_id), None)
             return {
-                "origen": _cuota_to_dict(origen, cuotas),
-                "destino": _cuota_to_dict(destino, cuotas),
+                "absorcion": result,
+                "destino": _cuota_to_dict(destino_fresh, cuotas) if destino_fresh else None,
             }
 
     def registrar_pago_cliente(

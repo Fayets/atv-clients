@@ -542,7 +542,7 @@ def mover_saldo_cuota(
 ):
     try:
         result = service.mover_saldo_cuota(cliente_id, cuota_id, body.cuota_destino_id)
-        if not result:
+        if not result or not result.get("destino"):
             raise HTTPException(status_code=404, detail="Cliente o cuota no encontrados.")
         return result["destino"]
     except HTTPException as e:

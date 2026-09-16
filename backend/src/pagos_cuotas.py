@@ -129,7 +129,7 @@ def cuotas_vencidas_con_saldo(cuotas: list, hoy: date | None = None) -> list:
 
 
 def mover_saldo_a_cuota(cliente, origen: Cuota, destino: Cuota, hoy: date | None = None) -> dict:
-    """Mueve el saldo pendiente de una cuota a otra (arrastre manual)."""
+    """Mueve el saldo pendiente de una cuota a otra (arrastre manual de deuda)."""
     ref = hoy or date.today()
     if origen.id == destino.id:
         raise ValueError("Origen y destino deben ser cuotas distintas.")
@@ -161,6 +161,111 @@ def mover_saldo_a_cuota(cliente, origen: Cuota, destino: Cuota, hoy: date | None
         "monto_usd": saldo,
         "cuota_id": origen.id,
         "cuota_destino_id": destino.id,
+        "fecha": ref,
+    }
+
+
+def absorber_cuota_en_destino(cliente, origen: Cuota, destino: Cuota, hoy: date | None = None) -> dict:
+    """Absorbe una cuota suelta dentro de otra principal.
+
+    - Pasa los pagos ya imputados al destino.
+    - Si queda saldo sin pagar en origen y el destino todavía debe, lo convierte
+      en pago del destino (casos tipo 'cuotas chicas' que en realidad eran subpagos).
+    - Elimina la cuota origen si queda en cero.
+    """
+    ref = hoy or date.today()
+    if origen.id == destino.id:
+        raise ValueError("Origen y destino deben ser cuotas distintas.")
+    if origen.cliente.id != cliente.id or destino.cliente.id != cliente.id:
+        raise ValueError("Las cuotas deben pertenecer al mismo cliente.")
+
+    recalcular_cuotas_cliente(cliente, ref)
+    if saldo_pendiente(destino) <= ZERO and monto_imputado(origen) <= ZERO and saldo_pendiente(origen) <= ZERO:
+        raise ValueError("No hay nada para absorber en la cuota destino.")
+
+    movido_pagos = ZERO
+    for imputacion in list(origen.imputaciones):
+        room = saldo_pendiente(destino)
+        if room <= ZERO:
+            break
+        monto_imp = _dec(imputacion.monto_usd)
+        if monto_imp <= ZERO:
+            continue
+        aplicar = min(monto_imp, room)
+        if aplicar >= monto_imp:
+            imputacion.cuota = destino
+            movido_pagos += aplicar
+        else:
+            imputacion.monto_usd = monto_imp - aplicar
+            PagoImputacion(pago=imputacion.pago, cuota=destino, monto_usd=aplicar)
+            movido_pagos += aplicar
+        _recalcular_estado_cuota(destino, ref)
+
+    # La parte del plan de origen que ya estaba cubierta por esos pagos deja de existir.
+    if movido_pagos > ZERO:
+        nuevo_plan = monto_plan(origen) - movido_pagos
+        origen.monto_usd = nuevo_plan if nuevo_plan > ZERO else ZERO
+        if list(origen.imputaciones):
+            pass
+        else:
+            origen.fecha_pago = None
+        _recalcular_estado_cuota(origen, ref)
+
+    convertido = ZERO
+    room = saldo_pendiente(destino)
+    unpaid = saldo_pendiente(origen)
+    if room > ZERO and unpaid > ZERO:
+        take = min(room, unpaid)
+        fecha_pago = origen.fecha_vence or origen.fecha_pago or ref
+        pago = Pago(
+            cliente=cliente,
+            monto_usd=take,
+            fecha=fecha_pago,
+            origen="absorcion",
+            notas=f"absorción cuota #{origen.id} → #{destino.id}",
+        )
+        PagoImputacion(pago=pago, cuota=destino, monto_usd=take)
+        convertido = take
+        nuevo_plan = monto_plan(origen) - take
+        origen.monto_usd = nuevo_plan if nuevo_plan > ZERO else ZERO
+        origen.fecha_pago = None
+        _recalcular_estado_cuota(origen, ref)
+        _recalcular_estado_cuota(destino, ref)
+
+    total = movido_pagos + convertido
+    if total <= ZERO:
+        raise ValueError("No se pudo absorber: el destino no tiene saldo o el origen está vacío.")
+
+    CuotaEvento(
+        cliente=cliente,
+        cuota=origen,
+        cuota_destino=destino,
+        tipo="absorcion_cuota",
+        monto_usd=total,
+        detalle=(
+            f"Cuota #{origen.id} absorbida en #{destino.id}: "
+            f"pagos {movido_pagos} + saldo convertido {convertido}"
+        ),
+        fecha=ref,
+    )
+
+    origen_eliminada = False
+    recalcular_cuotas_cliente(cliente, ref)
+    if monto_plan(origen) <= ZERO and monto_imputado(origen) <= ZERO and saldo_pendiente(origen) <= ZERO:
+        origen_id = origen.id
+        origen.delete()
+        origen_eliminada = True
+    else:
+        origen_id = origen.id
+
+    return {
+        "tipo": "absorcion_cuota",
+        "monto_usd": total,
+        "pagos_movidos_usd": movido_pagos,
+        "saldo_convertido_usd": convertido,
+        "cuota_id": origen_id,
+        "cuota_destino_id": destino.id,
+        "origen_eliminada": origen_eliminada,
         "fecha": ref,
     }
 

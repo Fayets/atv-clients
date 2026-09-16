@@ -47,9 +47,10 @@ function labelEstadoCuota(estado) {
 
 function cuotaSePuedeArrastrar(cuota) {
   if (!cuota) return false
-  if (Number(cuota.saldo_pendiente_usd) <= 0) return false
-  if (cuota.estado === 'pagado') return false
-  return Boolean(cuota.sugiere_mover) || ['pendiente', 'parcialmente_pagada', 'vencido'].includes(cuota.estado)
+  const pagado = Number(cuota.monto_pagado_usd) || 0
+  const saldo = Number(cuota.saldo_pendiente_usd) || 0
+  if (pagado <= 0 && saldo <= 0) return false
+  return Boolean(cuota.sugiere_mover) || ['pendiente', 'parcialmente_pagada', 'vencido', 'pagado'].includes(cuota.estado)
 }
 
 function formatMontoCuota(cuota) {
@@ -729,9 +730,11 @@ export default function ClientePage({ clienteId }) {
     const origen = cliente?.cuotas?.find((c) => c.id === origenId)
     const destino = cliente?.cuotas?.find((c) => c.id === destinoId)
     if (!origen || !destino) return
-    const saldo = Number(origen.saldo_pendiente_usd) || 0
+    const aporte = Number(origen.monto_pagado_usd) > 0
+      ? Number(origen.monto_pagado_usd)
+      : (Number(origen.saldo_pendiente_usd) || Number(origen.monto_usd) || 0)
     const ok = confirm(
-      `¿Sumar ${formatUsd(saldo)} de ${labelCuotaColumna(origen)} a ${labelCuotaColumna(destino)}?`,
+      `¿Sumar ${labelCuotaColumna(origen)} (${formatUsd(aporte)}) dentro de ${labelCuotaColumna(destino)}?\n\nLos pagos/saldo de la cuota chica pasan a la principal y, si queda en cero, se elimina.`,
     )
     if (!ok) return
     setMoviendoSaldo(true)
@@ -740,7 +743,7 @@ export default function ClientePage({ clienteId }) {
       await moverSaldoCuota(clienteId, origenId, destinoId)
       await refreshFinanciero()
     } catch (err) {
-      setCuotaError(err.message || 'No se pudo mover el saldo.')
+      setCuotaError(err.message || 'No se pudo absorber la cuota.')
     } finally {
       setMoviendoSaldo(false)
       setDragCuotaId(null)
@@ -775,7 +778,11 @@ export default function ClientePage({ clienteId }) {
       moved: false,
       dropId: null,
       label: labelCuotaColumna(cuota),
-      monto: formatUsd(cuota.saldo_pendiente_usd || cuota.monto_usd),
+      monto: formatUsd(
+        Number(cuota.monto_pagado_usd) > 0
+          ? cuota.monto_pagado_usd
+          : (cuota.saldo_pendiente_usd || cuota.monto_usd),
+      ),
     }
     setDragCuotaId(cuota.id)
     setDropCuotaId(null)
@@ -2482,9 +2489,8 @@ export default function ClientePage({ clienteId }) {
               const total = vencidas.reduce((acc, c) => acc + (Number(c.saldo_pendiente_usd) || 0), 0)
               return (
                 <div className={styles.arrastreHint}>
-                  <strong>Hay {vencidas.length} cuota{vencidas.length === 1 ? '' : 's'}</strong>
-                  {' '}con saldo por mover ({formatUsd(total)}). Mantené apretada la fila y llevála
-                  sobre otra cuota principal para sumar ese saldo.
+                  <strong>Tip:</strong> mantené apretada una cuota chica (pagada o con saldo) y llevála
+                  sobre la cuota principal para completar su monto. Ej.: 3k + 500 + 500 + 1k → Cuota 2.
                 </div>
               )
             })()}
