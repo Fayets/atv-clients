@@ -41,6 +41,11 @@ const ESTADOS_CUOTA_EDIT = [
   { value: 'vencido', label: 'Vencida' },
 ]
 
+const ESTADOS_SUBPAGO_EDIT = [
+  { value: 'pagado', label: 'Pagado' },
+  { value: 'pendiente', label: 'Pendiente' },
+]
+
 function labelEstadoCuota(estado) {
   return ESTADO_CUOTA_LABEL[estado] || estado
 }
@@ -330,7 +335,14 @@ export default function ClientePage({ clienteId }) {
   const [newCuota, setNewCuota] = useState(() => emptyNewCuota())
   const [editingCuotaId, setEditingCuotaId] = useState(null)
   const [editingSubpagoId, setEditingSubpagoId] = useState(null)
-  const [editSubpago, setEditSubpago] = useState({ monto_usd: '', fecha: '', cuotaId: null })
+  const [editSubpago, setEditSubpago] = useState({
+    monto_usd: '',
+    fecha: '',
+    estado: 'pagado',
+    cuotaId: null,
+  })
+  const [fechaPopupOpen, setFechaPopupOpen] = useState(false)
+  const [fechaPopupDraft, setFechaPopupDraft] = useState('')
   const [editCuota, setEditCuota] = useState({
     monto_usd: '',
     fecha_vence: '',
@@ -958,17 +970,49 @@ export default function ClientePage({ clienteId }) {
     setEditSubpago({
       monto_usd: String(pago.monto_usd ?? ''),
       fecha: (pago.fecha || '').slice(0, 10),
+      estado: 'pagado',
       cuotaId: cuota.id,
     })
+    setFechaPopupOpen(false)
     setCuotaError('')
   }
 
   const resetEditSubpago = () => {
     setEditingSubpagoId(null)
-    setEditSubpago({ monto_usd: '', fecha: '', cuotaId: null })
+    setEditSubpago({ monto_usd: '', fecha: '', estado: 'pagado', cuotaId: null })
+    setFechaPopupOpen(false)
+    setFechaPopupDraft('')
+  }
+
+  const abrirFechaSubpagoPopup = () => {
+    setFechaPopupDraft(editSubpago.fecha || todayInputDate())
+    setFechaPopupOpen(true)
+  }
+
+  const confirmarFechaSubpagoPopup = () => {
+    if (fechaPopupDraft && !isValidDateISO(fechaPopupDraft)) {
+      setCuotaError(CUOTA_FECHA_INVALIDA)
+      return
+    }
+    setEditSubpago((prev) => ({ ...prev, fecha: fechaPopupDraft }))
+    setFechaPopupOpen(false)
+    setCuotaError('')
   }
 
   const guardarEditSubpago = async (imputacionId) => {
+    if (editSubpago.estado === 'pendiente') {
+      const ok = confirm('Pasar a pendiente elimina este subpago. ¿Continuar?')
+      if (!ok) return
+      setCuotaError('')
+      try {
+        await deleteImputacion(clienteId, imputacionId)
+        resetEditSubpago()
+        await refreshFinanciero()
+      } catch (err) {
+        setCuotaError(err.message || 'No se pudo eliminar el subpago.')
+      }
+      return
+    }
     const monto = Number(editSubpago.monto_usd)
     if (!monto || Number.isNaN(monto) || monto <= 0) {
       setCuotaError('Indicá un monto válido para el subpago.')
@@ -2516,6 +2560,44 @@ export default function ClientePage({ clienteId }) {
               </div>
             ) : null}
 
+            {fechaPopupOpen ? (
+              <div
+                className={styles.comprobanteOverlay}
+                onClick={() => setFechaPopupOpen(false)}
+              >
+                <div
+                  className={styles.fechaPopupPanel}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <h3 className={styles.arregloCloserTitle}>Fecha de pago</h3>
+                  <p className={styles.arregloCloserHint}>Elegí la fecha del subpago.</p>
+                  <input
+                    type="date"
+                    className={styles.fechaPopupInput}
+                    value={fechaPopupDraft}
+                    onChange={(e) => setFechaPopupDraft(e.target.value)}
+                    autoFocus
+                  />
+                  <div className={styles.cuotaActions}>
+                    <button
+                      type="button"
+                      className={styles.saveBtn}
+                      onClick={confirmarFechaSubpagoPopup}
+                    >
+                      Usar fecha
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.cancelBtn}
+                      onClick={() => setFechaPopupOpen(false)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             {arregloCloserOpen ? (
               <div className={styles.arregloCloserOverlay} onClick={closeArregloCloser}>
                 <div
@@ -2850,20 +2932,29 @@ export default function ClientePage({ clienteId }) {
                               </td>
                               <td data-label="Fecha" className={styles.cuotaVence} />
                               <td data-label="Pago" className={styles.cuotaPago}>
-                                <input
-                                  type="date"
-                                  className={styles.tableInput}
-                                  value={editSubpago.fecha}
-                                  onChange={(e) => setEditSubpago((prev) => ({
-                                    ...prev,
-                                    fecha: e.target.value,
-                                  }))}
-                                />
+                                <button
+                                  type="button"
+                                  className={styles.fechaTriggerBtn}
+                                  onClick={abrirFechaSubpagoPopup}
+                                  title="Elegir fecha de pago"
+                                >
+                                  {editSubpago.fecha ? formatDate(editSubpago.fecha) : 'Elegir fecha'}
+                                  <i className="ti ti-calendar-event" aria-hidden />
+                                </button>
                               </td>
                               <td data-label="Estado" className={styles.cuotaEstado}>
-                                <span className={styles.cuotaEstadoBadge} data-estado="pagado">
-                                  Pagado
-                                </span>
+                                <select
+                                  className={styles.tableInput}
+                                  value={editSubpago.estado}
+                                  onChange={(e) => setEditSubpago((prev) => ({
+                                    ...prev,
+                                    estado: e.target.value,
+                                  }))}
+                                >
+                                  {ESTADOS_SUBPAGO_EDIT.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                  ))}
+                                </select>
                               </td>
                               <td data-label="Tipo" className={styles.cuotaTipo} />
                               {renderComprobanteCell(cuota, {

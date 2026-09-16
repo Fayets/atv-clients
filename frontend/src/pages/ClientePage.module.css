@@ -562,6 +562,55 @@
   white-space: nowrap;
 }
 
+.fechaTriggerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fechaTriggerBtn:hover {
+  border-color: color-mix(in srgb, var(--border) 40%, #64748b);
+}
+
+.fechaTriggerBtn i {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.fechaPopupPanel {
+  width: min(360px, 100%);
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fechaPopupInput {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+}
+
 .cuotaSubBadge {
   display: none;
 }
