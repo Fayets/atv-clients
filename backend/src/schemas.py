@@ -136,6 +136,7 @@ class CuotaResponse(BaseModel):
     fecha_pago: date | None = None
     estado: EstadoCuota
     tipo: CuotaNotaTipo
+    numero_cuota: int | None = None
     notas: str | None = None
     nota_label: str | None = None
     comprobantes: list[CuotaComprobanteResponse] = Field(default_factory=list)
@@ -268,6 +269,7 @@ class CuotaCreate(BaseModel):
     monto_usd: Decimal
     fecha_vence: date
     notas: str | None = "cuota_venta"
+    numero_cuota: int | None = Field(default=None, ge=1, le=99)
     fecha_inicio: date | None = None
     duracion_meses: int | None = Field(default=None, ge=1, le=12)
 
@@ -276,6 +278,7 @@ class CuotaPatch(BaseModel):
     monto_usd: Decimal | None = None
     fecha_vence: date | None = None
     notas: str | None = None
+    numero_cuota: int | None = Field(default=None, ge=1, le=99)
     estado: EstadoCuota | None = None
     fecha_pago: date | None = None
 

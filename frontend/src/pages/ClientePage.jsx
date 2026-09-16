@@ -133,10 +133,17 @@ function emptyNewCuota(cliente) {
     monto_usd: '',
     fecha_vence: '',
     notas: 'cuota_venta',
+    numero_cuota: '',
     fecha_inicio: todayInputDate(),
     duracion_meses: defaultDuracionMeses(cliente),
     renovarPrograma: null,
   }
+}
+
+function numeroDesdeCuota(cuota) {
+  if (cuota?.numero_cuota) return String(cuota.numero_cuota)
+  const match = String(cuota?.nota_label || '').match(/cuota\s+(\d+)/i)
+  return match ? match[1] : ''
 }
 
 function buildProximosPasosDraft() {
@@ -284,7 +291,13 @@ export default function ClientePage({ clienteId }) {
   const [addingCuota, setAddingCuota] = useState(false)
   const [newCuota, setNewCuota] = useState(() => emptyNewCuota())
   const [editingCuotaId, setEditingCuotaId] = useState(null)
-  const [editCuota, setEditCuota] = useState({ monto_usd: '', fecha_vence: '', fecha_pago: '', notas: '' })
+  const [editCuota, setEditCuota] = useState({
+    monto_usd: '',
+    fecha_vence: '',
+    fecha_pago: '',
+    notas: '',
+    numero_cuota: '',
+  })
   const [cuotaError, setCuotaError] = useState('')
   const [pagoDraft, setPagoDraft] = useState({ monto_usd: '', fecha: '', cuota_id: null, saldo: 0 })
   const [pagoSaving, setPagoSaving] = useState(false)
@@ -540,7 +553,7 @@ export default function ClientePage({ clienteId }) {
 
   const resetEditCuota = () => {
     setEditingCuotaId(null)
-    setEditCuota({ monto_usd: '', fecha_vence: '', fecha_pago: '', notas: '' })
+    setEditCuota({ monto_usd: '', fecha_vence: '', fecha_pago: '', notas: '', numero_cuota: '' })
     setCuotaError('')
   }
 
@@ -553,6 +566,7 @@ export default function ClientePage({ clienteId }) {
       fecha_vence: cuota.fecha_vence || '',
       fecha_pago: (cuota.fecha_pago || '').slice(0, 10),
       notas: canonicalTipoCuota(cuota.notas),
+      numero_cuota: numeroDesdeCuota(cuota),
     })
   }
 
@@ -594,6 +608,9 @@ export default function ClientePage({ clienteId }) {
         fecha_vence: fechaVence,
         notas: newCuota.notas.trim() || 'cuota_venta',
       }
+      if (newCuota.numero_cuota && Number(newCuota.numero_cuota) > 0) {
+        payload.numero_cuota = Number(newCuota.numero_cuota)
+      }
       if (esRenovacion && newCuota.renovarPrograma) {
         payload.fecha_inicio = newCuota.fecha_inicio
         payload.duracion_meses = Number(newCuota.duracion_meses)
@@ -629,6 +646,15 @@ export default function ClientePage({ clienteId }) {
       fecha_vence: fechaVence,
       notas: editCuota.notas.trim() || 'cuota_venta',
       fecha_pago: fechaPago,
+    }
+    if (!TIPOS_SIN_VENCIMIENTO.has(editCuota.notas) && editCuota.notas !== 'sena'
+      && editCuota.notas !== 'cuota_upsell' && editCuota.notas !== 'cuota_recompra') {
+      const n = Number(editCuota.numero_cuota)
+      if (!n || n < 1) {
+        setCuotaError('Indicá el número de cuota (1, 2, 3…).')
+        return
+      }
+      payload.numero_cuota = n
     }
     if (fechaPago) {
       payload.estado = 'pagado'
@@ -2285,6 +2311,7 @@ export default function ClientePage({ clienteId }) {
                     </th>
                     <th>Pago</th>
                     <th>Estado</th>
+                    <th>Tipo</th>
                     <th>Comp.</th>
                     <th>Acciones</th>
                   </tr>
@@ -2297,16 +2324,22 @@ export default function ClientePage({ clienteId }) {
                         className={styles.cuotaRowEdit}
                         onKeyDown={(event) => handleCuotaRowKeyDown(event, () => guardarEditCuota(cuota.id), resetEditCuota)}
                       >
-                        <td data-label="Cuota" className={styles.cuotaTipo}>
-                          <select
-                            className={styles.tableInput}
-                            value={editCuota.notas}
-                            onChange={(e) => setEditCuota((prev) => ({ ...prev, notas: e.target.value }))}
-                          >
-                            {TIPOS_CUOTA_NOTA.map((opt) => (
-                              <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
+                        <td data-label="Cuota" className={styles.cuotaIdCell}>
+                          {TIPOS_SIN_VENCIMIENTO.has(editCuota.notas)
+                            || editCuota.notas === 'sena'
+                            || editCuota.notas === 'cuota_upsell'
+                            || editCuota.notas === 'cuota_recompra' ? (
+                            <span className={styles.muted}>—</span>
+                          ) : (
+                            <input
+                              type="number"
+                              min="1"
+                              className={styles.tableInput}
+                              value={editCuota.numero_cuota}
+                              placeholder="Nº"
+                              onChange={(e) => setEditCuota((prev) => ({ ...prev, numero_cuota: e.target.value }))}
+                            />
+                          )}
                         </td>
                         <td data-label="Monto" className={styles.cuotaMonto}>
                           <input
@@ -2340,6 +2373,17 @@ export default function ClientePage({ clienteId }) {
                           <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>
                             {labelEstadoCuota(cuota.estado)}
                           </span>
+                        </td>
+                        <td data-label="Tipo" className={styles.cuotaTipo}>
+                          <select
+                            className={styles.tableInput}
+                            value={editCuota.notas}
+                            onChange={(e) => setEditCuota((prev) => ({ ...prev, notas: e.target.value }))}
+                          >
+                            {TIPOS_CUOTA_NOTA.map((opt) => (
+                              <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
                         </td>
                         {renderComprobanteCell(cuota)}
                         <td data-label="Acciones" className={styles.cuotaAcciones}>
@@ -2385,6 +2429,9 @@ export default function ClientePage({ clienteId }) {
                             <span className={styles.cuotaEstadoBadge} data-estado={cuota.estado}>
                               {labelEstadoCuota(cuota.estado)}
                             </span>
+                          </td>
+                          <td data-label="Tipo" className={styles.cuotaTipo}>
+                            {labelTipoCuotaNota(cuota.notas)}
                           </td>
                           {renderComprobanteCell(cuota)}
                           <td data-label="Acciones" className={styles.cuotaAcciones}>
@@ -2435,6 +2482,7 @@ export default function ClientePage({ clienteId }) {
                             <td data-label="Estado" className={styles.cuotaEstado}>
                               <span className={styles.cuotaSubBadge}>Imputado</span>
                             </td>
+                            <td data-label="Tipo" className={styles.cuotaTipo}>—</td>
                             <td data-label="Comprobante">—</td>
                             <td data-label="Acciones">—</td>
                           </tr>
@@ -2452,6 +2500,7 @@ export default function ClientePage({ clienteId }) {
                             <td data-label="Estado" className={styles.cuotaEstado}>
                               <span className={styles.cuotaSubBadge}>Acumulado</span>
                             </td>
+                            <td data-label="Tipo" className={styles.cuotaTipo}>—</td>
                             <td data-label="Comprobante">—</td>
                             <td data-label="Acciones">—</td>
                           </tr>
@@ -2460,7 +2509,7 @@ export default function ClientePage({ clienteId }) {
                     )
                   )) : !addingCuota ? (
                     <tr>
-                      <td colSpan={7} className={styles.muted}>Sin cuotas registradas</td>
+                      <td colSpan={8} className={styles.muted}>Sin cuotas registradas</td>
                     </tr>
                   ) : null}
                   {addingCuota ? (
@@ -2469,28 +2518,22 @@ export default function ClientePage({ clienteId }) {
                       className={styles.cuotaRowEdit}
                       onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}
                     >
-                      <td data-label="Cuota" className={styles.cuotaTipo}>
-                        <select
-                          className={styles.tableInput}
-                          value={newCuota.notas}
-                          onChange={(e) => {
-                            const notas = e.target.value
-                            setNewCuota((prev) => ({
-                              ...prev,
-                              notas,
-                              fecha_vence: TIPOS_SIN_VENCIMIENTO.has(notas)
-                                ? (prev.fecha_vence || todayInputDate())
-                                : prev.fecha_vence,
-                              fecha_inicio: prev.fecha_inicio || todayInputDate(),
-                              duracion_meses: prev.duracion_meses || defaultDuracionMeses(cliente),
-                              renovarPrograma: TIPOS_RENOVACION.has(notas) ? null : prev.renovarPrograma,
-                            }))
-                          }}
-                        >
-                          {TIPOS_CUOTA_NOTA.map((opt) => (
-                            <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
+                      <td data-label="Cuota" className={styles.cuotaIdCell}>
+                        {TIPOS_SIN_VENCIMIENTO.has(newCuota.notas)
+                          || newCuota.notas === 'sena'
+                          || newCuota.notas === 'cuota_upsell'
+                          || newCuota.notas === 'cuota_recompra' ? (
+                          <span className={styles.muted}>—</span>
+                        ) : (
+                          <input
+                            type="number"
+                            min="1"
+                            className={styles.tableInput}
+                            value={newCuota.numero_cuota}
+                            placeholder="Nº"
+                            onChange={(e) => setNewCuota((prev) => ({ ...prev, numero_cuota: e.target.value }))}
+                          />
+                        )}
                       </td>
                       <td data-label="Monto" className={styles.cuotaMonto}>
                         <input
@@ -2517,6 +2560,29 @@ export default function ClientePage({ clienteId }) {
                       <td data-label="Estado" className={styles.cuotaEstado}>
                         <span className={styles.cuotaEstadoBadge} data-estado="pendiente">pendiente</span>
                       </td>
+                      <td data-label="Tipo" className={styles.cuotaTipo}>
+                        <select
+                          className={styles.tableInput}
+                          value={newCuota.notas}
+                          onChange={(e) => {
+                            const notas = e.target.value
+                            setNewCuota((prev) => ({
+                              ...prev,
+                              notas,
+                              fecha_vence: TIPOS_SIN_VENCIMIENTO.has(notas)
+                                ? (prev.fecha_vence || todayInputDate())
+                                : prev.fecha_vence,
+                              fecha_inicio: prev.fecha_inicio || todayInputDate(),
+                              duracion_meses: prev.duracion_meses || defaultDuracionMeses(cliente),
+                              renovarPrograma: TIPOS_RENOVACION.has(notas) ? null : prev.renovarPrograma,
+                            }))
+                          }}
+                        >
+                          {TIPOS_CUOTA_NOTA.map((opt) => (
+                            <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td data-label="Comprobante">—</td>
                       <td data-label="Acciones" className={styles.cuotaAcciones}>
                         <div className={styles.cuotaActions}>
@@ -2531,7 +2597,7 @@ export default function ClientePage({ clienteId }) {
                     </tr>
                     {TIPOS_RENOVACION.has(newCuota.notas) ? (
                       <tr onKeyDown={(event) => handleCuotaRowKeyDown(event, guardarNuevaCuota, resetNewCuota)}>
-                        <td colSpan={7} data-span>
+                        <td colSpan={8} data-span>
                           <div className={styles.renovarBox}>
                             <p className={styles.renovarTitle}>
                               ¿Establecer un nuevo período de vencimiento?

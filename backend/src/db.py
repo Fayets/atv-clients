@@ -310,6 +310,7 @@ MIGRATIONS = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_cuota_eventos_cliente_id ON clients.cuota_eventos(cliente_id);",
     "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS fecha_recompra DATE;",
+    "ALTER TABLE clients.cuotas ADD COLUMN IF NOT EXISTS numero_cuota INTEGER;",
 ]
 
 

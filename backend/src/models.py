@@ -119,6 +119,7 @@ class Cuota(db.Entity):
     fecha_pago = Optional(date)
     estado = Required(str, 20, default="pendiente")
     notas = Optional(str, sql_type="TEXT")
+    numero_cuota = Optional(int)
     # Ledger encima del plan: saldo heredado / transferido a la siguiente.
     arrastre_usd = Optional(Decimal, 10, 2, default=0)
     transferido_usd = Optional(Decimal, 10, 2, default=0)

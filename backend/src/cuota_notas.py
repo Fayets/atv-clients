@@ -162,10 +162,13 @@ def _cuotas_cobranza_ordenadas(cuotas_cliente: list) -> list:
 
 
 def etiqueta_cuota_auto(cuota, cuotas_cliente: list) -> str:
-    """Cuota 1, Cuota 2… según orden de vencimiento. Seña, upsell y recompra usan su label."""
+    """Cuota N: usa numero_cuota si está; si no, orden por vencimiento. Seña/upsell/recompra = label fijo."""
     nota = normalizar_nota_cuota(cuota.notas)
     if nota in NOTAS_SIN_NUMERO:
         return CUOTA_NOTA_LABELS[nota]
+    numero = getattr(cuota, "numero_cuota", None)
+    if numero is not None and int(numero) > 0:
+        return f"Cuota {int(numero)}"
     cobranza = _cuotas_cobranza_ordenadas(cuotas_cliente)
     for idx, c in enumerate(cobranza, start=1):
         if c.id == cuota.id:

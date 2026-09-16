@@ -509,34 +509,39 @@
 
 .financieroTile .table th:nth-child(1),
 .financieroTile .table td:nth-child(1) {
-  width: 12%;
+  width: 9%;
 }
 
 .financieroTile .table th:nth-child(2),
 .financieroTile .table td:nth-child(2) {
-  width: 16%;
+  width: 13%;
 }
 
 .financieroTile .table th:nth-child(3),
 .financieroTile .table td:nth-child(3),
 .financieroTile .table th:nth-child(4),
 .financieroTile .table td:nth-child(4) {
-  width: 11%;
+  width: 10%;
 }
 
 .financieroTile .table th:nth-child(5),
 .financieroTile .table td:nth-child(5) {
-  width: 12%;
+  width: 10%;
 }
 
 .financieroTile .table th:nth-child(6),
 .financieroTile .table td:nth-child(6) {
-  width: 8%;
+  width: 12%;
 }
 
 .financieroTile .table th:nth-child(7),
 .financieroTile .table td:nth-child(7) {
-  width: 30%;
+  width: 7%;
+}
+
+.financieroTile .table th:nth-child(8),
+.financieroTile .table td:nth-child(8) {
+  width: 29%;
   white-space: normal;
 }
 

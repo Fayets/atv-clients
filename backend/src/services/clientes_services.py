@@ -19,6 +19,7 @@ from pony.orm import db_session, flush
 from src.cuota_notas import (
     CUOTA_NOTAS_VALIDAS,
     NOTAS_PROYECCION,
+    NOTAS_SIN_NUMERO,
     TIPO_DEFAULT,
     es_nota_proyeccion,
     es_nota_sin_vencimiento,
@@ -530,6 +531,7 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
         "fecha_pago": cuota.fecha_pago,
         "estado": cuota.estado,
         "tipo": tipo,
+        "numero_cuota": getattr(cuota, "numero_cuota", None),
         "notas": tipo,
         "nota_label": etiqueta_cuota_auto(cuota, cuotas_ref),
         "comprobantes": [_comprobante_to_dict(c) for c in _sorted_comprobantes(cuota)],
@@ -1583,6 +1585,26 @@ class ClientesServices:
                 raise HTTPException(status_code=400, detail="Tipo de cuota inválido.")
             cuota_kwargs["notas"] = nota
 
+            if data.numero_cuota is not None:
+                cuota_kwargs["numero_cuota"] = data.numero_cuota
+            elif nota not in NOTAS_SIN_NUMERO:
+                usados = [
+                    c.numero_cuota
+                    for c in cliente.cuotas
+                    if getattr(c, "numero_cuota", None)
+                ]
+                auto_idx = 1
+                while auto_idx in usados:
+                    auto_idx += 1
+                # Si no hay números manuales, seguir por cantidad de cobranza + 1
+                if not usados:
+                    auto_idx = sum(
+                        1
+                        for c in cliente.cuotas
+                        if (normalizar_nota_cuota(c.notas) or TIPO_DEFAULT) not in NOTAS_SIN_NUMERO
+                    ) + 1
+                cuota_kwargs["numero_cuota"] = auto_idx
+
             if nota in NOTAS_PROYECCION and data.fecha_inicio and data.duracion_meses:
                 cliente.fecha_inicio = data.fecha_inicio
                 cliente.duracion_dias = data.duracion_meses * 30
@@ -1605,6 +1627,9 @@ class ClientesServices:
 
         if "monto_usd" in payload and payload["monto_usd"] <= 0:
             raise HTTPException(status_code=400, detail="El monto debe ser mayor a cero.")
+
+        if "numero_cuota" in payload and payload["numero_cuota"] is not None and payload["numero_cuota"] < 1:
+            raise HTTPException(status_code=400, detail="El número de cuota debe ser mayor a cero.")
 
         if "notas" in payload:
             if payload["notas"]:
@@ -1796,6 +1821,7 @@ class ClientesServices:
                     fecha_vence=item["fecha_vence"],
                     estado="pendiente",
                     notas=item["notas"],
+                    numero_cuota=item.get("numero_cuota"),
                     arrastre_usd=Decimal("0"),
                     transferido_usd=Decimal("0"),
                 )

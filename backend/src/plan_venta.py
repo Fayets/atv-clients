@@ -245,6 +245,7 @@ def build_plan_cuotas(
             "monto_usd": monto_cuota,
             "fecha_vence": _add_months(fecha_inicio, offset) if offset else fecha_inicio,
             "notas": "cuota_venta",
+            "numero_cuota": i + 1,
         })
 
     return PlanParsed(
