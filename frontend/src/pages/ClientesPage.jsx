@@ -224,10 +224,38 @@ export default function ClientesPage() {
       setDiscordResult((prev) => prev ? {
         ...prev,
         faltantes: [],
-        creados: result.creados,
+        creados: [...(prev.creados || []), ...(result.creados || [])],
       } : prev)
     } catch (error) {
       setDiscordError(error.message || 'Error al crear clientes')
+    } finally {
+      setDiscordCreating(false)
+    }
+  }
+
+  const handleCrearFaltanteUno = async (item) => {
+    if (!item?.canal || discordCreating) return
+    const confirmar = window.confirm(
+      `¿Crear el cliente ${item.nombre} — ${planLabel(item.plan)}?`,
+    )
+    if (!confirmar) return
+
+    setDiscordCreating(true)
+    setDiscordError('')
+    try {
+      const result = await crearDiscordFaltantes([item.canal])
+      await refreshLists()
+      setDiscordResult((prev) => {
+        if (!prev) return prev
+        const creadosNuevos = result.creados || []
+        return {
+          ...prev,
+          faltantes: (prev.faltantes || []).filter((f) => f.canal !== item.canal),
+          creados: [...(prev.creados || []), ...creadosNuevos],
+        }
+      })
+    } catch (error) {
+      setDiscordError(error.message || 'Error al crear el cliente')
     } finally {
       setDiscordCreating(false)
     }
@@ -522,7 +550,17 @@ export default function ClientesPage() {
                       <span className={styles.discordSyncItemName}>
                         {item.nombre} — {planLabel(item.plan)}
                       </span>
-                      <span className={styles.discordSyncItemMeta}>#{item.canal}</span>
+                      <span className={styles.discordSyncItemActions}>
+                        <span className={styles.discordSyncItemMeta}>#{item.canal}</span>
+                        <button
+                          type="button"
+                          className={styles.discordCreateOneBtn}
+                          onClick={() => handleCrearFaltanteUno(item)}
+                          disabled={discordCreating}
+                        >
+                          Crear
+                        </button>
+                      </span>
                     </li>
                   ))}
                 </ul>
