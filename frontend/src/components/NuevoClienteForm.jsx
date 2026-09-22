@@ -17,6 +17,7 @@ function buildFormState(overrides = {}) {
   return {
     nombre: '',
     email: '',
+    emailsExtra: '',
     plan_actual,
     fecha_inicio,
     duracion_meses,
@@ -63,12 +64,18 @@ export default function NuevoClienteForm({ onCreated, onCancel }) {
       return
     }
 
+    const extras = String(form.emailsExtra || '')
+      .split(/[\n,;]+/)
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean)
+    const emails = Array.from(new Set([form.email.trim().toLowerCase(), ...extras]))
+
     setSaving(true)
     setError('')
     try {
       const payload = {
         nombre: form.nombre.trim(),
-        email: form.email.trim(),
+        emails,
         plan_actual: form.plan_actual,
         fecha_inicio: form.fecha_inicio,
         duracion_dias: monthsToDays(meses),
@@ -117,6 +124,15 @@ export default function NuevoClienteForm({ onCreated, onCancel }) {
             onChange={(event) => update('email', event.target.value)}
             placeholder="email@ejemplo.com"
             required
+          />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.label}>Emails extra</span>
+          <input
+            className={styles.input}
+            value={form.emailsExtra}
+            onChange={(event) => update('emailsExtra', event.target.value)}
+            placeholder="otros@mail.com, otro@mail.com"
           />
         </label>
         <label className={styles.field}>

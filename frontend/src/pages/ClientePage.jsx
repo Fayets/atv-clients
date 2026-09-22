@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, Fragment } from 'react'
 import { fetchCliente, createCuota, createDocumentoLink, createFathomBoard, createMiroBoard, createObservacion, createProximosPasos, deleteCliente, deleteCuota, deleteCuotaComprobante, deleteDiscordTranscript, deleteDocumentoLink, deleteFathomBoard, deleteMiroBoard, deleteObservacion, deleteProximosPasos, deleteImputacion, discordTranscriptDownloadUrl, fetchDiscordEstado, fetchDiscordTranscriptContenido, fetchDiscordTranscriptsBot, fetchPagosHistorial, generarPlanCuotas, moverImputacion, moverSaldoCuota, patchCliente, patchCuota, patchImputacion, patchDiscordTranscript, patchDocumentoLink, patchFathomBoard, patchMiroBoard, patchProximosPasos, registrarPago, triggerDiscordActualizacion, uploadCuotaComprobante, uploadDiscordTranscript, cuotaComprobanteUrl } from '../api/clientes'
 import { navigate } from '../utils/navigation'
 import { getSession } from '../api/auth'
+import EmailsList from '../components/EmailsList'
 import InlineField from '../components/InlineField'
 import Navbar from '../components/Navbar'
 import PlanBadge from '../components/PlanBadge'
@@ -1873,12 +1874,17 @@ export default function ClientePage({ clienteId }) {
         <header className={styles.headerCard}>
           <div>
             <h1 className={styles.name}>{cliente.nombre}</h1>
-            <InlineField
-              type="email"
-              className={styles.emailField}
-              value={cliente.email || ''}
-              placeholder="Sin email"
-              onSave={(value) => updateField('email', value.trim())}
+            <EmailsList
+              emails={cliente.emails?.length ? cliente.emails : (cliente.email ? [cliente.email] : [])}
+              onSave={async (emails) => {
+                const updated = await patchCliente(clienteId, { emails })
+                setCliente((prev) => ({
+                  ...prev,
+                  ...updated,
+                  emails,
+                  email: emails[0] || '',
+                }))
+              }}
             />
           </div>
           <div className={styles.headerActions}>

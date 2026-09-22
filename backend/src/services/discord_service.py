@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 import asyncio
+import json
 import logging
 import re
 import unicodedata
@@ -177,6 +178,7 @@ def _crear_cliente_desde_canal(canal: str, plan: str) -> dict:
     cliente = Cliente(
         nombre=nombre,
         email=email,
+        emails_json=json.dumps([email], ensure_ascii=False),
         plan_actual=plan_bd,
         fecha_inicio=fecha_inicio,
         duracion_dias=duracion,

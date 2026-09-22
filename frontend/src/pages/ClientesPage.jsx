@@ -23,7 +23,8 @@ const DEFAULT_FILTERS = {
 }
 
 function normalizeOrden(value) {
-  return value === 'alta_asc' ? 'alta_asc' : 'alta_desc'
+  const allowed = new Set(['alta_asc', 'alta_desc', 'nombre_asc', 'nombre_desc', 'venc_asc', 'venc_desc'])
+  return allowed.has(value) ? value : 'alta_desc'
 }
 
 function readFiltersFromUrl() {
@@ -426,6 +427,14 @@ export default function ClientesPage() {
               {PLANES.map((option) => (
                 <option key={option.value || 'all'} value={option.value}>{option.label}</option>
               ))}
+            </select>
+            <select className={styles.select} value={orden} onChange={(event) => setOrden(event.target.value)}>
+              <option value="alta_desc">Más recientes</option>
+              <option value="alta_asc">Más antiguos</option>
+              <option value="nombre_asc">Nombre A-Z</option>
+              <option value="nombre_desc">Nombre Z-A</option>
+              <option value="venc_asc">Vence próximo</option>
+              <option value="venc_desc">Vence lejano</option>
             </select>
             <button
               type="button"

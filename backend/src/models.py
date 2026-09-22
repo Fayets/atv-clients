@@ -12,6 +12,7 @@ class Cliente(db.Entity):
     id = PrimaryKey(int, auto=True)
     nombre = Required(str, 255)
     email = Required(str, 255)
+    emails_json = Optional(str, nullable=True, sql_type="TEXT")
     plan_actual = Required(str, 50)
     session_id = Optional(int)
     fecha_inicio = Optional(date)

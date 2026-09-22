@@ -32,7 +32,14 @@ PrioridadCobro = Literal["alta", "media", "baja"]
 Responsable = Literal["lucas", "juampi", "juan", "ale"]
 EstadoCuota = Literal["pendiente", "parcialmente_pagada", "pagado", "vencido"]
 CuotaNotaTipo = Literal["cuota_venta", "cuota_upsell", "cuota_recompra", "sena", "posibilidad_upsell"]
-OrdenListado = Literal["venc_asc", "venc_desc", "alta_asc", "alta_desc"]
+OrdenListado = Literal[
+    "venc_asc",
+    "venc_desc",
+    "alta_asc",
+    "alta_desc",
+    "nombre_asc",
+    "nombre_desc",
+]
 
 
 class CuotaComprobanteResponse(BaseModel):
@@ -490,6 +497,7 @@ class ClienteListItem(BaseModel):
     id: int
     nombre: str
     email: str
+    emails: list[str] = Field(default_factory=list)
     plan_actual: PlanActual
     fecha_inicio: date | None = None
     fecha_vencimiento: date | None = None
@@ -676,7 +684,8 @@ class AgentClienteResponse(ClienteListItem):
 
 class ClienteCreate(BaseModel):
     nombre: str = Field(min_length=1, max_length=255)
-    email: EmailStr
+    email: EmailStr | None = None
+    emails: list[EmailStr] | None = None
     plan_actual: PlanActual
     session_id: int | None = None
     fecha_inicio: date | None = None
@@ -691,6 +700,7 @@ class ClienteCreate(BaseModel):
 
 class ClientePatch(BaseModel):
     email: EmailStr | None = None
+    emails: list[EmailStr] | None = None
     estado_cliente: EstadoCliente | None = None
     plan_actual: PlanActual | None = None
     oportunidad: Oportunidad | None = None

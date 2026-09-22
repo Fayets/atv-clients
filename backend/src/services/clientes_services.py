@@ -518,6 +518,60 @@ def _fathom_fields(
     return sorted_asc[0].url, last_call, latest.url
 
 
+def _normalize_email_list(values: list | None) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for raw in values or []:
+        email = str(raw or "").strip().lower()
+        if not email or email in seen:
+            continue
+        seen.add(email)
+        result.append(email)
+    return result
+
+
+def _emails_from_cliente(cliente: Cliente) -> list[str]:
+    stored: list[str] = []
+    raw = getattr(cliente, "emails_json", None)
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                stored = [str(item) for item in parsed]
+        except (TypeError, ValueError, json.JSONDecodeError):
+            stored = []
+    emails = _normalize_email_list([*stored, getattr(cliente, "email", None)])
+    if not emails and cliente.email:
+        emails = _normalize_email_list([cliente.email])
+    return emails
+
+
+def _apply_emails_to_cliente(cliente: Cliente, emails: list[str]) -> None:
+    normalized = _normalize_email_list(emails)
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Indicá al menos un email.")
+    cliente.email = normalized[0]
+    cliente.emails_json = json.dumps(normalized, ensure_ascii=False)
+
+
+def _resolve_emails_payload(
+    *,
+    email: str | None = None,
+    emails: list | None = None,
+    current: list[str] | None = None,
+) -> list[str]:
+    if emails is not None:
+        return _normalize_email_list(emails)
+    if email is not None:
+        base = list(current or [])
+        primary = str(email).strip().lower()
+        if not primary:
+            return _normalize_email_list(base)
+        rest = [item for item in base if item != primary]
+        return _normalize_email_list([primary, *rest])
+    return _normalize_email_list(current or [])
+
+
 def _comprobante_to_dict(item: CuotaComprobante) -> dict:
     return {
         "id": item.id,
@@ -627,6 +681,7 @@ def _cliente_base_dict(
         "id": cliente.id,
         "nombre": cliente.nombre,
         "email": cliente.email,
+        "emails": _emails_from_cliente(cliente),
         "plan_actual": cliente.plan_actual,
         "fecha_inicio": cliente.fecha_inicio,
         "fecha_vencimiento": cliente.fecha_vencimiento,
@@ -1055,11 +1110,15 @@ class ClientesServices:
         fecha_inicio = data.fecha_inicio or _today()
         duracion_dias = data.duracion_dias or DURACION_POR_PLAN[data.plan_actual]
         fecha_vencimiento = data.fecha_vencimiento or (fecha_inicio + timedelta(days=duracion_dias))
+        emails = _resolve_emails_payload(email=data.email, emails=data.emails)
+        if not emails:
+            raise HTTPException(status_code=400, detail="Indicá al menos un email.")
 
         with db_session:
             cliente_kwargs = {
                 "nombre": data.nombre.strip(),
-                "email": str(data.email).strip().lower(),
+                "email": emails[0],
+                "emails_json": json.dumps(emails, ensure_ascii=False),
                 "plan_actual": data.plan_actual,
                 "fecha_inicio": fecha_inicio,
                 "duracion_dias": duracion_dias,
@@ -1097,7 +1156,8 @@ class ClientesServices:
                 clientes = [
                     cliente
                     for cliente in clientes
-                    if needle in cliente.nombre.lower() or needle in cliente.email.lower()
+                    if needle in cliente.nombre.lower()
+                    or any(needle in email for email in _emails_from_cliente(cliente))
                 ]
 
             cache = _load_relations_cache()
@@ -1112,6 +1172,9 @@ class ClientesServices:
             def sort_key(item: dict) -> tuple:
                 fv = item["fecha_vencimiento"]
                 return (fv is None, fv or date.min)
+        elif orden.startswith("nombre"):
+            def sort_key(item: dict) -> tuple:
+                return ((item.get("nombre") or "").casefold(), item["id"])
         else:
             def sort_key(item: dict) -> tuple:
                 alta = item.get("fecha_alta")
@@ -1528,16 +1591,25 @@ class ClientesServices:
         if "responsable" in payload and payload["responsable"] is not None and payload["responsable"] not in RESPONSABLES_VALIDOS:
             raise HTTPException(status_code=400, detail="Responsable inválido.")
 
-        if "email" in payload:
-            payload["email"] = str(payload["email"]).strip().lower()
-
         with db_session:
             cliente = Cliente.get(id=cliente_id)
             if not cliente:
                 return None
 
+            emails_in = payload.pop("emails", None) if "emails" in payload else None
+            email_in = payload.pop("email", None) if "email" in payload else None
+
             for field, value in payload.items():
                 setattr(cliente, field, value)
+
+            if emails_in is not None or email_in is not None:
+                resolved = _resolve_emails_payload(
+                    email=email_in,
+                    emails=emails_in,
+                    current=_emails_from_cliente(cliente),
+                )
+                _apply_emails_to_cliente(cliente, resolved)
+
             cliente.updated_at = datetime.utcnow()
 
             return _cliente_base_dict(cliente)
@@ -1602,6 +1674,7 @@ class ClientesServices:
 
             # Conservar nombre (y fecha_alta) del destino; el resto viene del origen.
             destino.email = origen.email
+            destino.emails_json = getattr(origen, "emails_json", None)
             destino.plan_actual = origen.plan_actual
             if origen.session_id is not None:
                 destino.session_id = origen.session_id

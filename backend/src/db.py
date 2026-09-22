@@ -313,6 +313,7 @@ MIGRATIONS = [
     "ALTER TABLE clients.cuotas ADD COLUMN IF NOT EXISTS numero_cuota INTEGER;",
     "DELETE FROM clients.cuota_eventos WHERE tipo = 'acumulacion_vencimiento';",
     "ALTER TABLE clients.cuota_comprobantes ADD COLUMN IF NOT EXISTS pago_id INTEGER REFERENCES clients.pagos(id) ON DELETE SET NULL;",
+    "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS emails_json TEXT;",
 ]
 
 
