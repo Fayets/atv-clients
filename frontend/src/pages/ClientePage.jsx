@@ -347,6 +347,64 @@ function extractEncargadoFromTitulo(titulo, clienteNombre) {
   return normalized
 }
 
+function ClassroomAccesoCard({ cliente, onSaveCanal }) {
+  const [copiado, setCopiado] = useState(false)
+  const clave = cliente.clave_classroom
+  const vence = cliente.fecha_vencimiento
+  const activo = cliente.estado_cliente !== 'inactivo' && (!vence || cliente.dias_restantes >= 0)
+
+  const copiar = async () => {
+    if (!clave) return
+    try {
+      await navigator.clipboard.writeText(clave)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 1500)
+    } catch {
+      // sin permiso de portapapeles: la clave igual queda a la vista
+    }
+  }
+
+  return (
+    <section className={styles.card}>
+      <h2 className={styles.cardTitle}>Acceso al Classroom</h2>
+      <div className={styles.grid}>
+        <div>
+          <span className={styles.label}>Usuario</span>
+          <p className={styles.classroomValue}>{cliente.email || '—'}</p>
+        </div>
+        <div>
+          <span className={styles.label}>Canal de Discord</span>
+          <InlineField
+            value={cliente.canal_discord || ''}
+            displayValue={cliente.canal_discord ? `#${cliente.canal_discord}` : '—'}
+            placeholder="ej. ema-romero"
+            onSave={onSaveCanal}
+          />
+        </div>
+        <div>
+          <span className={styles.label}>Clave</span>
+          {clave ? (
+            <button type="button" className={styles.classroomClave} onClick={copiar} title="Copiar clave">
+              <code>{clave}</code>
+              <i className={`ti ${copiado ? 'ti-check' : 'ti-copy'}`} />
+            </button>
+          ) : (
+            <p className={styles.muted}>Cargá el canal para generarla</p>
+          )}
+        </div>
+        <div>
+          <span className={styles.label}>Acceso</span>
+          <p className={activo ? styles.classroomActivo : styles.classroomBloqueado}>
+            {activo
+              ? (vence ? `Activo hasta ${formatDate(vence)}` : 'Activo (sin vencimiento)')
+              : 'Bloqueado'}
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function ClientePage({ clienteId }) {
   const [cliente, setCliente] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -592,6 +650,7 @@ export default function ClientePage({ clienteId }) {
       'duracion_dias',
       'fecha_vencimiento',
       'fecha_recompra',
+      'canal_discord',
     ]
     if (reloadFields.includes(field)) {
       await load()
@@ -1961,6 +2020,8 @@ export default function ClientePage({ clienteId }) {
             </div>
           </div>
         </section>
+
+        <ClassroomAccesoCard cliente={cliente} onSaveCanal={(value) => updateField('canal_discord', value || null)} />
 
         <div className={styles.quadGrid}>
           <section className={`${styles.quadTile} ${styles.brandTile}`}>

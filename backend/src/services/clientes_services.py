@@ -147,6 +147,20 @@ def _add_months(value: date, months: int) -> date:
     return date(year, month, day)
 
 
+def normalizar_canal(canal: str | None) -> str | None:
+    """'#Ema-Romero ' → 'ema-romero'. Vacío → None."""
+    if not canal:
+        return None
+    limpio = canal.strip().lstrip("#").strip().lower()
+    return limpio or None
+
+
+def clave_classroom(canal: str | None) -> str | None:
+    """La contraseña del Classroom es el canal con puntos: #ema-romero → ema.romero."""
+    limpio = normalizar_canal(canal)
+    return limpio.replace("-", ".") if limpio else None
+
+
 def calcular_estado_efectivo(cliente: Cliente) -> str:
     if cliente.estado_cliente in MANUAL_ESTADOS:
         return cliente.estado_cliente
@@ -682,6 +696,8 @@ def _cliente_base_dict(
         "nombre": cliente.nombre,
         "email": cliente.email,
         "emails": _emails_from_cliente(cliente),
+        "canal_discord": cliente.canal_discord,
+        "clave_classroom": clave_classroom(cliente.canal_discord),
         "plan_actual": cliente.plan_actual,
         "fecha_inicio": cliente.fecha_inicio,
         "fecha_vencimiento": cliente.fecha_vencimiento,
@@ -1598,6 +1614,8 @@ class ClientesServices:
 
             emails_in = payload.pop("emails", None) if "emails" in payload else None
             email_in = payload.pop("email", None) if "email" in payload else None
+            if "canal_discord" in payload:
+                payload["canal_discord"] = normalizar_canal(payload["canal_discord"])
 
             for field, value in payload.items():
                 setattr(cliente, field, value)

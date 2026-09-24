@@ -179,6 +179,7 @@ def _crear_cliente_desde_canal(canal: str, plan: str) -> dict:
         nombre=nombre,
         email=email,
         emails_json=json.dumps([email], ensure_ascii=False),
+        canal_discord=canal,
         plan_actual=plan_bd,
         fecha_inicio=fecha_inicio,
         duracion_dias=duracion,
@@ -459,8 +460,12 @@ def _upsert_transcript(
             cliente_obj = Cliente.get(id=cliente_id)
             if cliente_obj:
                 existente.cliente = cliente_obj
+                if not cliente_obj.canal_discord:
+                    cliente_obj.canal_discord = canal_name
     else:
         cliente_obj = Cliente.get(id=cliente_id) if cliente_id else None
+        if cliente_obj and not cliente_obj.canal_discord:
+            cliente_obj.canal_discord = canal_name
         DiscordTranscript(
             cliente=cliente_obj,
             canal=canal_name,

@@ -13,6 +13,7 @@ class Cliente(db.Entity):
     nombre = Required(str, 255)
     email = Required(str, 255)
     emails_json = Optional(str, nullable=True, sql_type="TEXT")
+    canal_discord = Optional(str, 100, nullable=True)
     plan_actual = Required(str, 50)
     session_id = Optional(int)
     fecha_inicio = Optional(date)

@@ -498,6 +498,8 @@ class ClienteListItem(BaseModel):
     nombre: str
     email: str
     emails: list[str] = Field(default_factory=list)
+    canal_discord: str | None = None
+    clave_classroom: str | None = None
     plan_actual: PlanActual
     fecha_inicio: date | None = None
     fecha_vencimiento: date | None = None
@@ -701,6 +703,7 @@ class ClienteCreate(BaseModel):
 class ClientePatch(BaseModel):
     email: EmailStr | None = None
     emails: list[EmailStr] | None = None
+    canal_discord: str | None = Field(default=None, max_length=100)
     estado_cliente: EstadoCliente | None = None
     plan_actual: PlanActual | None = None
     oportunidad: Oportunidad | None = None

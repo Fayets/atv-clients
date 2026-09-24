@@ -314,6 +314,20 @@ MIGRATIONS = [
     "DELETE FROM clients.cuota_eventos WHERE tipo = 'acumulacion_vencimiento';",
     "ALTER TABLE clients.cuota_comprobantes ADD COLUMN IF NOT EXISTS pago_id INTEGER REFERENCES clients.pagos(id) ON DELETE SET NULL;",
     "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS emails_json TEXT;",
+    # Canal de Discord del cliente: de ahí sale la clave del Classroom (#ema-romero → ema.romero).
+    "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS canal_discord VARCHAR(100);",
+    # Completa el canal de los que no lo tienen con el del transcript más reciente.
+    """
+    UPDATE clients.clientes c
+    SET canal_discord = t.canal
+    FROM (
+        SELECT DISTINCT ON (cliente_id) cliente_id, canal
+        FROM clients.discord_transcripts
+        WHERE cliente_id IS NOT NULL
+        ORDER BY cliente_id, creado_en DESC NULLS LAST, id DESC
+    ) t
+    WHERE t.cliente_id = c.id AND c.canal_discord IS NULL;
+    """,
 ]
 
 
