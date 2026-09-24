@@ -1777,9 +1777,20 @@
   min-width: 0;
 }
 
-.classroomValue {
-  font-size: 14px;
-  word-break: break-all;
+.claveClassroom {
+  margin-top: 14px;
+}
+
+.claveClassroomFila {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.claveClassroomCanal {
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .classroomClave {
@@ -1797,13 +1808,4 @@
 
 .classroomClave:hover {
   border-color: var(--label);
-}
-
-.classroomActivo {
-  font-size: 14px;
-}
-
-.classroomBloqueado {
-  font-size: 14px;
-  color: var(--red-bright);
 }

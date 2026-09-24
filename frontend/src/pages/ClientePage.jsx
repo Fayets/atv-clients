@@ -347,11 +347,9 @@ function extractEncargadoFromTitulo(titulo, clienteNombre) {
   return normalized
 }
 
-function ClassroomAccesoCard({ cliente, onSaveCanal }) {
+function ClaveClassroom({ cliente, onSaveCanal }) {
   const [copiado, setCopiado] = useState(false)
   const clave = cliente.clave_classroom
-  const vence = cliente.fecha_vencimiento
-  const activo = cliente.estado_cliente !== 'inactivo' && (!vence || cliente.dias_restantes >= 0)
 
   const copiar = async () => {
     if (!clave) return
@@ -365,43 +363,27 @@ function ClassroomAccesoCard({ cliente, onSaveCanal }) {
   }
 
   return (
-    <section className={styles.card}>
-      <h2 className={styles.cardTitle}>Acceso al Classroom</h2>
-      <div className={styles.grid}>
-        <div>
-          <span className={styles.label}>Usuario</span>
-          <p className={styles.classroomValue}>{cliente.email || '—'}</p>
-        </div>
-        <div>
-          <span className={styles.label}>Canal de Discord</span>
+    <div className={styles.claveClassroom}>
+      <span className={styles.label}>Clave Classroom</span>
+      <div className={styles.claveClassroomFila}>
+        {clave ? (
+          <button type="button" className={styles.classroomClave} onClick={copiar} title="Copiar clave">
+            <code>{clave}</code>
+            <i className={`ti ${copiado ? 'ti-check' : 'ti-copy'}`} />
+          </button>
+        ) : (
+          <span className={styles.muted}>Cargá el canal para generarla</span>
+        )}
+        <span className={styles.claveClassroomCanal}>
           <InlineField
             value={cliente.canal_discord || ''}
-            displayValue={cliente.canal_discord ? `#${cliente.canal_discord}` : '—'}
+            displayValue={cliente.canal_discord ? `#${cliente.canal_discord}` : 'Cargar canal'}
             placeholder="ej. ema-romero"
             onSave={onSaveCanal}
           />
-        </div>
-        <div>
-          <span className={styles.label}>Clave</span>
-          {clave ? (
-            <button type="button" className={styles.classroomClave} onClick={copiar} title="Copiar clave">
-              <code>{clave}</code>
-              <i className={`ti ${copiado ? 'ti-check' : 'ti-copy'}`} />
-            </button>
-          ) : (
-            <p className={styles.muted}>Cargá el canal para generarla</p>
-          )}
-        </div>
-        <div>
-          <span className={styles.label}>Acceso</span>
-          <p className={activo ? styles.classroomActivo : styles.classroomBloqueado}>
-            {activo
-              ? (vence ? `Activo hasta ${formatDate(vence)}` : 'Activo (sin vencimiento)')
-              : 'Bloqueado'}
-          </p>
-        </div>
+        </span>
       </div>
-    </section>
+    </div>
   )
 }
 
@@ -1945,6 +1927,7 @@ export default function ClientePage({ clienteId }) {
                 }))
               }}
             />
+            <ClaveClassroom cliente={cliente} onSaveCanal={(value) => updateField('canal_discord', value || null)} />
           </div>
           <div className={styles.headerActions}>
             <PlanBadge plan={cliente.plan_actual} />
@@ -2020,8 +2003,6 @@ export default function ClientePage({ clienteId }) {
             </div>
           </div>
         </section>
-
-        <ClassroomAccesoCard cliente={cliente} onSaveCanal={(value) => updateField('canal_discord', value || null)} />
 
         <div className={styles.quadGrid}>
           <section className={`${styles.quadTile} ${styles.brandTile}`}>
