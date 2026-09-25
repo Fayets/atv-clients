@@ -173,6 +173,11 @@ MIGRATIONS = [
         ));
     """,
     """
+    ALTER TABLE clients.cuotas DROP CONSTRAINT IF EXISTS cuotas_estado_check;
+    ALTER TABLE clients.cuotas ADD CONSTRAINT cuotas_estado_check
+        CHECK (estado IN ('pendiente', 'parcialmente_pagada', 'pagado', 'vencido')) NOT VALID;
+    """,
+    """
     CREATE TABLE IF NOT EXISTS clients.analisis_cash (
         id SERIAL PRIMARY KEY,
         total_usd NUMERIC(14, 2) NOT NULL DEFAULT 0,
