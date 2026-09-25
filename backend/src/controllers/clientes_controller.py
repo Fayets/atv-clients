@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -43,6 +44,8 @@ from src.schemas import (
 )
 from src.services.clientes_services import ClientesServices
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 service = ClientesServices()
 
@@ -588,8 +591,12 @@ def registrar_pago(
         return pago
     except HTTPException as e:
         raise e
-    except Exception:
-        raise HTTPException(status_code=500, detail="Error al registrar el pago.")
+    except Exception as exc:
+        logger.exception("registrar_pago cliente=%s cuota=%s", cliente_id, body.cuota_id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al registrar el pago: {type(exc).__name__}: {exc}",
+        )
 
 
 @router.post("/{cliente_id}/imputaciones/{imputacion_id}/mover")
