@@ -4,6 +4,9 @@ import { MESES_DURACION, PLANES_CLIENTE } from '../constants/options'
 import {
   calcFechaVencimiento,
   formatDate,
+  formatUsd,
+  MESES_POR_PLAN,
+  VALOR_POR_PLAN,
   monthsToDays,
   resolveDuracionMeses,
   todayLocalISO,
@@ -37,6 +40,14 @@ export default function NuevoClienteForm({ onCreated, onCancel }) {
   const update = (field, value) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value }
+      if (field === 'plan_actual') {
+        // Precarga el valor del programa como deuda mientras no lo hayan tocado a mano.
+        const valorPrevio = VALOR_POR_PLAN[prev.plan_actual]
+        const adeudado = prev.total_adeudado_usd
+        if (adeudado === '' || Number(adeudado) === valorPrevio) {
+          next.total_adeudado_usd = VALOR_POR_PLAN[value] ? String(VALOR_POR_PLAN[value]) : ''
+        }
+      }
       if (field === 'fecha_inicio' || field === 'duracion_meses' || field === 'plan_actual') {
         next.fecha_vencimiento = calcFechaVencimiento(
           next.fecha_inicio,
@@ -146,6 +157,11 @@ export default function NuevoClienteForm({ onCreated, onCancel }) {
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
+          {VALOR_POR_PLAN[form.plan_actual] ? (
+            <span className={styles.hint}>
+              Valor {formatUsd(VALOR_POR_PLAN[form.plan_actual])} contado · {MESES_POR_PLAN[form.plan_actual]} meses
+            </span>
+          ) : null}
         </label>
         <label className={styles.field}>
           <span className={styles.label}>Fecha inicio</span>

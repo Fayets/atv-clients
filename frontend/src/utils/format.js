@@ -85,6 +85,13 @@ export const MESES_POR_PLAN = {
   advantage: 4,
 }
 
+// Valor de lista (contado) de las ofertas 2026. Los programas viejos no tienen precio fijo.
+export const VALOR_POR_PLAN = {
+  entry: 5000,
+  mid: 14000,
+  high: 25000,
+}
+
 export function daysToMonths(days) {
   if (days === null || days === undefined || days === '') return null
   const num = Number(days)
