@@ -20,6 +20,9 @@ export const MESES_DURACION = Array.from({ length: 12 }, (_, index) => {
 })
 
 export const PLANES_CLIENTE = [
+  { value: 'entry', label: 'Entry Level' },
+  { value: 'mid', label: 'Mid Level' },
+  { value: 'high', label: 'High Level' },
   { value: 'mentoria', label: 'Mentoría' },
   { value: 'boost', label: 'Boost' },
   { value: 'advantage', label: 'Advantage' },
@@ -32,6 +35,8 @@ export const PLANES = [
 
 export const OPORTUNIDADES = [
   { value: '', label: 'Sin oportunidad' },
+  { value: 'upsell_mid', label: 'Upsell Mid Level' },
+  { value: 'upsell_high', label: 'Upsell High Level' },
   { value: 'upsell_boost', label: 'Upsell Boost' },
   { value: 'upsell_advantage', label: 'Upsell Advantage' },
   { value: 'recompra', label: 'Recompra' },

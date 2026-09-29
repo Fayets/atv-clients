@@ -21,6 +21,12 @@
   --badge-mentoria-text: #e6a700;
   --badge-advantage-bg: #0e2a14;
   --badge-advantage-text: #4ade80;
+  --badge-entry-bg: #14202e;
+  --badge-entry-text: #8fb4e8;
+  --badge-mid-bg: #221733;
+  --badge-mid-text: #c4a4ff;
+  --badge-high-bg: #33180a;
+  --badge-high-text: #ff9a52;
 
   --badge-vencido-bg: #3d0000;
   --badge-vencido-text: #ff3333;
@@ -63,6 +69,12 @@
   --badge-mentoria-text: #9a6700;
   --badge-advantage-bg: #e8f7ec;
   --badge-advantage-text: #15803d;
+  --badge-entry-bg: #e8eef8;
+  --badge-entry-text: #1e4f91;
+  --badge-mid-bg: #f1eafd;
+  --badge-mid-text: #6b35c4;
+  --badge-high-bg: #fdeee3;
+  --badge-high-text: #b4480c;
 
   --badge-vencido-bg: #fde8e8;
   --badge-vencido-text: #b91c1c;

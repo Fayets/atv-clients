@@ -26,3 +26,21 @@
   color: var(--badge-advantage-text);
   border-color: color-mix(in srgb, var(--badge-advantage-text) 25%, transparent);
 }
+
+.entry {
+  background: var(--badge-entry-bg);
+  color: var(--badge-entry-text);
+  border-color: color-mix(in srgb, var(--badge-entry-text) 25%, transparent);
+}
+
+.mid {
+  background: var(--badge-mid-bg);
+  color: var(--badge-mid-text);
+  border-color: color-mix(in srgb, var(--badge-mid-text) 25%, transparent);
+}
+
+.high {
+  background: var(--badge-high-bg);
+  color: var(--badge-high-text);
+  border-color: color-mix(in srgb, var(--badge-high-text) 25%, transparent);
+}

@@ -91,10 +91,19 @@ ESTADOS_VALIDOS = frozenset(
         "inactivo",
     }
 )
-OPORTUNIDADES_VALIDAS = frozenset({"upsell_boost", "upsell_advantage", "recompra", "consultar"})
-PLANES_VALIDOS = frozenset({"mentoria", "boost", "advantage"})
-PLAN_ORDEN = {"boost": 0, "advantage": 1, "mentoria": 2}
-DURACION_POR_PLAN = {"boost": 240, "mentoria": 120, "advantage": 120}
+OPORTUNIDADES_VALIDAS = frozenset(
+    {"upsell_mid", "upsell_high", "upsell_boost", "upsell_advantage", "recompra", "consultar"}
+)
+PLANES_VALIDOS = frozenset({"entry", "mid", "high", "mentoria", "boost", "advantage"})
+PLAN_ORDEN = {"high": 0, "mid": 1, "entry": 2, "boost": 3, "advantage": 4, "mentoria": 5}
+DURACION_POR_PLAN = {
+    "entry": 120,
+    "mid": 120,
+    "high": 180,
+    "boost": 240,
+    "mentoria": 120,
+    "advantage": 120,
+}
 PRIORIDADES_VALIDAS = frozenset({"alta", "media", "baja"})
 RESPONSABLES_VALIDOS = frozenset({"lucas", "juampi", "juan", "ale"})
 RESPONSABLE_LABELS = {
@@ -971,6 +980,8 @@ ESTADO_LABELS = {
 }
 
 OPORTUNIDAD_LABELS = {
+    "upsell_mid": "Upsell → Mid Level",
+    "upsell_high": "Upsell → High Level",
     "upsell_boost": "Upsell → Boost",
     "upsell_advantage": "Upsell → Advantage",
     "recompra": "Recompra de programa",

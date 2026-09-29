@@ -3358,7 +3358,7 @@ export default function ClientePage({ clienteId }) {
                   options={RESPONSABLES}
                   onSave={(value) => updateField('responsable', value || null)}
                 />
-                {!cliente.responsable && ['upsell_boost', 'upsell_advantage', 'recompra'].includes(cliente.oportunidad) ? (
+                {!cliente.responsable && ['upsell_mid', 'upsell_high', 'upsell_boost', 'upsell_advantage', 'recompra'].includes(cliente.oportunidad) ? (
                   <p className={styles.muted} style={{ marginTop: 6 }}>
                     Asigná un responsable para que nadie más pitchee este cliente.
                   </p>

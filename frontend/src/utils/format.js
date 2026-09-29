@@ -77,6 +77,9 @@ export function calcFechaVencimiento(fechaInicio, plan, duracionMeses) {
 export const DIAS_POR_MES = 30
 
 export const MESES_POR_PLAN = {
+  entry: 4,
+  mid: 4,
+  high: 6,
   boost: 8,
   mentoria: 4,
   advantage: 4,
@@ -144,6 +147,9 @@ export function formatTranscriptFechasAR(text) {
 
 export function formatPlan(plan) {
   const labels = {
+    entry: 'Entry Level',
+    mid: 'Mid Level',
+    high: 'High Level',
     mentoria: 'Mentoría',
     boost: 'Boost',
     advantage: 'Advantage',
@@ -167,6 +173,8 @@ export function formatEstado(estado) {
 
 export function formatOportunidad(value) {
   const labels = {
+    upsell_mid: 'Upsell Mid Level',
+    upsell_high: 'Upsell High Level',
     upsell_boost: 'Upsell Boost',
     upsell_advantage: 'Upsell Advantage',
     recompra: 'Recompra',

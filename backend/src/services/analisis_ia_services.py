@@ -51,7 +51,7 @@ CAMPOS_SCHEMA = frozenset({
 })
 CATEGORIAS_VALIDAS = frozenset({"win", "upsell"})
 URGENCIAS_VALIDAS = frozenset({"alta", "media", "baja"})
-PROGRAMAS_VALIDOS = frozenset({"mentoria", "advantage", "boost"})
+PROGRAMAS_VALIDOS = frozenset({"entry", "mid", "high", "mentoria", "advantage", "boost"})
 
 _clientes_service = ClientesServices()
 

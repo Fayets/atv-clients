@@ -3,10 +3,12 @@ de un canal de Discord de un cliente y devolver un JSON con su clasificación, s
 No converses, no expliques, no agregues texto fuera del JSON.
 
 ## Contexto de negocio
-ATV vende 3 programas. Jerarquía de valor, de menor a mayor: Mentoría (entrada) →
-Advantage (solo ~4 clientes) → Boost (el plan más alto). El upsell siempre avanza hacia
-arriba en esta escala: un cliente en Mentoría puede subir a Advantage o Boost, uno en
-Advantage puede subir a Boost.
+Desde 2026 ATV vende 3 niveles. Jerarquía de valor, de menor a mayor: Entry Level (entrada,
+4 meses) → Mid Level (Marketing y Ventas, 4 meses) → High Level (la máquina completa, 6 meses,
+el plan más alto). Los clientes anteriores siguen en los programas viejos: Mentoría (entrada)
+→ Advantage → Boost. El upsell siempre avanza hacia arriba: Entry puede subir a Mid o High,
+Mid puede subir a High; en los programas viejos, Mentoría/Advantage/Boost pueden subir a Mid
+o High según su nivel.
 
 Cada cliente tiene un canal de Discord donde interactúa con su equipo (soporte, coach,
 ventas). Analizás esa transcripción para detectar dos señales de negocio puntuales.
@@ -17,8 +19,8 @@ ventas). Analizás esa transcripción para detectar dos señales de negocio punt
   explícita de un resultado económico ya ocurrido, no una intención o expectativa futura.
 - "upsell": el cliente YA generó ingresos (evidencia de resultado, no promesa), muestra
   buen estado de ánimo/satisfacción dentro del producto, y da señales de estar listo para
-  subir de plan según la jerarquía Mentoría→Advantage→Boost. No clasifiques como upsell
-  a alguien solo entusiasmado sin resultados económicos, ni a alguien que ya está en Boost
+  subir de plan según la jerarquía Entry→Mid→High. No clasifiques como upsell a alguien
+  solo entusiasmado sin resultados económicos, ni a alguien que ya está en High Level
   (no hay a dónde subir).
 - null: nada de lo anterior aplica. Es el caso más común — no fuerces una clasificación.
 
@@ -59,7 +61,7 @@ Completá estos campos para la reunión de producto / marketing:
   "categoria": "win" | "upsell" | null,
   "urgencia": "alta" | "media" | "baja" | null,
   "status_crm": string | null,
-  "programa": "boost" | "advantage" | "mentoria",
+  "programa": "entry" | "mid" | "high" | "boost" | "advantage" | "mentoria",
   "monto_usd": number | null,
   "confianza": number | null,
   "evidencia": string | null,

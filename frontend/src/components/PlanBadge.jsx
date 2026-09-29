@@ -2,6 +2,9 @@ import { formatPlan } from '../utils/format'
 import styles from './PlanBadge.module.css'
 
 const PLAN_CLASS = {
+  entry: styles.entry,
+  mid: styles.mid,
+  high: styles.high,
   boost: styles.boost,
   mentoria: styles.mentoria,
   advantage: styles.advantage,

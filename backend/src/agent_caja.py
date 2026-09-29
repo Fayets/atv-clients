@@ -182,6 +182,8 @@ def obtener_proyecciones(month: str | None) -> dict:
 
 def _plan_label(plan_actual: str | None) -> str:
     plan = (plan_actual or "").strip().lower()
+    if plan in ("entry", "mid", "high"):
+        return f"{plan.capitalize()} Level"
     if "boost" in plan:
         return "Boost"
     if "advantage" in plan:
