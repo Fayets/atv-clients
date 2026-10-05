@@ -1,6 +1,11 @@
 from decouple import config
 from fastapi import HTTPException, Request
-from src.session_utils import SESSION_COOKIE_NAME, verify_session_token
+from src.session_utils import (
+    SESSION_COOKIE_NAME,
+    UNLOCK_COOKIE_NAME,
+    verify_session_token,
+    verify_unlock_token,
+)
 
 ADMIN_API_KEY = config("ADMIN_API_KEY", default="")
 MOCK_AUTH = config("MOCK_AUTH", default=False, cast=bool)
@@ -15,6 +20,8 @@ def get_current_user(request: Request) -> str:
     username = verify_session_token(token or "")
     if not username:
         raise HTTPException(status_code=401, detail="Sesión inválida o expirada.")
+    if not verify_unlock_token(request.cookies.get(UNLOCK_COOKIE_NAME) or "", username):
+        raise HTTPException(status_code=403, detail="Panel bloqueado: falta la contraseña.")
     return username
 
 

@@ -2,6 +2,7 @@ const MOCK_AUTH = import.meta.env.VITE_MOCK_AUTH === 'true'
 
 const MOCK_SESSION = {
   username: 'franco',
+  unlocked: true,
 }
 
 export async function getSession() {
@@ -26,4 +27,21 @@ export async function getSession() {
 
 export function isMockAuth() {
   return MOCK_AUTH
+}
+
+export async function unlockPanel(password) {
+  const res = await fetch('/api/auth/unlock', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+  if (res.ok) return null
+  try {
+    const body = await res.json()
+    if (typeof body.detail === 'string') return body.detail
+  } catch {
+    // ignore parse errors
+  }
+  return 'No se pudo validar la contraseña.'
 }
