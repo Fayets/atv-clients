@@ -1724,6 +1724,8 @@ class ClientesServices:
             if origen.observaciones:
                 destino.observaciones = origen.observaciones
             destino.fecha_baja = origen.fecha_baja
+            if origen.canal_discord and not destino.canal_discord:
+                destino.canal_discord = origen.canal_discord
 
             _recalcular_totales_cliente(destino)
             origen.delete()

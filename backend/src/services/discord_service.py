@@ -55,6 +55,9 @@ PLANES_EQUIVALENTES = {
     "principiantes": {"principiantes", "mentoria"},
     "mentoria": {"mentoria", "avanzados", "principiantes"},
 }
+# Las ofertas 2026 no tienen categoría propia en Discord: un cliente pasado a
+# Entry/Mid/High sigue en el canal de su categoría vieja.
+PLANES_2026 = {"entry", "mid", "high"}
 
 DURACION_POR_PLAN = {
     "boost": 240,
@@ -104,17 +107,22 @@ def _slug_similar(a: str, b: str) -> bool:
 
 @db_session
 def buscar_cliente(canal_name: str, plan: str | None = None) -> int | None:
-    """Busca cliente en BD por nombre derivado del canal. Retorna id o None."""
+    """Busca cliente en BD: primero por canal_discord, después por nombre derivado del canal."""
     nombre = canal_a_nombre(canal_name)
     nombre_lower = nombre.lower()
     slug_canal = canal_name.lower()
 
     clientes = list(Cliente.select())
+    # El canal cargado en la ficha manda, sin importar el plan (cubre migraciones y renombres).
+    por_canal = [c for c in clientes if (c.canal_discord or "").strip().lstrip("#").lower() == slug_canal]
+    if por_canal:
+        return por_canal[0].id
+
     if plan:
         # avanzados / principiantes son la partición de la vieja "mentoria": un cliente
         # cargado como mentoria sigue siendo el mismo cliente aunque su canal esté hoy
         # en "Canales privados avanzados" o "principiantes".
-        planes = PLANES_EQUIVALENTES.get(plan, {plan})
+        planes = PLANES_EQUIVALENTES.get(plan, {plan}) | PLANES_2026
         clientes = [c for c in clientes if c.plan_actual in planes]
 
     for c in clientes:
