@@ -774,6 +774,132 @@
   background: #6172f3;
 }
 
+/* Caja 1 partida en dos columnas (cuotas de venta / ventas nuevas) */
+.popupWide {
+  width: min(1180px, 100%);
+  max-height: min(84vh, 820px);
+}
+
+.cajaSplitGrid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 0.5px solid var(--border);
+}
+
+.cajaSplitCol {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.cajaSplitCol + .cajaSplitCol {
+  border-left: 0.5px solid var(--border);
+}
+
+.cajaSplitColOver {
+  background: color-mix(in srgb, var(--badge-advantage-bg) 70%, transparent);
+  box-shadow: inset 0 0 0 2px var(--badge-advantage-text);
+}
+
+.cajaSplitColHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--surface2);
+  border-bottom: 0.5px solid var(--border);
+}
+
+.cajaSplitColTitle {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cajaSplitColMeta {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cajaSplitColMeta strong {
+  color: var(--text);
+}
+
+.cajaSplitList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cajaSplitEmpty {
+  margin: 0;
+  padding: 28px 18px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.cajaSplitRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.4rem 6.4rem 5rem;
+  align-items: center;
+  column-gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--border);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.cajaSplitRow:hover {
+  background: var(--surface2);
+}
+
+.cajaSplitRowDragging {
+  opacity: 0.35;
+}
+
+.cajaSplitNameCell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cajaSplitFecha {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cajaSplitGhost {
+  position: fixed;
+  z-index: 1000;
+  transform: translate(-50%, -120%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .heroSubtitle {
     display: none;
@@ -804,6 +930,24 @@
       minmax(0, 1.4fr)
       6.4rem
       4.6rem;
+  }
+
+  .cajaSplitGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .cajaSplitCol + .cajaSplitCol {
+    border-left: none;
+    border-top: 0.5px solid var(--border);
+  }
+
+  .cajaSplitRow {
+    grid-template-columns: minmax(0, 1fr) 6rem 4.8rem;
+  }
+
+  .cajaSplitRow .detailPlan {
+    display: none;
   }
 
   .weekHead,

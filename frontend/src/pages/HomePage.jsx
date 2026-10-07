@@ -474,6 +474,245 @@ function PagosPopup({ title, hint, items, onClose, hidePlan = false }) {
   )
 }
 
+// Clasificación manual de Caja 1 para la contadora: solo vive en este navegador.
+const LONG_PRESS_MS = 220
+const NUEVAS_STORAGE_PREFIX = 'atv-clients:caja1-ventas-nuevas:'
+
+// Clave estable por pago (sin posición en la lista, para que un pago nuevo no corra al resto).
+function cobradoKeys(items) {
+  const seen = new Map()
+  return items.map((item) => {
+    const base = [item.cliente_id, item.subtitulo, item.fecha, item.monto_usd].join('|')
+    const n = seen.get(base) || 0
+    seen.set(base, n + 1)
+    return n ? `${base}#${n}` : base
+  })
+}
+
+function readNuevas(periodo) {
+  try {
+    const raw = window.localStorage.getItem(NUEVAS_STORAGE_PREFIX + periodo)
+    const parsed = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(parsed) ? parsed : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function writeNuevas(periodo, keys) {
+  try {
+    window.localStorage.setItem(NUEVAS_STORAGE_PREFIX + periodo, JSON.stringify([...keys]))
+  } catch {
+    // sin storage: la clasificación dura lo que la pestaña
+  }
+}
+
+function SplitRow({ item, dragging, onPressStart }) {
+  const { tag, extra } = parseSubtitulo(item.subtitulo)
+  const variant = tag ? tagVariant(tag) : 'default'
+  const fechaTxt = extra || (item.fecha ? formatDate(item.fecha) : '')
+  return (
+    <li
+      className={[styles.cajaSplitRow, dragging ? styles.cajaSplitRowDragging : ''].filter(Boolean).join(' ')}
+      onPointerDown={onPressStart}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <span className={styles.cajaSplitNameCell}>
+        <span className={styles.detailName}>{item.nombre}</span>
+        <span className={styles.cajaSplitFecha}>{fechaTxt}</span>
+      </span>
+      <span className={styles.detailTagCell}>
+        {tag ? (
+          <span className={`${styles.detailTag} ${styles[TAG_CLASS[variant] || TAG_CLASS.default]}`}>
+            {tag}
+          </span>
+        ) : null}
+      </span>
+      <span className={styles.detailPlan}>
+        <PlanBadge plan={item.plan_actual} />
+      </span>
+      <span className={styles.detailAmount}>{formatUsd(item.monto_usd)}</span>
+    </li>
+  )
+}
+
+function CobradoSplitPopup({ title, items, periodo, onClose }) {
+  const [nuevas, setNuevas] = useState(() => readNuevas(periodo))
+  const [drag, setDrag] = useState(null)
+  const [overCol, setOverCol] = useState(null)
+  const pressRef = useRef(null)
+  const colRefs = { cuotas: useRef(null), nuevas: useRef(null) }
+
+  useEffect(() => {
+    setNuevas(readNuevas(periodo))
+  }, [periodo])
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  const keys = cobradoKeys(items)
+  const keyed = items.map((item, index) => ({ item, key: keys[index] }))
+  const columnas = {
+    cuotas: keyed.filter((row) => !nuevas.has(row.key)),
+    nuevas: keyed.filter((row) => nuevas.has(row.key)),
+  }
+
+  const colAt = (x, y) => {
+    for (const id of ['cuotas', 'nuevas']) {
+      const rect = colRefs[id].current?.getBoundingClientRect()
+      if (rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return id
+    }
+    return null
+  }
+
+  const moveTo = (key, col) => {
+    setNuevas((prev) => {
+      const next = new Set(prev)
+      if (col === 'nuevas') next.add(key)
+      else next.delete(key)
+      writeNuevas(periodo, next)
+      return next
+    })
+  }
+
+  const handlePressStart = (row, from) => (event) => {
+    if (event.button !== undefined && event.button !== 0) return
+    const startX = event.clientX
+    const startY = event.clientY
+    const state = { row, from, startX, startY, started: false, moved: false }
+    pressRef.current = state
+
+    const timer = window.setTimeout(() => {
+      if (pressRef.current !== state || state.moved) return
+      state.started = true
+      setDrag({ key: row.key, item: row.item, from, x: startX, y: startY })
+      setOverCol(from)
+      if (navigator.vibrate) navigator.vibrate(15)
+    }, LONG_PRESS_MS)
+
+    const onMove = (ev) => {
+      if (!state.started) {
+        // Si se mueve antes del long press es scroll, no arrastre.
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) state.moved = true
+        return
+      }
+      ev.preventDefault()
+      setDrag((d) => (d ? { ...d, x: ev.clientX, y: ev.clientY } : d))
+      setOverCol(colAt(ev.clientX, ev.clientY))
+    }
+
+    const finish = (ev, cancelled) => {
+      window.clearTimeout(timer)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onCancel)
+      document.removeEventListener('touchmove', blockScroll)
+      if (state.started) {
+        const target = cancelled ? null : colAt(ev.clientX, ev.clientY)
+        if (target && target !== from) moveTo(row.key, target)
+        setDrag(null)
+        setOverCol(null)
+      } else if (!cancelled && !state.moved) {
+        navigate(`/cliente/${row.item.cliente_id}`)
+      }
+      pressRef.current = null
+    }
+    const onUp = (ev) => finish(ev, false)
+    const onCancel = (ev) => finish(ev, true)
+    const blockScroll = (ev) => {
+      if (state.started) ev.preventDefault()
+    }
+
+    document.addEventListener('pointermove', onMove, { passive: false })
+    document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onCancel)
+    document.addEventListener('touchmove', blockScroll, { passive: false })
+  }
+
+  const total = (rows) => rows.reduce((acc, row) => acc + Number(row.item.monto_usd || 0), 0)
+
+  const renderCol = (id, label) => {
+    const rows = columnas[id]
+    return (
+      <section
+        ref={colRefs[id]}
+        className={[
+          styles.cajaSplitCol,
+          drag && overCol === id && drag.from !== id ? styles.cajaSplitColOver : '',
+        ].filter(Boolean).join(' ')}
+      >
+        <header className={styles.cajaSplitColHead}>
+          <span className={styles.cajaSplitColTitle}>{label}</span>
+          <span className={styles.cajaSplitColMeta}>
+            {rows.length} {rows.length === 1 ? 'pago' : 'pagos'} · <strong>{formatUsd(total(rows))}</strong>
+          </span>
+        </header>
+        {rows.length === 0 ? (
+          <p className={styles.cajaSplitEmpty}>
+            {id === 'nuevas' ? 'Mantené presionado un pago y soltalo acá.' : 'Sin pagos.'}
+          </p>
+        ) : (
+          <ul className={styles.cajaSplitList}>
+            {rows.map((row) => (
+              <SplitRow
+                key={row.key}
+                item={row.item}
+                dragging={drag?.key === row.key}
+                onPressStart={handlePressStart(row, id)}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+    )
+  }
+
+  return (
+    <div className={styles.popupBackdrop} onClick={onClose} role="presentation">
+      <div
+        className={`${styles.popup} ${styles.popupWide}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pagos-popup-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={styles.popupHead}>
+          <div>
+            <h2 id="pagos-popup-title" className={styles.popupTitle}>{title}</h2>
+            <p className={styles.popupMeta}>
+              {items.length} pagos · mantené presionado y arrastrá entre columnas
+            </p>
+          </div>
+          <button type="button" className={styles.detailClose} onClick={onClose}>
+            <i className="ti ti-x" />
+            Cerrar
+          </button>
+        </div>
+        <div className={styles.cajaSplitGrid}>
+          {renderCol('cuotas', 'Cuotas de venta')}
+          {renderCol('nuevas', 'Ventas nuevas')}
+        </div>
+      </div>
+      {drag ? (
+        <div className={styles.cajaSplitGhost} style={{ left: drag.x, top: drag.y }}>
+          <span className={styles.detailName}>{drag.item.nombre}</span>
+          <span className={styles.detailAmount}>{formatUsd(drag.item.monto_usd)}</span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export default function HomePage() {
   const mesesDisponibles = useMemo(() => monthOptions(), [])
   const [mes, setMes] = useState(mesesDisponibles[0].mes)
@@ -662,6 +901,7 @@ export default function HomePage() {
       title: `Cobrado · Caja 1 — ${resumen?.mes_label || ''}`,
       hint: `${cobradoVenta.length} pagos · nuevas ventas y cuotas`,
       items: cobradoVenta,
+      split: true,
     },
     caja2: {
       title: `Cobrado · Caja 2 — ${resumen?.mes_label || ''}`,
@@ -819,7 +1059,14 @@ export default function HomePage() {
           actualizadoLabel={data?.ultima_actualizacion_label}
         />
 
-        {popup ? (
+        {popup?.split ? (
+          <CobradoSplitPopup
+            title={popup.title}
+            items={popup.items}
+            periodo={`${anio}-${String(mes).padStart(2, '0')}`}
+            onClose={closePopup}
+          />
+        ) : popup ? (
           <PagosPopup
             title={popup.title}
             hint={popup.hint}
