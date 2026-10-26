@@ -8,6 +8,7 @@ const PLAN_CLASS = {
   boost: styles.boost,
   mentoria: styles.mentoria,
   advantage: styles.advantage,
+  '2k': styles.advantage,
 }
 
 export default function PlanBadge({ plan }) {

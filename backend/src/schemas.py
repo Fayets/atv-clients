@@ -26,7 +26,7 @@ EstadoEfectivo = Literal[
     "inactivo",
 ]
 
-PlanActual = Literal["entry", "mid", "high", "mentoria", "boost", "advantage"]
+PlanActual = Literal["entry", "mid", "high", "mentoria", "boost", "advantage", "2k"]
 Oportunidad = Literal["upsell_mid", "upsell_high", "upsell_boost", "upsell_advantage", "recompra", "consultar"]
 PrioridadCobro = Literal["alta", "media", "baja"]
 Responsable = Literal["lucas", "juampi", "juan", "ale"]

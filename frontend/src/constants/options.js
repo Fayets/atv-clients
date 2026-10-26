@@ -26,6 +26,7 @@ export const PLANES_CLIENTE = [
   { value: 'mentoria', label: 'Mentoría' },
   { value: 'boost', label: 'Boost' },
   { value: 'advantage', label: 'Advantage' },
+  { value: '2k', label: '2K' },
 ]
 
 export const PLANES = [
