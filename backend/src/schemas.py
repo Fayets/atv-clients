@@ -516,6 +516,7 @@ class ClienteListItem(BaseModel):
     fathom_last_call_url: str | None = None
     miros: list[MiroBoardResponse] = Field(default_factory=list)
     ultimo_proximos_pasos: ProximosPasosResponse | None = None
+    solo_sena: bool = False
 
 
 class CobranzaItem(ClienteListItem):

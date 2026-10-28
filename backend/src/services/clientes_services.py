@@ -691,6 +691,14 @@ def _cuota_to_dict(cuota: Cuota, cuotas_cliente: list[Cuota] | None = None) -> d
     }
 
 
+def _solo_sena(cliente: Cliente, cuotas: list[Cuota]) -> bool:
+    """Dejó la seña y nada más: sin canal todavía y la seña es lo único pagado. No cuenta como vigente."""
+    if cliente.canal_discord:
+        return False
+    pagadas = [c for c in cuotas if c.estado == "pagado"]
+    return bool(pagadas) and all(c.notas == "sena" for c in pagadas)
+
+
 def _cliente_base_dict(
     cliente: Cliente,
     cache: _ClienteRelationsCache | None = None,
@@ -726,6 +734,7 @@ def _cliente_base_dict(
         "miros": [_miro_board_to_dict(m) for m in miros],
         "ultimo_proximos_pasos": _proximos_pasos_to_dict(pasos[0]) if pasos else None,
         "fecha_alta": cliente.fecha_alta,
+        "solo_sena": _solo_sena(cliente, cache.cuotas.get(cliente.id, []) if cache else list(cliente.cuotas)),
     }
 
 

@@ -283,7 +283,7 @@ export default function ClientesPage() {
   }, [clientes.length, page])
 
   const metrics = useMemo(() => {
-    const vigentes = allClientes.filter((c) => c.estado_efectivo === 'vigente' || c.estado_efectivo === 'estan_bien').length
+    const vigentes = allClientes.filter((c) => (c.estado_efectivo === 'vigente' || c.estado_efectivo === 'estan_bien') && !c.solo_sena).length
     const proximos = allClientes.filter((c) => c.estado_efectivo === 'proximo_a_vencer').length
     const vencidos = allClientes.filter((c) => c.estado_efectivo === 'vencido').length
     const totalAdeudado = allClientes.reduce((sum, c) => sum + Number(c.total_adeudado_usd || 0), 0)
