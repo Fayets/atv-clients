@@ -96,6 +96,31 @@ function planLabel(plan) {
   return PLANES_CLIENTE.find((option) => option.value === plan)?.label || plan || '—'
 }
 
+function DetalleMetrica({ lista, deuda, aparte, onAbrir }) {
+  const fila = (c) => (
+    <li key={c.id}>
+      <button type="button" className={styles.detalleFila} onClick={() => onAbrir(c.id)}>
+        <span className={styles.detalleNombre}>{c.nombre}</span>
+        <PlanBadge plan={c.plan_actual} />
+        <span className={styles.detalleDato}>
+          {deuda ? formatUsd(c.total_adeudado_usd) : c.fecha_vencimiento ? `vence ${formatDate(c.fecha_vencimiento)}` : 'sin vencimiento'}
+        </span>
+      </button>
+    </li>
+  )
+  return (
+    <section className={styles.detalle}>
+      {lista.length ? <ul className={styles.detalleLista}>{lista.map(fila)}</ul> : <p className={styles.detalleVacio}>Nadie.</p>}
+      {aparte?.length ? (
+        <>
+          <h3 className={styles.detalleTitulo}>No cuentan: solo dejaron seña · {aparte.length}</h3>
+          <ul className={styles.detalleLista}>{aparte.map(fila)}</ul>
+        </>
+      ) : null}
+    </section>
+  )
+}
+
 export default function ClientesPage() {
   const initialFilters = useMemo(() => loadInitialFilters(), [])
   const [clientes, setClientes] = useState([])
@@ -283,12 +308,19 @@ export default function ClientesPage() {
   }, [clientes.length, page])
 
   const metrics = useMemo(() => {
-    const vigentes = allClientes.filter((c) => (c.estado_efectivo === 'vigente' || c.estado_efectivo === 'estan_bien') && !c.solo_sena).length
-    const proximos = allClientes.filter((c) => c.estado_efectivo === 'proximo_a_vencer').length
-    const vencidos = allClientes.filter((c) => c.estado_efectivo === 'vencido').length
+    const porNombre = (a, b) => a.nombre.localeCompare(b.nombre)
+    const vigentes = allClientes.filter((c) => (c.estado_efectivo === 'vigente' || c.estado_efectivo === 'estan_bien') && !c.solo_sena).sort(porNombre)
+    const senas = allClientes.filter((c) => (c.estado_efectivo === 'vigente' || c.estado_efectivo === 'estan_bien') && c.solo_sena).sort(porNombre)
+    const porVencer = (a, b) => String(a.fecha_vencimiento || '').localeCompare(String(b.fecha_vencimiento || ''))
+    const proximos = allClientes.filter((c) => c.estado_efectivo === 'proximo_a_vencer').sort(porVencer)
+    const vencidos = allClientes.filter((c) => c.estado_efectivo === 'vencido').sort(porVencer)
+    const deudores = allClientes.filter((c) => Number(c.total_adeudado_usd || 0) > 0)
+      .sort((a, b) => Number(b.total_adeudado_usd) - Number(a.total_adeudado_usd))
     const totalAdeudado = allClientes.reduce((sum, c) => sum + Number(c.total_adeudado_usd || 0), 0)
-    return { vigentes, proximos, vencidos, totalAdeudado }
+    return { vigentes, senas, proximos, vencidos, deudores, totalAdeudado }
   }, [allClientes])
+  const [detalle, setDetalle] = useState(null)
+  const verDetalle = (clave) => setDetalle((actual) => (actual === clave ? null : clave))
 
   const updateCliente = async (id, patch) => {
     const updated = await patchCliente(id, patch)
@@ -355,14 +387,14 @@ export default function ClientesPage() {
         </header>
 
         <section className={styles.metricsGrid}>
-          <div className={styles.metricCard}>
+          <button type="button" className={`${styles.metricCard} ${detalle === 'vigentes' ? styles.metricActiva : ''}`} onClick={() => verDetalle('vigentes')} aria-expanded={detalle === 'vigentes'}>
             <div className={styles.metricHead}>
               <span className={styles.metricLabel}>Vigentes</span>
               <i className="ti ti-circle-check" />
             </div>
-            <div className={styles.metricNum}>{metrics.vigentes}</div>
-          </div>
-          <div className={`${styles.metricCard} ${styles.metricHighlight}`}>
+            <div className={styles.metricNum}>{metrics.vigentes.length}</div>
+          </button>
+          <button type="button" className={`${styles.metricCard} ${styles.metricHighlight} ${detalle === 'proximos' ? styles.metricActiva : ''}`} onClick={() => verDetalle('proximos')} aria-expanded={detalle === 'proximos'}>
             <div className={styles.metricHead}>
               <span className={styles.metricLabel}>
                 <span className={styles.metricLabelFull}>Próximos a vencer</span>
@@ -370,16 +402,16 @@ export default function ClientesPage() {
               </span>
               <i className="ti ti-clock" />
             </div>
-            <div className={`${styles.metricNum} ${styles.metricNumRed}`}>{metrics.proximos}</div>
-          </div>
-          <div className={styles.metricCard}>
+            <div className={`${styles.metricNum} ${styles.metricNumRed}`}>{metrics.proximos.length}</div>
+          </button>
+          <button type="button" className={`${styles.metricCard} ${detalle === 'vencidos' ? styles.metricActiva : ''}`} onClick={() => verDetalle('vencidos')} aria-expanded={detalle === 'vencidos'}>
             <div className={styles.metricHead}>
               <span className={styles.metricLabel}>Vencidos</span>
               <i className="ti ti-alert-triangle" />
             </div>
-            <div className={styles.metricNum}>{metrics.vencidos}</div>
-          </div>
-          <div className={styles.metricCard}>
+            <div className={styles.metricNum}>{metrics.vencidos.length}</div>
+          </button>
+          <button type="button" className={`${styles.metricCard} ${detalle === 'deudores' ? styles.metricActiva : ''}`} onClick={() => verDetalle('deudores')} aria-expanded={detalle === 'deudores'}>
             <div className={styles.metricHead}>
               <span className={styles.metricLabel}>
                 <span className={styles.metricLabelFull}>Total adeudado USD</span>
@@ -388,8 +420,17 @@ export default function ClientesPage() {
               <i className="ti ti-currency-dollar" />
             </div>
             <div className={styles.metricNum}>{formatUsd(metrics.totalAdeudado)}</div>
-          </div>
+          </button>
         </section>
+
+        {detalle ? (
+          <DetalleMetrica
+            lista={metrics[detalle]}
+            deuda={detalle === 'deudores'}
+            aparte={detalle === 'vigentes' ? metrics.senas : null}
+            onAbrir={goToCliente}
+          />
+        ) : null}
 
         {showCreate ? (
           <NuevoClienteForm

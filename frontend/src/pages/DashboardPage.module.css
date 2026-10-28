@@ -50,6 +50,92 @@
   min-width: 0;
 }
 
+button.metricCard {
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+@media (hover: hover) {
+  button.metricCard:hover {
+    border-color: var(--muted);
+  }
+}
+
+.metricActiva {
+  border-color: var(--text);
+}
+
+.detalle {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  padding: clamp(10px, 1.5vw, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detalleLista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 2px 14px;
+}
+
+.detalleFila {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .detalleFila:hover {
+    background: var(--border);
+  }
+}
+
+.detalleNombre {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detalleDato {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.detalleTitulo {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--label);
+}
+
+.detalleVacio {
+  margin: 0;
+  color: var(--muted);
+}
+
 .metricHighlight {
   border-top: 2px solid var(--red);
 }
