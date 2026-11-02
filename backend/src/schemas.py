@@ -635,6 +635,12 @@ class DashboardSemana(BaseModel):
     dias: list[DashboardDiaSemana] = Field(default_factory=list)
 
 
+class VentasNuevasPatch(BaseModel):
+    periodo: str = Field(pattern=r"^\d{4}-\d{2}$")
+    claves: list[str] = Field(min_length=1, max_length=500)
+    nueva: bool
+
+
 class DashboardResponse(BaseModel):
     resumen: DashboardResumen
     detalles: DashboardDetalles = Field(default_factory=DashboardDetalles)

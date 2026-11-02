@@ -202,6 +202,16 @@ class CajaMeta(db.Entity):
     cuotas_updated_at = Required(datetime, default=lambda: datetime.utcnow())
 
 
+# Pagos de Caja 1 que se marcaron como venta nueva (el resto son cuotas de venta).
+class CajaVentaNueva(db.Entity):
+    _table_ = ("clients", "caja_ventas_nuevas")
+
+    periodo = Required(str, 7)
+    clave = Required(str, sql_type="TEXT")
+    updated_at = Optional(datetime, default=lambda: datetime.utcnow())
+    PrimaryKey(periodo, clave)
+
+
 class AnalisisIARun(db.Entity):
     _table_ = ("clients", "analisis_ia_runs")
 

@@ -80,6 +80,17 @@ export function fetchDashboard({ mes, anio, semana } = {}) {
   return request(`/api/clientes/dashboard${suffix}`)
 }
 
+export function fetchVentasNuevas(periodo) {
+  return request(`/api/clientes/ventas-nuevas?periodo=${encodeURIComponent(periodo)}`)
+}
+
+export function marcarVentasNuevas(periodo, claves, nueva) {
+  return request('/api/clientes/ventas-nuevas', {
+    method: 'PUT',
+    body: JSON.stringify({ periodo, claves, nueva }),
+  })
+}
+
 export function fetchCliente(id) {
   return request(`/api/clientes/${id}`)
 }

@@ -6,6 +6,14 @@ db = Database()
 DB_SCHEMA = config("DB_SCHEMA", default="clients")
 
 MIGRATIONS = [
+    """
+    CREATE TABLE IF NOT EXISTS clients.caja_ventas_nuevas (
+        periodo VARCHAR(7) NOT NULL,
+        clave TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'utc'),
+        PRIMARY KEY (periodo, clave)
+    );
+    """,
     "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS fathoms_url TEXT;",
     "ALTER TABLE clients.clientes ADD COLUMN IF NOT EXISTS arreglo_closer TEXT;",
     """

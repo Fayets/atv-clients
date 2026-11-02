@@ -33,6 +33,7 @@ from src.format_fechas import format_fecha_ar, label_actualizacion_caja
 from src.discord_transcript_paths import resolve_transcript_filepath
 from src.models import (
     CajaMeta,
+    CajaVentaNueva,
     Cliente,
     Cuota,
     CuotaComprobante,
@@ -1243,6 +1244,24 @@ class ClientesServices:
             )
         )
         return items
+
+    @db_session
+    def listar_ventas_nuevas(self, periodo: str) -> list[str]:
+        filas = CajaVentaNueva.select_by_sql(
+            "SELECT * FROM clients.caja_ventas_nuevas WHERE periodo = $periodo ORDER BY clave"
+        )
+        return [fila.clave for fila in filas]
+
+    @db_session
+    def marcar_venta_nueva(self, periodo: str, claves: list[str], nueva: bool) -> list[str]:
+        for clave in claves:
+            fila = CajaVentaNueva.get(periodo=periodo, clave=clave)
+            if nueva and fila is None:
+                CajaVentaNueva(periodo=periodo, clave=clave)
+            elif not nueva and fila is not None:
+                fila.delete()
+        flush()
+        return self.listar_ventas_nuevas(periodo)
 
     def obtener_dashboard(
         self,

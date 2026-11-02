@@ -14,6 +14,7 @@ from src.schemas import (
     ClientePagosHistorialResponse,
     CobranzaItem,
     DashboardResponse,
+    VentasNuevasPatch,
     CuotaCreate,
     CuotaPatch,
     CuotaResponse,
@@ -89,6 +90,25 @@ def obtener_dashboard(
         raise e
     except Exception:
         raise HTTPException(status_code=500, detail="Error al cargar el dashboard.")
+
+
+@router.get("/ventas-nuevas", response_model=list[str])
+def listar_ventas_nuevas(
+    periodo: str = Query(pattern=r"^\d{4}-\d{2}$"),
+    _: str = Depends(get_current_user),
+):
+    try:
+        return service.listar_ventas_nuevas(periodo)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al leer las ventas nuevas.")
+
+
+@router.put("/ventas-nuevas", response_model=list[str])
+def marcar_ventas_nuevas(body: VentasNuevasPatch, _: str = Depends(get_current_user)):
+    try:
+        return service.marcar_venta_nueva(body.periodo, body.claves, body.nueva)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al guardar la clasificación.")
 
 
 @router.get("/cobranza", response_model=list[CobranzaItem])

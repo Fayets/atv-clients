@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchDashboard } from '../api/clientes'
+import { fetchDashboard, fetchVentasNuevas, marcarVentasNuevas } from '../api/clientes'
 import Navbar from '../components/Navbar'
 import PlanBadge from '../components/PlanBadge'
 import {
@@ -474,8 +474,9 @@ function PagosPopup({ title, hint, items, onClose, hidePlan = false }) {
   )
 }
 
-// Clasificación manual de Caja 1 para la contadora: solo vive en este navegador.
+// Clasificación manual de Caja 1 para la contadora: se guarda en el servidor, todos ven la misma.
 const LONG_PRESS_MS = 220
+// Antes vivía en el localStorage de cada navegador; lo que quede ahí se sube una vez y se borra.
 const NUEVAS_STORAGE_PREFIX = 'atv-clients:caja1-ventas-nuevas:'
 
 // Clave estable por pago (sin posición en la lista, para que un pago nuevo no corra al resto).
@@ -489,22 +490,32 @@ function cobradoKeys(items) {
   })
 }
 
-function readNuevas(periodo) {
+function takeLegacyNuevas(periodo) {
   try {
     const raw = window.localStorage.getItem(NUEVAS_STORAGE_PREFIX + periodo)
     const parsed = raw ? JSON.parse(raw) : []
-    return new Set(Array.isArray(parsed) ? parsed : [])
+    return Array.isArray(parsed) ? parsed.filter((key) => typeof key === 'string') : []
   } catch {
-    return new Set()
+    return []
   }
 }
 
-function writeNuevas(periodo, keys) {
+function dropLegacyNuevas(periodo) {
   try {
-    window.localStorage.setItem(NUEVAS_STORAGE_PREFIX + periodo, JSON.stringify([...keys]))
+    window.localStorage.removeItem(NUEVAS_STORAGE_PREFIX + periodo)
   } catch {
-    // sin storage: la clasificación dura lo que la pestaña
+    // sin storage: no hay nada que borrar
   }
+}
+
+async function loadNuevas(periodo) {
+  const legacy = takeLegacyNuevas(periodo)
+  if (legacy.length) {
+    const claves = await marcarVentasNuevas(periodo, legacy, true)
+    dropLegacyNuevas(periodo)
+    return new Set(claves)
+  }
+  return new Set(await fetchVentasNuevas(periodo))
 }
 
 function SplitRow({ item, dragging, onPressStart }) {
@@ -537,14 +548,30 @@ function SplitRow({ item, dragging, onPressStart }) {
 }
 
 function CobradoSplitPopup({ title, items, periodo, onClose }) {
-  const [nuevas, setNuevas] = useState(() => readNuevas(periodo))
+  const [nuevas, setNuevas] = useState(null)
+  const [syncError, setSyncError] = useState('')
   const [drag, setDrag] = useState(null)
   const [overCol, setOverCol] = useState(null)
   const pressRef = useRef(null)
   const colRefs = { cuotas: useRef(null), nuevas: useRef(null) }
 
   useEffect(() => {
-    setNuevas(readNuevas(periodo))
+    let cancelled = false
+    setNuevas(null)
+    setSyncError('')
+    loadNuevas(periodo)
+      .then((keys) => {
+        if (!cancelled) setNuevas(keys)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setNuevas(new Set())
+          setSyncError(err.message || 'No se pudo cargar la clasificación.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [periodo])
 
   useEffect(() => {
@@ -562,10 +589,12 @@ function CobradoSplitPopup({ title, items, periodo, onClose }) {
 
   const keys = cobradoKeys(items)
   const keyed = items.map((item, index) => ({ item, key: keys[index] }))
-  const columnas = {
-    cuotas: keyed.filter((row) => !nuevas.has(row.key)),
-    nuevas: keyed.filter((row) => nuevas.has(row.key)),
-  }
+  const columnas = nuevas
+    ? {
+        cuotas: keyed.filter((row) => !nuevas.has(row.key)),
+        nuevas: keyed.filter((row) => nuevas.has(row.key)),
+      }
+    : { cuotas: [], nuevas: [] }
 
   const colAt = (x, y) => {
     for (const id of ['cuotas', 'nuevas']) {
@@ -576,13 +605,25 @@ function CobradoSplitPopup({ title, items, periodo, onClose }) {
   }
 
   const moveTo = (key, col) => {
+    const nueva = col === 'nuevas'
+    setSyncError('')
     setNuevas((prev) => {
       const next = new Set(prev)
-      if (col === 'nuevas') next.add(key)
+      if (nueva) next.add(key)
       else next.delete(key)
-      writeNuevas(periodo, next)
       return next
     })
+    marcarVentasNuevas(periodo, [key], nueva)
+      .then((claves) => setNuevas(new Set(claves)))
+      .catch((err) => {
+        setNuevas((prev) => {
+          const next = new Set(prev)
+          if (nueva) next.delete(key)
+          else next.add(key)
+          return next
+        })
+        setSyncError(err.message || 'No se pudo guardar el cambio.')
+      })
   }
 
   const handlePressStart = (row, from) => (event) => {
@@ -659,7 +700,7 @@ function CobradoSplitPopup({ title, items, periodo, onClose }) {
         </header>
         {rows.length === 0 ? (
           <p className={styles.cajaSplitEmpty}>
-            {id === 'nuevas' ? 'Mantené presionado un pago y soltalo acá.' : 'Sin pagos.'}
+            {nuevas === null ? 'Cargando…' : id === 'nuevas' ? 'Mantené presionado un pago y soltalo acá.' : 'Sin pagos.'}
           </p>
         ) : (
           <ul className={styles.cajaSplitList}>
@@ -692,6 +733,7 @@ function CobradoSplitPopup({ title, items, periodo, onClose }) {
             <p className={styles.popupMeta}>
               {items.length} pagos · mantené presionado y arrastrá entre columnas
             </p>
+            {syncError ? <p className={styles.popupMeta}>{syncError}</p> : null}
           </div>
           <button type="button" className={styles.detailClose} onClick={onClose}>
             <i className="ti ti-x" />
