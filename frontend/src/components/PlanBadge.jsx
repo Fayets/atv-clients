@@ -9,6 +9,7 @@ const PLAN_CLASS = {
   mentoria: styles.mentoria,
   advantage: styles.advantage,
   '2k': styles.advantage,
+  dfy: styles.high,
 }
 
 export default function PlanBadge({ plan }) {

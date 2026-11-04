@@ -84,6 +84,7 @@ export const MESES_POR_PLAN = {
   mentoria: 4,
   advantage: 4,
   '2k': 3,
+  dfy: 6,
 }
 
 // Valor de lista (contado) de las ofertas 2026. Los programas viejos no tienen precio fijo.
@@ -163,6 +164,7 @@ export function formatPlan(plan) {
     boost: 'Boost',
     advantage: 'Advantage',
     '2k': '2K',
+    dfy: 'DFY',
   }
   return labels[plan] || plan
 }

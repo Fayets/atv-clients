@@ -95,8 +95,8 @@ ESTADOS_VALIDOS = frozenset(
 OPORTUNIDADES_VALIDAS = frozenset(
     {"upsell_mid", "upsell_high", "upsell_boost", "upsell_advantage", "recompra", "consultar"}
 )
-PLANES_VALIDOS = frozenset({"entry", "mid", "high", "mentoria", "boost", "advantage", "2k"})
-PLAN_ORDEN = {"high": 0, "mid": 1, "entry": 2, "boost": 3, "advantage": 4, "mentoria": 5, "2k": 6}
+PLANES_VALIDOS = frozenset({"entry", "mid", "high", "mentoria", "boost", "advantage", "2k", "dfy"})
+PLAN_ORDEN = {"dfy": 0, "high": 1, "mid": 2, "entry": 3, "boost": 4, "advantage": 5, "mentoria": 6, "2k": 7}
 DURACION_POR_PLAN = {
     "entry": 120,
     "mid": 120,
@@ -105,6 +105,7 @@ DURACION_POR_PLAN = {
     "mentoria": 120,
     "advantage": 120,
     "2k": 90,  # backend offer: 3 meses
+    "dfy": 180,  # DFY (04-11-2026): 6 meses por defecto hasta que se defina
 }
 PRIORIDADES_VALIDAS = frozenset({"alta", "media", "baja"})
 RESPONSABLES_VALIDOS = frozenset({"lucas", "juampi", "juan", "ale"})

@@ -188,6 +188,8 @@ def _plan_label(plan_actual: str | None) -> str:
         return "Boost"
     if "advantage" in plan:
         return "Advantage"
+    if plan == "dfy":
+        return "DFY"
     if "mentor" in plan or "avanz" in plan or "princip" in plan:
         return "Mentoría"
     return (plan_actual or "—").strip() or "—"
